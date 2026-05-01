@@ -1,7 +1,7 @@
 # Graph Report - Nexora Media Processing  (2026-05-01)
 
 ## Corpus Check
-- 13 files · ~963,842 words
+- 13 files · ~963,913 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary

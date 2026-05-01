@@ -1,28 +1,28 @@
 <#
 .SYNOPSIS
     Nexora Sync - Automatiza a sincronização do workspace com o GitHub.
-    
-.DESCRIPTION
-    Este script verifica alterações, realiza commits seguindo as normas do GitHub
-    e envia para a cloud. Também possui um mecanismo de rollback.
 #>
+
+# Forçar codificação UTF-8 para evitar problemas com acentos
+$OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 param (
     [switch]$Rollback,
     [string]$Message
 )
 
-# Configurações de Cores
-$Green = "`e[32m"
-$Blue = "`e[34m"
+# Configurações de Cores (Compatibilidade PowerShell)
+$Green  = "`e[32m"
+$Blue   = "`e[34m"
 $Yellow = "`e[33m"
-$Red = "`e[31m"
-$Reset = "`e[0m"
+$Red    = "`e[31m"
+$Reset  = "`e[0m"
 
 function Write-Step($msg) { Write-Host "${Blue}[STEP]${Reset} $msg" }
 function Write-Success($msg) { Write-Host "${Green}[OK]${Reset} $msg" }
 function Write-Warning($msg) { Write-Host "${Yellow}[WARN]${Reset} $msg" }
-function Write-ErrorMsg($msg) { Write-Host "${Red}[ERROR]${Reset} $msg" -ForegroundColor Red }
+function Write-ErrorMsg($msg) { Write-Host "${Red}[ERROR]${Reset} $msg" }
 
 # ---------------------------------------------------------
 # FUNÇÃO DE ROLLBACK
@@ -118,6 +118,18 @@ git commit -m $commitMsg
 if ($LASTEXITCODE -ne 0) {
     Write-ErrorMsg "Falha ao realizar o commit."
     exit
+}
+
+# ---------------------------------------------------------
+# LIMPEZA PÓS-COMMIT (GRAPHIFY)
+# ---------------------------------------------------------
+# Pequena pausa para garantir que o hook terminou de escrever os ficheiros
+Start-Sleep -Seconds 1
+$postStatus = git status --porcelain
+if ($postStatus) {
+    Write-Step "Detetadas alterações pós-commit (Graphify). A sincronizar..."
+    git add .
+    git commit -m "docs: atualizar grafo e relatórios (auto)" --no-verify
 }
 
 # ---------------------------------------------------------
