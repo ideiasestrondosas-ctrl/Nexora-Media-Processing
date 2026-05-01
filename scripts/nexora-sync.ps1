@@ -85,6 +85,12 @@ Write-Host $status
 # ---------------------------------------------------------
 $commitMsg = $Message
 if (!$commitMsg) {
+    # Sugestão automática baseada no status
+    $firstFile = ($status -split "`n")[0].Substring(3).Trim()
+    $fileCount = ($status -split "`n").Count
+    $suggestedDesc = "atualizar $firstFile"
+    if ($fileCount -gt 1) { $suggestedDesc += " e mais $($fileCount -1) ficheiros" }
+    
     Write-Host "`nNormas de Commit (GitHub):"
     Write-Host "1. feat: (Novas funcionalidades)"
     Write-Host "2. fix: (Correção de bugs)"
@@ -92,10 +98,18 @@ if (!$commitMsg) {
     Write-Host "4. style: (Formatação, estética)"
     Write-Host "5. refactor: (Refatoração de código)"
     
-    $type = Read-Host "Escolha o tipo (ex: feat, fix, docs)"
-    $desc = Read-Host "Descrição da alteração"
+    $type = Read-Host "Escolha o tipo (Padrão: feat)"
+    if (!$type) { $type = "feat" }
+    
+    $desc = Read-Host "Descrição (Sugestão: $suggestedDesc)"
+    if (!$desc) { $desc = $suggestedDesc }
+    
     $commitMsg = "$($type): $desc"
 }
+
+Write-Step "A utilizar mensagem: '$commitMsg'"
+$confirmCommit = Read-Host "Confirmar commit e push? (y/n, Padrão: y)"
+if ($confirmCommit -eq "n") { Write-Warning "Operação cancelada."; exit }
 
 Write-Step "Adicionando ficheiros e fazendo commit..."
 git add .
