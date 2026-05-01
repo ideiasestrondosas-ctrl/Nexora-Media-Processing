@@ -1,0 +1,177 @@
+
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif}
+h2{font-size:11px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.6px;margin:0 0 8px}
+.divider{height:1px;background:var(--color-border-tertiary);margin:12px 0}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{border-radius:10px;border:0.5px solid var(--color-border-tertiary);padding:10px 12px;background:var(--color-background-primary)}
+.card-desktop{border-color:#85B7EB;background:#E6F1FB}
+.card-server{border-color:#97C459;background:#EAF3DE}
+@media(prefers-color-scheme:dark){
+  .card-desktop{border-color:#185FA5;background:#042C53}
+  .card-server{border-color:#3B6D11;background:#173404}
+}
+.mode-title{font-size:13px;font-weight:500;color:var(--color-text-primary);margin:0 0 2px}
+.mode-sub{font-size:10.5px;color:var(--color-text-secondary);margin:0 0 8px}
+.row{display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:0.5px solid var(--color-border-tertiary)}
+.row:last-child{border-bottom:none}
+.rl{font-size:10.5px;color:var(--color-text-secondary);width:110px;flex-shrink:0}
+.rv{font-size:10.5px;color:var(--color-text-primary);font-weight:500}
+.tag{display:inline-block;font-size:9.5px;padding:1px 6px;border-radius:8px;margin:1px}
+.t-blue{background:#E6F1FB;color:#0C447C;border:0.5px solid #85B7EB}
+.t-green{background:#EAF3DE;color:#27500A;border:0.5px solid #97C459}
+.t-amber{background:#FAEEDA;color:#633806;border:0.5px solid #EF9F27}
+.t-gray{background:var(--color-background-secondary);color:var(--color-text-secondary);border:0.5px solid var(--color-border-tertiary)}
+.t-red{background:#FCEBEB;color:#791F1F;border:0.5px solid #F09595}
+.t-purple{background:#EEEDFE;color:#3C3489;border:0.5px solid #AFA9EC}
+@media(prefers-color-scheme:dark){
+  .t-blue{background:#042C53;color:#B5D4F4;border-color:#185FA5}
+  .t-green{background:#173404;color:#C0DD97;border-color:#3B6D11}
+  .t-amber{background:#412402;color:#FAC775;border-color:#BA7517}
+  .t-red{background:#501313;color:#F7C1C1;border-color:#A32D2D}
+  .t-purple{background:#26215C;color:#CECBF6;border-color:#534AB7}
+}
+.check{color:#27500A;font-size:11px}
+.cross{color:var(--color-text-tertiary);font-size:11px}
+@media(prefers-color-scheme:dark){.check{color:#C0DD97}}
+.flow{display:flex;align-items:center;gap:3px;flex-wrap:wrap;margin-top:6px}
+.fs{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:6px;padding:3px 7px;font-size:10px;color:var(--color-text-primary)}
+.fa{font-size:10px;color:var(--color-text-tertiary)}
+.logo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:0}
+.logo-wrap{border-radius:12px;border:0.5px solid var(--color-border-tertiary);padding:18px 12px 12px;display:flex;flex-direction:column;align-items:center;gap:10px;background:var(--color-background-primary)}
+.logo-name{font-size:11px;font-weight:500;color:var(--color-text-secondary);text-align:center}
+.logo-desc{font-size:10px;color:var(--color-text-tertiary);text-align:center;line-height:1.4}
+.platform-g{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
+.plat{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:8px;padding:7px 10px;text-align:center}
+.plat-name{font-size:11px;font-weight:500;color:var(--color-text-primary);margin:0 0 3px}
+.plat-file{font-size:10px;color:var(--color-text-secondary);margin:0;font-family:monospace}
+.plat-size{font-size:9.5px;color:var(--color-text-tertiary);margin:2px 0 0}
+</style>
+
+<h2>Nexora Media Processing — Dois modos, uma plataforma</h2>
+<div class="g2">
+  <div class="card card-desktop">
+    <div class="mode-title">Nexora Desktop</div>
+    <div class="mode-sub">Windows · macOS · Linux — instalação única</div>
+    <div class="row"><span class="rl">Shell</span><span class="rv">Tauri 2.x (Rust)</span></div>
+    <div class="row"><span class="rl">Frontend</span><span class="rv">React 18 + Tailwind</span></div>
+    <div class="row"><span class="rl">Base de dados</span><span class="rv">SQLite (ficheiro local)</span></div>
+    <div class="row"><span class="rl">Queue</span><span class="rv">Async queue em memória</span></div>
+    <div class="row"><span class="rl">Orquestração</span><span class="rv">Simple orchestrator</span></div>
+    <div class="row"><span class="rl">Storage</span><span class="rv">Pasta local / USB</span></div>
+    <div class="row"><span class="rl">Binários media</span><span class="rv">Incluídos no instalador</span></div>
+    <div class="row"><span class="rl">Multi-user</span><span class="cross">—</span></div>
+    <div class="row"><span class="rl">Docker</span><span class="cross">— não necessário</span></div>
+    <div class="row"><span class="rl">Tamanho</span><span class="rv">~25 MB instalador</span></div>
+    <div class="row"><span class="rl">Jobs simultâneos</span><span class="rv">2–4 (config local)</span></div>
+    <div class="row"><span class="rl">Dashboard</span><span class="rv">Inline na app</span></div>
+    <div class="flow">
+      <span class="fs">Drag &amp; Drop</span><span class="fa">→</span>
+      <span class="fs">QC</span><span class="fa">→</span>
+      <span class="fs">Transcode</span><span class="fa">→</span>
+      <span class="fs">Pasta local</span>
+    </div>
+  </div>
+  <div class="card card-server">
+    <div class="mode-title">Nexora Server</div>
+    <div class="mode-sub">Cloud · On-premises · Docker Compose</div>
+    <div class="row"><span class="rl">API</span><span class="rv">Fastify + OpenAPI 3.1</span></div>
+    <div class="row"><span class="rl">Frontend</span><span class="rv">Next.js 14 App Router</span></div>
+    <div class="row"><span class="rl">Base de dados</span><span class="rv">PostgreSQL 15</span></div>
+    <div class="row"><span class="rl">Queue</span><span class="rv">BullMQ + Redis 7</span></div>
+    <div class="row"><span class="rl">Orquestração</span><span class="rv">Temporal.io</span></div>
+    <div class="row"><span class="rl">Storage</span><span class="rv">MinIO (S3-compatible)</span></div>
+    <div class="row"><span class="rl">Binários media</span><span class="rv">Container Docker</span></div>
+    <div class="row"><span class="rl">Multi-user</span><span class="check">✓ multi-org + API keys</span></div>
+    <div class="row"><span class="rl">Docker</span><span class="check">✓ docker compose up -d</span></div>
+    <div class="row"><span class="rl">Serviços</span><span class="rv">10 containers</span></div>
+    <div class="row"><span class="rl">Jobs simultâneos</span><span class="rv">4–24+ (config servidor)</span></div>
+    <div class="row"><span class="rl">Dashboard</span><span class="rv">Grafana + Prometheus</span></div>
+    <div class="flow">
+      <span class="fs">API / Watch</span><span class="fa">→</span>
+      <span class="fs">Temporal</span><span class="fa">→</span>
+      <span class="fs">Workers</span><span class="fa">→</span>
+      <span class="fs">MinIO/CDN</span>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+<h2>Desktop — Ficheiros de instalação por plataforma</h2>
+<div class="platform-g">
+  <div class="plat">
+    <div class="plat-name">Windows</div>
+    <div class="plat-file">NexoraMediaProcessing<br>-Setup-x64.exe</div>
+    <div class="plat-size">~25 MB · Win 10/11</div>
+    <div style="margin-top:5px"><span class="tag t-blue">WebView2 incluído</span><span class="tag t-blue">NVENC + AMF</span></div>
+  </div>
+  <div class="plat">
+    <div class="plat-name">macOS</div>
+    <div class="plat-file">NexoraMediaProcessing<br>.dmg (Universal)</div>
+    <div class="plat-size">~20 MB · macOS 11+</div>
+    <div style="margin-top:5px"><span class="tag t-amber">Intel + Apple Silicon</span><span class="tag t-amber">VideoToolbox</span></div>
+  </div>
+  <div class="plat">
+    <div class="plat-name">Linux</div>
+    <div class="plat-file">NexoraMediaProcessing<br>-x86_64.AppImage</div>
+    <div class="plat-size">~30 MB · Kernel 4.19+</div>
+    <div style="margin-top:5px"><span class="tag t-green">AppImage · deb · rpm</span><span class="tag t-green">VAAPI</span></div>
+  </div>
+</div>
+
+<div class="divider"></div>
+<h2>Nexora — 3 opções de logótipo</h2>
+<div class="logo-grid">
+
+  <!-- Logo 1: N geométrico com forma de onda -->
+  <div class="logo-wrap">
+    <svg width="120" height="80" viewBox="0 0 120 80">
+      <rect x="16" y="10" width="11" height="60" rx="3" fill="#1A6FD4"/>
+      <rect x="93" y="10" width="11" height="60" rx="3" fill="#1A6FD4"/>
+      <path d="M27 14 L93 66" stroke="#1A6FD4" stroke-width="9" stroke-linecap="round" fill="none"/>
+      <circle cx="26" cy="52" r="6" fill="#4FB8A0"/>
+      <circle cx="60" cy="36" r="5" fill="#4FB8A0" opacity=".7"/>
+      <circle cx="94" cy="28" r="4" fill="#4FB8A0" opacity=".5"/>
+    </svg>
+    <div class="logo-name">Opção 1 — Geometric N</div>
+    <div class="logo-desc">N bold em azul com pontos de dados em teal. Transmite precisão técnica e processamento.</div>
+  </div>
+
+  <!-- Logo 2: Onda de media + frame -->
+  <div class="logo-wrap">
+    <svg width="120" height="80" viewBox="0 0 120 80">
+      <!-- Frame de vídeo -->
+      <rect x="10" y="14" width="60" height="42" rx="5" fill="none" stroke="#1A6FD4" stroke-width="2.5"/>
+      <rect x="16" y="20" width="48" height="30" rx="2" fill="#E6F1FB"/>
+      <!-- Seta de play -->
+      <polygon points="33,27 33,43 49,35" fill="#1A6FD4"/>
+      <!-- Onda de audio -->
+      <path d="M78 28 Q82 18 86 28 Q90 38 94 28 Q98 18 102 28 Q106 38 110 28" stroke="#4FB8A0" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <path d="M78 42 Q81 36 84 42 Q87 48 90 42 Q93 36 96 42 Q99 48 102 42 Q105 36 108 42" stroke="#4FB8A0" stroke-width="2" fill="none" stroke-linecap="round" opacity=".6"/>
+    </svg>
+    <div class="logo-name">Opção 2 — Media Wave</div>
+    <div class="logo-desc">Frame de vídeo com onda de áudio. Comunicativo e reconhecível. Ideal para produto de media.</div>
+  </div>
+
+  <!-- Logo 3: Hexágono com N minimalista -->
+  <div class="logo-wrap">
+    <svg width="120" height="80" viewBox="0 0 120 80">
+      <!-- Hexágono exterior -->
+      <polygon points="60,6 92,24 92,56 60,74 28,56 28,24" fill="none" stroke="#1A6FD4" stroke-width="2"/>
+      <!-- Hexágono interior (filled) -->
+      <polygon points="60,16 82,28 82,52 60,64 38,52 38,28" fill="#1A6FD4" opacity=".12"/>
+      <!-- N minimalista -->
+      <line x1="44" y1="52" x2="44" y2="28" stroke="#1A6FD4" stroke-width="4" stroke-linecap="round"/>
+      <line x1="76" y1="52" x2="76" y2="28" stroke="#1A6FD4" stroke-width="4" stroke-linecap="round"/>
+      <line x1="44" y1="28" x2="76" y2="52" stroke="#4FB8A0" stroke-width="3.5" stroke-linecap="round"/>
+    </svg>
+    <div class="logo-name">Opção 3 — Hex Nexora</div>
+    <div class="logo-desc">Hexágono (evoca infra e tecnologia) com N em azul/teal. Premium e escalável. Forte em ícone pequeno.</div>
+  </div>
+
+</div>
+
+<div style="margin-top:8px;font-size:10.5px;color:var(--color-text-tertiary);text-align:center">
+  Cores base: Azul #1A6FD4 · Teal #4FB8A0 · Ambas acessíveis WCAG AA · Funcionam em claro e escuro
+</div>

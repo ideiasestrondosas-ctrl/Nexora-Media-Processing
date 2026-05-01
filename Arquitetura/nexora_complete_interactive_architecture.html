@@ -1,0 +1,351 @@
+
+<h2 class="sr-only">Nexora Media Processing — Arquitectura completa interactiva com 6 camadas de processamento, 5 agentes IA e stack tecnológica</h2>
+<style>
+*{box-sizing:border-box}
+.wrap{font-family:var(--font-sans);padding:0}
+.top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.title{font-size:14px;font-weight:500;color:var(--color-text-primary)}
+.sub{font-size:11px;color:var(--color-text-secondary)}
+.layer{border-radius:10px;padding:9px 12px;margin-bottom:6px;border:0.5px solid var(--color-border-tertiary);cursor:pointer;transition:box-shadow .15s}
+.layer:hover{box-shadow:0 0 0 1.5px var(--color-border-secondary)}
+.layer.active{box-shadow:0 0 0 2px var(--color-border-primary)}
+.lh{display:flex;align-items:center;gap:8px}
+.lnum{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0}
+.ltitle{font-size:12px;font-weight:500;color:var(--color-text-primary)}
+.lsub{font-size:10.5px;color:var(--color-text-secondary);margin-left:30px;margin-top:2px}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px;margin-left:30px}
+.chip{font-size:10px;padding:2px 7px;border-radius:10px;background:var(--color-background-secondary);color:var(--color-text-secondary);border:0.5px solid var(--color-border-tertiary);white-space:nowrap}
+.chip.blue{background:#E6F1FB;color:#0C447C;border-color:#85B7EB}
+.chip.teal{background:#E1F5EE;color:#085041;border-color:#5DCAA5}
+.chip.green{background:#EAF3DE;color:#27500A;border-color:#97C459}
+.chip.amber{background:#FAEEDA;color:#633806;border-color:#EF9F27}
+.chip.red{background:#FCEBEB;color:#791F1F;border-color:#F09595}
+.chip.purple{background:#EEEDFE;color:#3C3489;border-color:#AFA9EC}
+.chip.coral{background:#FAECE7;color:#712B13;border-color:#F0997B}
+@media(prefers-color-scheme:dark){
+  .chip.blue{background:#042C53;color:#B5D4F4;border-color:#185FA5}
+  .chip.teal{background:#04342C;color:#9FE1CB;border-color:#0F6E56}
+  .chip.green{background:#173404;color:#C0DD97;border-color:#3B6D11}
+  .chip.amber{background:#412402;color:#FAC775;border-color:#BA7517}
+  .chip.red{background:#501313;color:#F7C1C1;border-color:#A32D2D}
+  .chip.purple{background:#26215C;color:#CECBF6;border-color:#534AB7}
+  .chip.coral{background:#4A1B0C;color:#F5C4B3;border-color:#993C1D}
+}
+.detail-panel{background:var(--color-background-secondary);border-radius:10px;padding:10px 14px;margin-bottom:8px;border:0.5px solid var(--color-border-tertiary);min-height:80px}
+.dp-title{font-size:12px;font-weight:500;color:var(--color-text-primary);margin:0 0 6px}
+.dp-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.dp-item{background:var(--color-background-primary);border-radius:7px;padding:6px 9px;border:0.5px solid var(--color-border-tertiary)}
+.dp-item-t{font-size:11px;font-weight:500;color:var(--color-text-primary);margin:0 0 2px}
+.dp-item-s{font-size:10px;color:var(--color-text-secondary);margin:0}
+.arr-row{text-align:center;color:var(--color-text-tertiary);font-size:13px;margin:1px 0;line-height:1.2}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.agent-row{display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap}
+.agent{border-radius:8px;padding:6px 9px;flex:1;min-width:100px}
+.a-cl{background:#E6F1FB;border:0.5px solid #85B7EB}
+.a-ge{background:#FAEEDA;border:0.5px solid #EF9F27}
+.a-de{background:#EEEDFE;border:0.5px solid #AFA9EC}
+.a-ki{background:#FAECE7;border:0.5px solid #F0997B}
+.a-op{background:#EAF3DE;border:0.5px solid #97C459}
+@media(prefers-color-scheme:dark){
+  .a-cl{background:#042C53;border-color:#185FA5}
+  .a-ge{background:#412402;border-color:#BA7517}
+  .a-de{background:#26215C;border-color:#534AB7}
+  .a-ki{background:#4A1B0C;border-color:#993C1D}
+  .a-op{background:#173404;border-color:#3B6D11}
+}
+.a-name{font-size:11px;font-weight:500;color:var(--color-text-primary);margin:0 0 3px}
+.a-owns{font-size:9.5px;color:var(--color-text-secondary);line-height:1.4;margin:0}
+.obs{background:var(--color-background-secondary);border:0.5px dashed var(--color-border-secondary);border-radius:9px;padding:8px 12px;margin-bottom:8px}
+.obs-t{font-size:11px;font-weight:500;color:var(--color-text-secondary);margin:0 0 5px}
+.rule-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;margin-bottom:8px}
+.rule{background:var(--color-background-secondary);border-radius:7px;padding:5px 8px;border-left:2.5px solid #E24B4A;display:flex;align-items:flex-start;gap:6px}
+.rule-no{font-size:9px;background:#FCEBEB;color:#791F1F;border-radius:4px;padding:1px 4px;font-weight:500;white-space:nowrap;margin-top:1px;flex-shrink:0}
+@media(prefers-color-scheme:dark){.rule-no{background:#501313;color:#F7C1C1}}
+.rule-t{font-size:10.5px;color:var(--color-text-primary)}
+.std-row{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.std{font-size:10px;padding:2px 7px;border-radius:10px;background:#E6F1FB;color:#0C447C;border:0.5px solid #85B7EB;cursor:pointer}
+.std:hover{background:#B5D4F4}
+@media(prefers-color-scheme:dark){.std{background:#042C53;color:#B5D4F4;border-color:#185FA5}.std:hover{background:#0C447C}}
+.section-sep{height:1px;background:var(--color-border-tertiary);margin:8px 0}
+.prompt-row{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:8px}
+.prompt-btn{border:0.5px solid var(--color-border-secondary);border-radius:7px;padding:6px 5px;text-align:center;cursor:pointer;transition:background .12s;background:var(--color-background-secondary)}
+.prompt-btn:hover{background:var(--color-background-primary)}
+.pb-num{font-size:10px;font-weight:500;color:var(--color-text-secondary)}
+.pb-agent{font-size:9.5px;color:var(--color-text-tertiary);margin-top:1px}
+.hint{font-size:10px;color:var(--color-text-tertiary);text-align:center;margin-top:4px}
+</style>
+
+<div class="wrap">
+  <div class="top-bar">
+    <div>
+      <div class="title">Nexora Media Processing — Arquitectura</div>
+      <div class="sub">Clica numa camada para ver o detalhe dos workers</div>
+    </div>
+  </div>
+
+  <!-- CAMADAS -->
+  <div id="layers"></div>
+
+  <!-- DETALHE DA CAMADA SELECCIONADA -->
+  <div id="detail-panel" class="detail-panel" style="display:none"></div>
+
+  <div class="arr-row">⬇ Transversal a todas as camadas</div>
+
+  <!-- OBSERVABILIDADE -->
+  <div class="obs">
+    <div class="obs-t">⊕ Observabilidade</div>
+    <div class="chips" style="margin-left:0">
+      <span class="chip amber">Prometheus</span>
+      <span class="chip amber">Grafana</span>
+      <span class="chip red">Alertmanager → PagerDuty</span>
+      <span class="chip">Loki (logs JSON)</span>
+      <span class="chip">Jaeger (tracing)</span>
+      <span class="chip blue">Audit trail imutável</span>
+      <span class="chip purple">Dead-letter queue</span>
+    </div>
+  </div>
+
+  <div class="section-sep"></div>
+
+  <!-- AGENTES IA -->
+  <div style="font-size:11px;font-weight:500;color:var(--color-text-secondary);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Agentes IA — Ownership</div>
+  <div class="agent-row">
+    <div class="agent a-cl">
+      <div class="a-name">Claude</div>
+      <div class="a-owns">Backend · QC rules · Auth · Segurança · Audit · Delivery · Testes · Open source adapters</div>
+    </div>
+    <div class="agent a-op">
+      <div class="a-name">Claude (Orq.)</div>
+      <div class="a-owns">Temporal.io · Decision Engine · REST API · OpenAPI 3.1 · CI/CD</div>
+    </div>
+    <div class="agent a-ge">
+      <div class="a-name">Gemini</div>
+      <div class="a-owns">Next.js 14 · React Components · Dashboard · Upload Flow · Playwright</div>
+    </div>
+    <div class="agent a-de">
+      <div class="a-name">Claude (Perf.)</div>
+      <div class="a-owns">FFmpeg commands · GPU detection · VMAF · Two-pass R128 · Benchmarks</div>
+    </div>
+    <div class="agent a-ki">
+      <div class="a-name">Claude (Logs)</div>
+      <div class="a-owns">Log parser · Error patterns · Root cause · Fix suggestions · Anomaly detect</div>
+    </div>
+  </div>
+
+  <div class="section-sep"></div>
+
+  <!-- PROMPTS RÁPIDOS -->
+  <div style="font-size:11px;font-weight:500;color:var(--color-text-secondary);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Sequência de prompts — semana a semana</div>
+  <div class="prompt-row">
+    <div class="prompt-btn"><div class="pb-num">S1 · P1</div><div class="pb-agent">Claude</div><div style="font-size:9px;color:var(--color-text-tertiary)">Backend</div></div>
+    <div class="prompt-btn"><div class="pb-num">S1 · P5</div><div class="pb-agent">Claude</div><div style="font-size:9px;color:var(--color-text-tertiary)">FFmpeg</div></div>
+    <div class="prompt-btn"><div class="pb-num">S2 · P2</div><div class="pb-agent">Claude</div><div style="font-size:9px;color:var(--color-text-tertiary)">API+Temporal</div></div>
+    <div class="prompt-btn"><div class="pb-num">S2 · P6</div><div class="pb-agent">Claude</div><div style="font-size:9px;color:var(--color-text-tertiary)">Docker</div></div>
+    <div class="prompt-btn"><div class="pb-num">S3 · P3</div><div class="pb-agent">Gemini</div><div style="font-size:9px;color:var(--color-text-tertiary)">Frontend</div></div>
+  </div>
+  <div class="prompt-row">
+    <div class="prompt-btn"><div class="pb-num">S3 · P4</div><div class="pb-agent">Claude</div><div style="font-size:9px;color:var(--color-text-tertiary)">Logs/Debug</div></div>
+    <div class="prompt-btn"><div class="pb-num">S4 · P7</div><div class="pb-agent">Claude</div><div style="font-size:9px;color:var(--color-text-tertiary)">Segurança</div></div>
+    <div class="prompt-btn"><div class="pb-num">S4 · P8</div><div class="pb-agent">Claude</div><div style="font-size:9px;color:var(--color-text-tertiary)">Testes</div></div>
+    <div class="prompt-btn"><div class="pb-num">S4 · P9</div><div class="pb-agent">Claude</div><div style="font-size:9px;color:var(--color-text-tertiary)">Open Source</div></div>
+    <div class="prompt-btn"><div class="pb-num">S4 · P10</div><div class="pb-agent">Claude</div><div style="font-size:9px;color:var(--color-text-tertiary)">Integração</div></div>
+  </div>
+
+  <div class="section-sep"></div>
+
+  <!-- ADRS IMUTÁVEIS -->
+  <div style="font-size:11px;font-weight:500;color:var(--color-text-secondary);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">ADRs imutáveis</div>
+  <div class="rule-grid">
+    <div class="rule"><span class="rule-no">ADR-01</span><span class="rule-t">Temporal.io para orquestração (não BullMQ standalone)</span></div>
+    <div class="rule"><span class="rule-no">ADR-02</span><span class="rule-t">FFmpeg execFile/spawn — nunca exec() com string</span></div>
+    <div class="rule"><span class="rule-no">ADR-03</span><span class="rule-t">SHA-256 em checksums — MD5 proibido</span></div>
+    <div class="rule"><span class="rule-no">ADR-04</span><span class="rule-t">yuv420p obrigatório em outputs de distribuição</span></div>
+    <div class="rule"><span class="rule-no">ADR-05</span><span class="rule-t">Two-pass R128 + BS1770GAIN verificação independente</span></div>
+    <div class="rule"><span class="rule-no">ADR-06</span><span class="rule-t">Closed GOP + IDR frames em todos os outputs broadcast</span></div>
+    <div class="rule"><span class="rule-no">ADR-07</span><span class="rule-t">Audit trail append-only — UPDATE/DELETE proibidos</span></div>
+    <div class="rule"><span class="rule-no">ADR-08</span><span class="rule-t">RS256 JWT com rotação — HS256 proibido em produção</span></div>
+  </div>
+
+  <div class="section-sep"></div>
+
+  <!-- STANDARDS -->
+  <div style="font-size:11px;font-weight:500;color:var(--color-text-secondary);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Standards da indústria cobertos</div>
+  <div class="std-row">
+    <span class="std">EBU R128</span><span class="std">ITU-R BS.1770-4</span><span class="std">AS-11 UK DPP</span>
+    <span class="std">IMF SMPTE ST 2067</span><span class="std">CMAF ISO 23000-19</span><span class="std">EBU Core</span>
+    <span class="std">Apple HLS Authoring</span><span class="std">DASH-IF IOP</span><span class="std">Harding FPA</span>
+    <span class="std">SCTE-35</span><span class="std">SPEKE/CPIX DRM</span><span class="std">Netflix per-title</span>
+    <span class="std">ATSC A/85</span><span class="std">SMPTE 330M UMID</span>
+  </div>
+
+</div>
+
+<script>
+const LAYERS = [
+  {
+    num:'①', title:'Ingest', sub:'Receção multi-origem · identificação · deduplicação',
+    color:'teal', bg:'#E1F5EE', bgd:'#04342C', border:'#5DCAA5',
+    chips:[
+      {t:'Watch folder (inotify)',c:''},{t:'API HTTP/JWT',c:''},{t:'S3 / MinIO',c:''},
+      {t:'FTP / SFTP',c:''},{t:'RTMP / SRT live',c:''},{t:'SHA-256 dedup',c:'teal'},
+      {t:'Perceptual hash',c:'teal'},{t:'UUID v4 asset ID',c:'blue'},{t:'Proveniência imutável',c:'blue'}
+    ],
+    detail:{
+      title:'Camada 1 — Ingest: o que acontece',
+      items:[
+        {t:'Origens suportadas',s:'Watch folder, API HTTP, S3/MinIO, FTP, RTMP/SRT live, Aspera FASP'},
+        {t:'Deduplicação SHA-256',s:'Fingerprint criptográfico do ficheiro completo — detecta duplicados exactos'},
+        {t:'Deduplicação perceptual',s:'pHash de vídeo e Chromaprint de áudio — detecta re-encodes do mesmo conteúdo'},
+        {t:'UUID interno',s:'Gerado imediatamente ao ingest — o filename original nunca é usado em shell commands'},
+      ]
+    }
+  },
+  {
+    num:'②', title:'QC & Validação', sub:'Conformance check antes de qualquer processamento',
+    color:'purple', bg:'#EEEDFE', bgd:'#26215C', border:'#AFA9EC',
+    chips:[
+      {t:'MediaInfo + FFprobe',c:'purple'},{t:'MediaConch policy XML',c:'purple'},
+      {t:'GOP inspection',c:'purple'},{t:'CFR check',c:'purple'},
+      {t:'EBU R128 + True Peak',c:'blue'},{t:'Black/Freeze/Flash',c:'red'},
+      {t:'Telecine detect',c:''},{t:'AS-11 conformance',c:'blue'},
+      {t:'PASS / QUARANTINE / REJECT',c:'green'}
+    ],
+    detail:{
+      title:'Camada 2 — QC: regras obrigatórias',
+      items:[
+        {t:'Closed GOP + IDR frames',s:'VFR, Open GOP ou B-frames → REJECT automático (ADR-006)'},
+        {t:'Pixel format yuv420p',s:'yuv422p ou yuv444p → REJECT (ADR-004)'},
+        {t:'Loudness EBU R128',s:'Mede com BS1770GAIN independentemente do FFmpeg (ADR-009)'},
+        {t:'Conformance formal',s:'MediaConch verifica AS-11 UK DPP e IMF com policy XML'},
+      ]
+    }
+  },
+  {
+    num:'③', title:'Intelligence', sub:'Análise de conteúdo · decisão automática de perfil',
+    color:'amber', bg:'#FAEEDA', bgd:'#412402', border:'#EF9F27',
+    chips:[
+      {t:'SI/TI analysis',c:'amber'},{t:'Content classification',c:'amber'},
+      {t:'Per-title encoding',c:'amber'},{t:'VMAF calibration',c:'amber'},
+      {t:'Bitrate ladder dinâmica',c:''},{t:'Profile selector',c:'blue'},
+      {t:'Sport → +30% bitrate',c:''},{t:'Animation → -40% bitrate',c:''}
+    ],
+    detail:{
+      title:'Camada 3 — Intelligence: decisões automáticas',
+      items:[
+        {t:'Classificação de conteúdo',s:'Talking head, sport, cinema, animation, news via SI/TI'},
+        {t:'Per-title encoding',s:'Pilot encode → VMAF calibration → bitrate ladder personalizada (Netflix spec)'},
+        {t:'Profile selector',s:'nexora_broadcast_hd | nexora_ott_premium | nexora_streaming_web | nexora_archive'},
+        {t:'Decision Engine',s:'11 regras determinísticas: VFR, GOP, B-frames, pixfmt, loudness, LUFS deviation...'},
+      ]
+    }
+  },
+  {
+    num:'④', title:'Processing — Workers Distribuídos', sub:'Temporal.io · retry backoff · dead-letter · FFmpeg isolado',
+    color:'blue', bg:'#E6F1FB', bgd:'#042C53', border:'#85B7EB',
+    chips:[
+      {t:'Transcode H.264/H.265',c:'blue'},{t:'Audio two-pass R128',c:'blue'},
+      {t:'Legendas CEA-708/TTML',c:'blue'},{t:'HDR/SDR tone mapping',c:''},
+      {t:'DRM Widevine/FairPlay',c:'purple'},{t:'Proxy LowRes + Mezzanine',c:''},
+      {t:'Thumbnail sprites VTT',c:''},{t:'CMAF packaging',c:'blue'},
+      {t:'HandBrakeCLI (proxies)',c:'green'}
+    ],
+    detail:{
+      title:'Camada 4 — Processing: workers em paralelo',
+      items:[
+        {t:'Transcode vídeo',s:'Closed GOP + IDR + sc_threshold 0 + yuv420p + faststart (SEMPRE)'},
+        {t:'Audio normalize',s:'Two-pass EBU R128 → -23 LUFS broadcast / -14 LUFS streaming / -1 dBTP'},
+        {t:'DRM packaging',s:'CMAF com Widevine (CENC) + FairPlay (CBCS) + PlayReady via SPEKE/CPIX'},
+        {t:'Proxy + sprites',s:'HandBrake para LowRes (800kbps 720p) · FFmpeg para sprite sheets VTT'},
+      ]
+    }
+  },
+  {
+    num:'⑤', title:'QC Pós-encode', sub:'Verificação independente — nunca assumir que está correcto',
+    color:'coral', bg:'#FAECE7', bgd:'#4A1B0C', border:'#F0997B',
+    chips:[
+      {t:'VMAF ≥85/90/93',c:'coral'},{t:'SHA-256 checksum',c:'coral'},
+      {t:'BS1770GAIN verify',c:'coral'},{t:'MediaConch AS-11 final',c:'blue'},
+      {t:'Loudness ±0.5 LU',c:''},{t:'True Peak ≤ -1 dBTP',c:''}
+    ],
+    detail:{
+      title:'Camada 5 — QC pós-encode: thresholds',
+      items:[
+        {t:'VMAF scoring',s:'archive ≥93 · broadcast ≥90 · streaming ≥85 · proxy ≥70 (1st percentile)'},
+        {t:'BS1770GAIN',s:'Verificação independente: LUFS ±0.5 do target + True Peak ≤ -1.0 dBTP'},
+        {t:'SHA-256 chain',s:'Hash calculado no input e no output — comparados antes do delivery'},
+        {t:'Conformance final',s:'MediaConch XML report arquivado como prova de conformance'},
+      ]
+    }
+  },
+  {
+    num:'⑥', title:'Delivery', sub:'Distribuição resiliente · metadata EBU Core · playout trigger',
+    color:'green', bg:'#EAF3DE', bgd:'#173404', border:'#97C459',
+    chips:[
+      {t:'S3 multipart upload',c:'green'},{t:'MXF/FTP playout ingest',c:'green'},
+      {t:'EBU Core sidecar XML',c:'blue'},{t:'EIDR · UMID',c:'blue'},
+      {t:'SHA-256 pós-upload',c:'green'},{t:'ready_for_schedule API',c:''},
+      {t:'SCTE-35 markers',c:'amber'},{t:'Webhook outbound',c:''}
+    ],
+    detail:{
+      title:'Camada 6 — Delivery: outputs e triggers',
+      items:[
+        {t:'S3 multipart resiliente',s:'Upload em chunks com SHA-256 por parte + verificação pós-upload'},
+        {t:'MAM metadata',s:'EBU Core XML sidecar com EIDR, UMID (SMPTE 330M), timecode TC'},
+        {t:'Playout trigger',s:'API status: GET /assets/:id/status → "ready_for_schedule" + webhook'},
+        {t:'Formatos suportados',s:'MP4 (web) · MXF OP1a (broadcast) · CMAF (OTT) · ProRes (archive)'},
+      ]
+    }
+  }
+];
+
+function isDark(){return window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches}
+
+function renderLayers(){
+  const container=document.getElementById('layers');
+  container.innerHTML='';
+  LAYERS.forEach((l,i)=>{
+    const d=document.createElement('div');
+    d.className='layer';
+    d.style.background=isDark()?l.bgd+'33':l.bg;
+    d.style.borderColor=l.border;
+    d.innerHTML=`
+      <div class="lh">
+        <div class="lnum" style="background:${l.border};color:${isDark()?'#fff':'#fff'}">${l.num}</div>
+        <div>
+          <div class="ltitle">${l.title}</div>
+          <div class="lsub">${l.sub}</div>
+        </div>
+      </div>
+      <div class="chips">${l.chips.map(c=>`<span class="chip ${c.c}">${c.t}</span>`).join('')}</div>
+    `;
+    d.addEventListener('click',()=>showDetail(i,d));
+    if(i<LAYERS.length-1){
+      const arr=document.createElement('div');
+      arr.className='arr-row';
+      arr.textContent='↓';
+      container.appendChild(d);
+      container.appendChild(arr);
+    } else {
+      container.appendChild(d);
+    }
+  });
+}
+
+function showDetail(idx,el){
+  const panel=document.getElementById('detail-panel');
+  document.querySelectorAll('.layer').forEach(l=>l.classList.remove('active'));
+  el.classList.add('active');
+  const d=LAYERS[idx].detail;
+  panel.style.display='block';
+  panel.innerHTML=`<div class="dp-title">${d.title}</div>
+    <div class="dp-grid">${d.items.map(it=>`
+      <div class="dp-item">
+        <div class="dp-item-t">${it.t}</div>
+        <div class="dp-item-s">${it.s}</div>
+      </div>`).join('')}
+    </div>`;
+}
+
+renderLayers();
+</script>

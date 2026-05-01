@@ -1,0 +1,324 @@
+
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:0;font-family:var(--font-sans,-apple-system,BlinkMacSystemFont,'Inter',sans-serif)}
+.wrap{padding:0}
+.phase{border-radius:10px;border:0.5px solid var(--color-border-tertiary);margin-bottom:8px;overflow:hidden}
+.phase-header{padding:9px 13px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.phase-icon{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0}
+.phase-title{font-size:12px;font-weight:500;color:var(--color-text-primary)}
+.phase-sub{font-size:10.5px;color:var(--color-text-secondary);margin-left:auto}
+.phase-body{padding:0 13px 10px;display:none}
+.phase.open .phase-body{display:block}
+.step-list{margin:0;padding:0;list-style:none}
+.step{display:flex;gap:9px;padding:5px 0;border-bottom:0.5px solid var(--color-border-tertiary);align-items:flex-start}
+.step:last-child{border-bottom:none}
+.step-num{width:18px;height:18px;border-radius:50%;font-size:10px;font-weight:500;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.step-body{flex:1}
+.step-title{font-size:11px;font-weight:500;color:var(--color-text-primary);margin:0 0 1px}
+.step-desc{font-size:10.5px;color:var(--color-text-secondary);margin:0 0 4px}
+.step-code{font-family:var(--font-mono,'JetBrains Mono',monospace);font-size:10px;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:5px;padding:3px 7px;color:var(--color-text-primary);display:block;margin:2px 0;white-space:pre-wrap;word-break:break-all}
+.tag-row{display:flex;gap:3px;flex-wrap:wrap;margin-top:3px}
+.tag{font-size:9.5px;padding:1px 6px;border-radius:8px;font-weight:400}
+.t-mac{background:#E6F1FB;color:#0C447C}
+.t-win{background:#EAF3DE;color:#27500A}
+.t-lnx{background:#FAEEDA;color:#633806}
+.t-all{background:#EEEDFE;color:#3C3489}
+.t-cl{background:#E6F1FB;color:#0C447C;border:0.5px solid #85B7EB}
+.t-ge{background:#FAEEDA;color:#633806;border:0.5px solid #EF9F27}
+.step-verify{font-size:10px;color:#27500A;background:#EAF3DE;border-radius:5px;padding:2px 7px;margin-top:3px;display:inline-block}
+@media(prefers-color-scheme:dark){
+  .t-mac{background:#042C53;color:#B5D4F4}
+  .t-win{background:#173404;color:#C0DD97}
+  .t-lnx{background:#412402;color:#FAC775}
+  .t-all{background:#26215C;color:#CECBF6}
+  .t-cl{background:#042C53;color:#B5D4F4;border-color:#185FA5}
+  .t-ge{background:#412402;color:#FAC775;border-color:#BA7517}
+  .step-verify{color:#C0DD97;background:#173404}
+}
+.ph1{background:linear-gradient(90deg,#E1F5EE 0%,var(--color-background-primary) 60%);border-color:#5DCAA5}
+.ph2{background:linear-gradient(90deg,#E6F1FB 0%,var(--color-background-primary) 60%);border-color:#85B7EB}
+.ph3{background:linear-gradient(90deg,#FAEEDA 0%,var(--color-background-primary) 60%);border-color:#EF9F27}
+.ph4{background:linear-gradient(90deg,#EAF3DE 0%,var(--color-background-primary) 60%);border-color:#97C459}
+@media(prefers-color-scheme:dark){
+  .ph1{background:linear-gradient(90deg,rgba(9,52,44,.4) 0%,transparent 60%)}
+  .ph2{background:linear-gradient(90deg,rgba(4,44,83,.4) 0%,transparent 60%)}
+  .ph3{background:linear-gradient(90deg,rgba(65,36,2,.4) 0%,transparent 60%)}
+  .ph4{background:linear-gradient(90deg,rgba(23,52,4,.4) 0%,transparent 60%)}
+}
+.ic1{background:#5DCAA5;color:#fff}
+.ic2{background:#85B7EB;color:#fff}
+.ic3{background:#EF9F27;color:#fff}
+.ic4{background:#97C459;color:#fff}
+.progress-bar{height:4px;background:var(--color-border-tertiary);border-radius:2px;margin-bottom:10px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,#5DCAA5,#85B7EB,#EF9F27,#97C459);border-radius:2px;transition:width .3s}
+.progress-label{font-size:10px;color:var(--color-text-tertiary);text-align:right;margin-bottom:6px}
+.hint{font-size:10.5px;color:var(--color-text-secondary);text-align:center;margin-top:6px}
+</style>
+
+<div class="wrap">
+  <div style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:2px">Nexora — Guia de Execução Passo a Passo</div>
+  <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:8px">Clica em cada fase para ver os passos detalhados</div>
+
+  <div class="progress-bar"><div class="progress-fill" id="prog" style="width:0%"></div></div>
+  <div class="progress-label" id="prog-label">0 de 4 fases concluídas</div>
+
+  <!-- FASE 1 -->
+  <div class="phase ph1 open" id="ph1">
+    <div class="phase-header" onclick="toggle('ph1',1)">
+      <div class="phase-icon ic1">1</div>
+      <div>
+        <div class="phase-title">Fase 1 — Preparação do Ambiente</div>
+      </div>
+      <div class="phase-sub">~20 min · Uma vez apenas</div>
+    </div>
+    <div class="phase-body">
+      <ul class="step-list">
+        <li class="step">
+          <div class="step-num" style="background:#E1F5EE;color:#085041">1</div>
+          <div class="step-body">
+            <div class="step-title">Instalar as ferramentas automaticamente</div>
+            <div class="step-desc">Um único script instala tudo: Node.js, Git, Docker, FFmpeg, MediaInfo...</div>
+            <code class="step-code"># macOS / Linux — no Terminal:
+bash scripts/nexora-setup.sh
+
+# Windows — no PowerShell como Administrador:
+.\scripts\nexora-setup.ps1</code>
+            <div class="tag-row"><span class="tag t-mac">macOS</span><span class="tag t-lnx">Linux</span><span class="tag t-win">Windows</span></div>
+            <div class="step-verify">✓ Esperar: "Nexora setup completo!"</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num" style="background:#E1F5EE;color:#085041">2</div>
+          <div class="step-body">
+            <div class="step-title">Criar repositório no GitHub</div>
+            <div class="step-desc">Vai a github.com → New repository → nome: nexora-media-processing → Create</div>
+            <div class="step-verify">✓ URL do repositório criado e guardado</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num" style="background:#E1F5EE;color:#085041">3</div>
+          <div class="step-body">
+            <div class="step-title">Clonar e criar a estrutura do projecto</div>
+            <code class="step-code">git clone https://github.com/[utilizador]/nexora-media-processing.git
+cd nexora-media-processing
+node scripts/nexora-scaffold.js
+node scripts/nexora-deploy-docs.js
+node scripts/nexora-finalize.js</code>
+            <div class="step-verify">✓ Esperar: "Finalização concluída!"</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num" style="background:#E1F5EE;color:#085041">4</div>
+          <div class="step-body">
+            <div class="step-title">Configurar variáveis de ambiente</div>
+            <code class="step-code">cp .env.example .env
+# Abre .env no Antigravity e edita as passwords</code>
+            <div class="step-verify">✓ Ficheiro .env criado e editado</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num" style="background:#E1F5EE;color:#085041">5</div>
+          <div class="step-body">
+            <div class="step-title">Instalar dependências e iniciar serviços</div>
+            <code class="step-code">npm install
+docker compose up -d
+sleep 30
+npm run db:migrate
+npm run dev</code>
+            <div class="step-verify">✓ http://localhost:3000/health → {"status":"ok"}</div>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- FASE 2 -->
+  <div class="phase ph2" id="ph2">
+    <div class="phase-header" onclick="toggle('ph2',2)">
+      <div class="phase-icon ic2">2</div>
+      <div>
+        <div class="phase-title">Fase 2 — Semanas 1 e 2: Backend + API</div>
+      </div>
+      <div class="phase-sub">~2 semanas · Prompts 1,5,2,6</div>
+    </div>
+    <div class="phase-body">
+      <ul class="step-list">
+        <li class="step">
+          <div class="step-num" style="background:#E6F1FB;color:#0C447C">6</div>
+          <div class="step-body">
+            <div class="step-title">Abrir Google Antigravity no projecto</div>
+            <div class="step-desc">File → Open Folder → seleccionar nexora-media-processing</div>
+            <div class="step-verify">✓ Ficheiros visíveis na barra lateral</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num" style="background:#E6F1FB;color:#0C447C">7</div>
+          <div class="step-body">
+            <div class="step-title">Executar Prompt 1 — Backend Core</div>
+            <div class="step-desc">Cmd+Shift+I → seleccionar Claude → colar Prompt 1 → Enter</div>
+            <div class="tag-row"><span class="tag t-cl">Claude</span><span class="tag t-all">Semana 1</span></div>
+            <div class="step-verify">✓ Workers criados + QC rules + BullMQ setup</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num" style="background:#E6F1FB;color:#0C447C">8</div>
+          <div class="step-body">
+            <div class="step-title">Executar Prompt 5 — FFmpeg + Performance</div>
+            <div class="step-desc">Mesmo processo: Claude → Prompt 5</div>
+            <div class="tag-row"><span class="tag t-cl">Claude</span><span class="tag t-all">Semana 1</span></div>
+            <div class="step-verify">✓ GPU detection + VMAF + two-pass R128</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num" style="background:#E6F1FB;color:#0C447C">9</div>
+          <div class="step-body">
+            <div class="step-title">Executar Prompt 2 — Orquestração + API</div>
+            <div class="tag-row"><span class="tag t-cl">Claude</span><span class="tag t-all">Semana 2</span></div>
+            <div class="step-verify">✓ Temporal.io workflows + Decision Engine + REST API</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num" style="background:#E6F1FB;color:#0C447C">10</div>
+          <div class="step-body">
+            <div class="step-title">Executar Prompt 6 — Docker + Infra completa</div>
+            <div class="tag-row"><span class="tag t-cl">Claude</span><span class="tag t-all">Semana 2</span></div>
+            <code class="step-code">docker compose down && docker compose up -d</code>
+            <div class="step-verify">✓ Temporal UI em :8080 · Grafana em :3001 · MinIO em :9001</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num" style="background:#E6F1FB;color:#0C447C">11</div>
+          <div class="step-body">
+            <div class="step-title">Correr testes e verificar qualidade</div>
+            <code class="step-code">npm run fixtures:generate
+npm run test:coverage</code>
+            <div class="step-verify">✓ Testes das QC rules: verde · Cobertura ≥ 80%</div>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- FASE 3 -->
+  <div class="phase ph3" id="ph3">
+    <div class="phase-header" onclick="toggle('ph3',3)">
+      <div class="phase-icon ic3">3</div>
+      <div>
+        <div class="phase-title">Fase 3 — Semana 3: Frontend + Debug</div>
+      </div>
+      <div class="phase-sub">~1 semana · Prompts 3,4</div>
+    </div>
+    <div class="phase-body">
+      <ul class="step-list">
+        <li class="step">
+          <div class="step-num" style="background:#FAEEDA;color:#633806">12</div>
+          <div class="step-body">
+            <div class="step-title">Executar Prompt 3 — Frontend Next.js</div>
+            <div class="step-desc">Cmd+Shift+I → seleccionar Gemini → colar Prompt 3 → Enter</div>
+            <div class="tag-row"><span class="tag t-ge">Gemini</span><span class="tag t-all">Semana 3</span></div>
+            <div class="step-verify">✓ Interface web em http://localhost:3000</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num" style="background:#FAEEDA;color:#633806">13</div>
+          <div class="step-body">
+            <div class="step-title">Iniciar o frontend</div>
+            <code class="step-code">cd frontend && npm install && npm run dev</code>
+            <div class="step-verify">✓ Dashboard visível com métricas reais</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num" style="background:#FAEEDA;color:#633806">14</div>
+          <div class="step-body">
+            <div class="step-title">Executar Prompt 4 — Log Analysis + Debug</div>
+            <div class="tag-row"><span class="tag t-cl">Claude</span><span class="tag t-all">Semana 3</span></div>
+            <div class="step-verify">✓ Parser de logs FFmpeg + anomaly detector</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num" style="background:#FAEEDA;color:#633806">15</div>
+          <div class="step-body">
+            <div class="step-title">Testar upload de um ficheiro de vídeo real</div>
+            <div class="step-desc">Vai a http://localhost:3000 → Upload → arrasta um vídeo → selecciona perfil → Processar</div>
+            <div class="step-verify">✓ Asset muda para "READY" e ficheiro processado aparece</div>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- FASE 4 -->
+  <div class="phase ph4" id="ph4">
+    <div class="phase-header" onclick="toggle('ph4',4)">
+      <div class="phase-icon ic4">4</div>
+      <div>
+        <div class="phase-title">Fase 4 — Semana 4: Segurança + Testes + Finalização</div>
+      </div>
+      <div class="phase-sub">~1 semana · Prompts 7,8,9,10</div>
+    </div>
+    <div class="phase-body">
+      <ul class="step-list">
+        <li class="step">
+          <div class="step-num" style="background:#EAF3DE;color:#27500A">16</div>
+          <div class="step-body">
+            <div class="step-title">Executar Prompt 7 — Segurança completa</div>
+            <div class="tag-row"><span class="tag t-cl">Claude</span></div>
+            <div class="step-verify">✓ JWT RS256 + validação de ficheiros + FFmpeg injection prevention</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num" style="background:#EAF3DE;color:#27500A">17</div>
+          <div class="step-body">
+            <div class="step-title">Executar Prompt 8 — Suite de testes completa</div>
+            <div class="tag-row"><span class="tag t-cl">Claude</span></div>
+            <div class="step-verify">✓ Unit + Integration + E2E + Performance (k6)</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num" style="background:#EAF3DE;color:#27500A">18</div>
+          <div class="step-body">
+            <div class="step-title">Executar Prompt 9 — Adaptadores open source</div>
+            <div class="tag-row"><span class="tag t-cl">Claude</span></div>
+            <div class="step-verify">✓ HandBrake + BS1770GAIN + MediaInfo + VLC adapters</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num" style="background:#EAF3DE;color:#27500A">19</div>
+          <div class="step-body">
+            <div class="step-title">Executar Prompt 10 — Integração final</div>
+            <div class="tag-row"><span class="tag t-cl">Claude</span></div>
+            <div class="step-verify">✓ Shared types + verificação completa + ADRs + README final</div>
+          </div>
+        </li>
+        <li class="step">
+          <div class="step-num" style="background:#EAF3DE;color:#27500A">20</div>
+          <div class="step-body">
+            <div class="step-title">Checklist de aceitação final</div>
+            <code class="step-code">npm run build          # sem erros TypeScript
+npm run lint           # sem warnings ESLint
+npm run test:coverage  # ≥ 80% cobertura
+docker compose ps      # todos os serviços Up</code>
+            <div class="step-verify">✓ Nexora está pronto para produção 🎉</div>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="hint">Clica no cabeçalho de cada fase para expandir ou recolher os passos</div>
+</div>
+
+<script>
+const phasesDone = [false,false,false,false];
+function toggle(id, num) {
+  const el = document.getElementById(id);
+  el.classList.toggle('open');
+}
+function updateProgress() {
+  const done = phasesDone.filter(Boolean).length;
+  document.getElementById('prog').style.width = (done/4*100) + '%';
+  document.getElementById('prog-label').textContent = done + ' de 4 fases concluídas';
+}
+updateProgress();
+</script>

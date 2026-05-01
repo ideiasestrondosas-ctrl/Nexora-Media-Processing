@@ -1,0 +1,381 @@
+
+<style>
+body{margin:0;padding:0}
+.layer-wrap{padding:4px 0}
+.layer{border-radius:10px;border:0.5px solid var(--color-border-secondary);padding:10px 12px;margin-bottom:6px;position:relative}
+.layer-title{font-size:13px;font-weight:500;color:var(--color-text-primary);margin:0 0 2px}
+.layer-sub{font-size:11px;color:var(--color-text-secondary);margin:0 0 8px}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.chip{font-size:11px;padding:3px 9px;border-radius:20px;font-weight:400;white-space:nowrap}
+.chip-gray{background:var(--color-background-secondary);color:var(--color-text-secondary);border:0.5px solid var(--color-border-tertiary)}
+.chip-blue{background:#E6F1FB;color:#0C447C;border:0.5px solid #85B7EB}
+.chip-teal{background:#E1F5EE;color:#085041;border:0.5px solid #5DCAA5}
+.chip-green{background:#EAF3DE;color:#27500A;border:0.5px solid #97C459}
+.chip-amber{background:#FAEEDA;color:#633806;border:0.5px solid #EF9F27}
+.chip-red{background:#FCEBEB;color:#791F1F;border:0.5px solid #F09595}
+.chip-purple{background:#EEEDFE;color:#3C3489;border:0.5px solid #AFA9EC}
+.chip-coral{background:#FAECE7;color:#712B13;border:0.5px solid #F0997B}
+.chip-crit{background:#FCEBEB;color:#791F1F;border:0.5px solid #E24B4A;font-weight:500}
+.chip-ok{background:#EAF3DE;color:#27500A;border:0.5px solid #639922;font-weight:500}
+.l1{background:linear-gradient(90deg,#E1F5EE 0%,var(--color-background-primary) 100%);border-color:#5DCAA5}
+.l2{background:linear-gradient(90deg,#EEEDFE 0%,var(--color-background-primary) 100%);border-color:#AFA9EC}
+.l3{background:linear-gradient(90deg,#FAEEDA 0%,var(--color-background-primary) 100%);border-color:#EF9F27}
+.l4{background:linear-gradient(90deg,#E6F1FB 0%,var(--color-background-primary) 100%);border-color:#85B7EB}
+.l5{background:linear-gradient(90deg,#FAECE7 0%,var(--color-background-primary) 100%);border-color:#F0997B}
+.l6{background:linear-gradient(90deg,#EAF3DE 0%,var(--color-background-primary) 100%);border-color:#97C459}
+.obs{background:var(--color-background-secondary);border:0.5px dashed var(--color-border-secondary);border-radius:10px;padding:10px 12px;margin-bottom:6px}
+.arrow-down{text-align:center;color:var(--color-text-tertiary);font-size:14px;line-height:1;margin:1px 0;user-select:none}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:6px}
+.worker{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:8px;padding:7px 9px}
+.worker-title{font-size:12px;font-weight:500;color:var(--color-text-primary);margin:0 0 2px}
+.worker-sub{font-size:10.5px;color:var(--color-text-secondary);margin:0}
+.badge-row{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.badge{font-size:10px;padding:1px 6px;border-radius:10px}
+.std{background:#E6F1FB;color:#185FA5;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:500}
+.priority-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:0;margin-top:8px;border-radius:8px;overflow:hidden;border:0.5px solid var(--color-border-tertiary)}
+.pg-header{background:var(--color-background-secondary);font-size:11px;font-weight:500;padding:5px 8px;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary)}
+.pg-cell{font-size:11px;padding:5px 8px;color:var(--color-text-primary);border-bottom:0.5px solid var(--color-border-tertiary)}
+.pg-cell:nth-child(4n){border-right:none}
+.sprint-row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.sprint{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:8px;padding:7px 10px;flex:1;min-width:120px}
+.sprint-label{font-size:10px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin:0 0 4px}
+.sprint-item{font-size:11px;color:var(--color-text-primary);margin:2px 0;padding-left:8px;position:relative}
+.sprint-item::before{content:"·";position:absolute;left:0;color:var(--color-text-tertiary)}
+h2{font-size:14px;font-weight:500;color:var(--color-text-primary);margin:14px 0 4px;padding-bottom:4px;border-bottom:0.5px solid var(--color-border-tertiary)}
+h3{font-size:12px;font-weight:500;color:var(--color-text-secondary);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.4px}
+@media(prefers-color-scheme:dark){
+  .l1{background:linear-gradient(90deg,rgba(9,52,44,.35) 0%,transparent 100%)}
+  .l2{background:linear-gradient(90deg,rgba(38,33,92,.35) 0%,transparent 100%)}
+  .l3{background:linear-gradient(90deg,rgba(65,36,2,.35) 0%,transparent 100%)}
+  .l4{background:linear-gradient(90deg,rgba(4,44,83,.35) 0%,transparent 100%)}
+  .l5{background:linear-gradient(90deg,rgba(74,27,12,.35) 0%,transparent 100%)}
+  .l6{background:linear-gradient(90deg,rgba(23,52,4,.35) 0%,transparent 100%)}
+  .chip-blue{background:#042C53;color:#B5D4F4;border-color:#185FA5}
+  .chip-teal{background:#04342C;color:#9FE1CB;border-color:#0F6E56}
+  .chip-green{background:#173404;color:#C0DD97;border-color:#3B6D11}
+  .chip-amber{background:#412402;color:#FAC775;border-color:#BA7517}
+  .chip-red{background:#501313;color:#F7C1C1;border-color:#A32D2D}
+  .chip-purple{background:#26215C;color:#CECBF6;border-color:#534AB7}
+  .chip-coral{background:#4A1B0C;color:#F5C4B3;border-color:#993C1D}
+  .chip-crit{background:#501313;color:#F7C1C1;border-color:#A32D2D}
+  .chip-ok{background:#173404;color:#C0DD97;border-color:#3B6D11}
+  .std{background:#042C53;color:#B5D4F4}
+}
+</style>
+
+<h2>Arquitetura completa — Media Processing Hub</h2>
+
+<div class="layer l1">
+  <div class="layer-title">① Ingest</div>
+  <div class="layer-sub">Receção multi-origem + identificação + deduplicação</div>
+  <div class="chips">
+    <span class="chip chip-gray">Watch folder (inotify)</span>
+    <span class="chip chip-gray">API HTTP/JWT</span>
+    <span class="chip chip-gray">S3 / MinIO / Wasabi</span>
+    <span class="chip chip-gray">FTP / SFTP</span>
+    <span class="chip chip-gray">RTMP / SRT live</span>
+    <span class="chip chip-gray">Aspera FASP</span>
+    <span class="chip chip-teal">SHA-256 dedup</span>
+    <span class="chip chip-teal">Perceptual hash (pHash)</span>
+    <span class="chip chip-blue">UUID v4 asset ID</span>
+    <span class="chip chip-blue">Proveniência imutável</span>
+  </div>
+</div>
+
+<div class="arrow-down">↓</div>
+
+<div class="layer l2">
+  <div class="layer-title">② QC & Validação</div>
+  <div class="layer-sub">Conformance check antes de qualquer processamento — nada passa sem validação</div>
+  <div class="grid3">
+    <div class="worker">
+      <div class="worker-title">Análise técnica</div>
+      <div class="worker-sub">MediaInfo + FFprobe</div>
+      <div class="badge-row">
+        <span class="std">codec · fps · pix_fmt</span>
+        <span class="std">color space · sync</span>
+      </div>
+    </div>
+    <div class="worker">
+      <div class="worker-title">Conformance formal</div>
+      <div class="worker-sub">MediaConch + policy XML</div>
+      <div class="badge-row">
+        <span class="std">AS-11 UK DPP</span>
+        <span class="std">IMF · MXF OP1a</span>
+      </div>
+    </div>
+    <div class="worker">
+      <div class="worker-title">Audio scan</div>
+      <div class="worker-sub">EBU R128 + True Peak</div>
+      <div class="badge-row">
+        <span class="std">ITU-R BS.1770-4</span>
+        <span class="std">-1 dBTP (oversample 4×)</span>
+      </div>
+    </div>
+    <div class="worker">
+      <div class="worker-title">Content QC</div>
+      <div class="worker-sub">Black · Freeze · Flash</div>
+      <div class="badge-row">
+        <span class="std">Harding FPA</span>
+        <span class="std">Telecine detect</span>
+      </div>
+    </div>
+    <div class="worker">
+      <div class="worker-title">GOP inspection</div>
+      <div class="worker-sub">Open/Closed · B-frames · CFR</div>
+      <div class="badge-row">
+        <span class="std">IDR check</span>
+        <span class="std">VFR detection</span>
+      </div>
+    </div>
+    <div class="worker">
+      <div class="worker-title">Decisão automática</div>
+      <div class="worker-sub">Resultado com reason codes</div>
+      <div class="badge-row">
+        <span class="chip-ok chip badge" style="padding:1px 6px">PASS</span>
+        <span class="chip-amber chip badge" style="padding:1px 6px;background:#FAEEDA;color:#633806">QUARANTINE</span>
+        <span class="chip-crit chip badge" style="padding:1px 6px">REJECT</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow-down">↓</div>
+
+<div class="layer l3">
+  <div class="layer-title">③ Intelligence</div>
+  <div class="layer-sub">Análise de conteúdo + decisão automática de perfil e bitrate ladder</div>
+  <div class="grid3">
+    <div class="worker">
+      <div class="worker-title">Classificação de conteúdo</div>
+      <div class="worker-sub">SI / TI analysis</div>
+      <div class="badge-row">
+        <span class="std">Talking head</span>
+        <span class="std">Sport · Cinema · News</span>
+      </div>
+    </div>
+    <div class="worker">
+      <div class="worker-title">Per-title encoding</div>
+      <div class="worker-sub">Pilot encode → VMAF calibration</div>
+      <div class="badge-row">
+        <span class="std">Netflix per-title spec</span>
+        <span class="std">Dynamic ladder</span>
+      </div>
+    </div>
+    <div class="worker">
+      <div class="worker-title">Profile selector</div>
+      <div class="worker-sub">Broadcast / OTT / Archive / Web</div>
+      <div class="badge-row">
+        <span class="std">GOP · CFR · colorimetry</span>
+        <span class="std">DRM · loudness target</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow-down">↓</div>
+
+<div class="layer l4">
+  <div class="layer-title">④ Processing — Workers Distribuídos</div>
+  <div class="layer-sub">Temporal.io — retry com backoff exponencial — dead-letter queue — FFmpeg isolado com timeout</div>
+  <div class="grid3">
+    <div class="worker">
+      <div class="worker-title">Transcode vídeo</div>
+      <div class="worker-sub">H.264 / H.265 — CFR obrigatório</div>
+      <div class="badge-row">
+        <span class="std">Closed GOP + IDR</span>
+        <span class="std">-sc_threshold 0</span>
+        <span class="std">yuv420p</span>
+        <span class="std">+faststart</span>
+      </div>
+    </div>
+    <div class="worker">
+      <div class="worker-title">Audio normalize</div>
+      <div class="worker-sub">Two-pass EBU R128</div>
+      <div class="badge-row">
+        <span class="std">-23 LUFS broadcast</span>
+        <span class="std">-14 LUFS streaming</span>
+        <span class="std">-1 dBTP true peak</span>
+      </div>
+    </div>
+    <div class="worker">
+      <div class="worker-title">Legendas / Captions</div>
+      <div class="worker-sub">Conversão e burn-in opcional</div>
+      <div class="badge-row">
+        <span class="std">CEA-708</span>
+        <span class="std">TTML / IMSC1</span>
+        <span class="std">WebVTT</span>
+        <span class="std">EBU STL</span>
+      </div>
+    </div>
+    <div class="worker">
+      <div class="worker-title">HDR / SDR</div>
+      <div class="worker-sub">Tone mapping + LUT</div>
+      <div class="badge-row">
+        <span class="std">HLG broadcast</span>
+        <span class="std">HDR10 / PQ</span>
+        <span class="std">SDR ladder</span>
+      </div>
+    </div>
+    <div class="worker">
+      <div class="worker-title">DRM packaging</div>
+      <div class="worker-sub">Multi-DRM via SPEKE / CPIX</div>
+      <div class="badge-row">
+        <span class="std">Widevine (CENC)</span>
+        <span class="std">FairPlay (CBCS)</span>
+        <span class="std">PlayReady</span>
+        <span class="std">CMAF</span>
+      </div>
+    </div>
+    <div class="worker">
+      <div class="worker-title">Proxy + Thumbnails</div>
+      <div class="worker-sub">LowRes · Mezzanine · Sprite</div>
+      <div class="badge-row">
+        <span class="std">ProRes 422 HQ</span>
+        <span class="std">H.264 800kbps</span>
+        <span class="std">VTT sprite sheet</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow-down">↓</div>
+
+<div class="layer l5">
+  <div class="layer-title">⑤ QC Pós-encode</div>
+  <div class="layer-sub">Verificação independente da qualidade e integridade do output — nunca assumir que está correto</div>
+  <div class="grid4">
+    <div class="worker">
+      <div class="worker-title">VMAF scoring</div>
+      <div class="worker-sub">libvmaf n_subsample=5</div>
+      <div class="badge-row"><span class="std">≥93 archive</span><span class="std">≥85 stream</span></div>
+    </div>
+    <div class="worker">
+      <div class="worker-title">Loudness final</div>
+      <div class="worker-sub">Medição independente R128</div>
+      <div class="badge-row"><span class="std">ebur128:peak=true</span></div>
+    </div>
+    <div class="worker">
+      <div class="worker-title">SHA-256</div>
+      <div class="worker-sub">Input ↔ output checksum</div>
+      <div class="badge-row"><span class="std">Nunca MD5</span></div>
+    </div>
+    <div class="worker">
+      <div class="worker-title">Conformance final</div>
+      <div class="worker-sub">MediaConch XML report</div>
+      <div class="badge-row"><span class="std">AS-11 / IMF</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow-down">↓</div>
+
+<div class="layer l6">
+  <div class="layer-title">⑥ Delivery</div>
+  <div class="layer-sub">Distribuição resiliente + metadata EBU Core + playout trigger</div>
+  <div class="grid3">
+    <div class="worker">
+      <div class="worker-title">Upload resiliente</div>
+      <div class="worker-sub">S3 multipart · FTP · CDN</div>
+      <div class="badge-row">
+        <span class="std">SHA-256 verify pós-upload</span>
+        <span class="std">Resumable chunks</span>
+      </div>
+    </div>
+    <div class="worker">
+      <div class="worker-title">MAM metadata</div>
+      <div class="worker-sub">Sidecar XML estruturado</div>
+      <div class="badge-row">
+        <span class="std">EBU Core</span>
+        <span class="std">EIDR · UMID</span>
+        <span class="std">SMPTE 330M</span>
+      </div>
+    </div>
+    <div class="worker">
+      <div class="worker-title">Playout integration</div>
+      <div class="worker-sub">API status + webhook</div>
+      <div class="badge-row">
+        <span class="std">ready_for_schedule</span>
+        <span class="std">SCTE-35 markers</span>
+        <span class="std">Timecode TC</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="obs">
+  <div class="layer-title">⊕ Observabilidade — transversal a todas as camadas</div>
+  <div class="chips">
+    <span class="chip chip-amber">Prometheus (métricas)</span>
+    <span class="chip chip-amber">Grafana (dashboards)</span>
+    <span class="chip chip-red">Alertmanager → PagerDuty</span>
+    <span class="chip chip-gray">Loki (logs JSON)</span>
+    <span class="chip chip-gray">Jaeger (distributed tracing)</span>
+    <span class="chip chip-blue">Audit trail imutável por asset_id</span>
+    <span class="chip chip-purple">Dead-letter queue com replay</span>
+  </div>
+</div>
+
+<h2>Standards da indústria cobertos</h2>
+<div class="chips">
+  <span class="chip chip-blue">EBU R128 — loudness</span>
+  <span class="chip chip-blue">AS-11 UK DPP — broadcast EU</span>
+  <span class="chip chip-blue">IMF SMPTE ST 2067 — OTT master</span>
+  <span class="chip chip-blue">CMAF ISO 23000-19 — HLS/DASH</span>
+  <span class="chip chip-blue">EBU Core — metadata</span>
+  <span class="chip chip-purple">ITU-R BS.1770-4 — loudness intl</span>
+  <span class="chip chip-purple">ATSC A/85 — broadcast US</span>
+  <span class="chip chip-purple">SMPTE 330M — UMID</span>
+  <span class="chip chip-teal">Apple HLS Authoring Spec</span>
+  <span class="chip chip-teal">DASH-IF IOP</span>
+  <span class="chip chip-teal">Harding FPA — flash safety</span>
+  <span class="chip chip-amber">SCTE-35 — ad markers</span>
+  <span class="chip chip-amber">SPEKE / CPIX — DRM key mgmt</span>
+  <span class="chip chip-amber">Netflix per-title encoding</span>
+</div>
+
+<h2>Roadmap de implementação</h2>
+<div class="sprint-row">
+  <div class="sprint">
+    <div class="sprint-label">Sprint 0 — Agora</div>
+    <div class="sprint-item">Closed GOP + IDR correto</div>
+    <div class="sprint-item">EBU R128 two-pass + TP</div>
+    <div class="sprint-item">yuv420p obrigatório</div>
+    <div class="sprint-item">+faststart no MP4</div>
+    <div class="sprint-item">SHA-256 (rem. MD5)</div>
+  </div>
+  <div class="sprint">
+    <div class="sprint-label">Sprint 1 — 4-6 sem.</div>
+    <div class="sprint-item">VMAF pós-encode</div>
+    <div class="sprint-item">MediaConch conformance</div>
+    <div class="sprint-item">Black / freeze detect</div>
+    <div class="sprint-item">Prometheus + Grafana</div>
+    <div class="sprint-item">Audit trail</div>
+  </div>
+  <div class="sprint">
+    <div class="sprint-label">Sprint 2 — 6-8 sem.</div>
+    <div class="sprint-item">Temporal.io workflows</div>
+    <div class="sprint-item">FFmpeg isolado + timeout</div>
+    <div class="sprint-item">Dead-letter + retry</div>
+    <div class="sprint-item">MXF OP1a output</div>
+    <div class="sprint-item">Proxy + sprite sheet</div>
+  </div>
+  <div class="sprint">
+    <div class="sprint-label">Sprint 3 — 8-10 sem.</div>
+    <div class="sprint-item">CMAF + multi-DRM</div>
+    <div class="sprint-item">Subtitle pipeline</div>
+    <div class="sprint-item">Profile system</div>
+    <div class="sprint-item">Playout API + webhook</div>
+    <div class="sprint-item">S3 multipart upload</div>
+  </div>
+  <div class="sprint">
+    <div class="sprint-label">Sprint 4 — 10-12 sem.</div>
+    <div class="sprint-item">Per-title encoding</div>
+    <div class="sprint-item">HDR/SDR tone mapping</div>
+    <div class="sprint-item">Docker + auto-scaling</div>
+    <div class="sprint-item">EBU Core metadata</div>
+    <div class="sprint-item">SCTE-35 markers</div>
+  </div>
+</div>

@@ -1,0 +1,258 @@
+
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif}
+h2{font-size:13px;font-weight:600;color:var(--color-text-primary);margin:0 0 8px;letter-spacing:.3px}
+h3{font-size:11px;font-weight:500;color:var(--color-text-secondary);margin:0 0 6px;text-transform:uppercase;letter-spacing:.6px}
+.grid{display:grid;gap:8px}
+.g2{grid-template-columns:1fr 1fr}
+.g3{grid-template-columns:1fr 1fr 1fr}
+.g4{grid-template-columns:1fr 1fr 1fr 1fr}
+.g5{grid-template-columns:repeat(5,1fr)}
+.card{border-radius:10px;border:1px solid var(--color-border-tertiary);padding:10px 12px;background:var(--color-background-primary)}
+.agent{border-radius:10px;padding:10px 12px}
+.a-claude{background:#E6F1FB;border:1px solid #85B7EB}
+.a-openai{background:#EAF3DE;border:1px solid #97C459}
+.a-gemini{background:#FAEEDA;border:1px solid #EF9F27}
+.a-deepseek{background:#EEEDFE;border:1px solid #AFA9EC}
+.a-kimi{background:#FAECE7;border:1px solid #F0997B}
+@media(prefers-color-scheme:dark){
+  .a-claude{background:#042C53;border-color:#185FA5}
+  .a-openai{background:#173404;border-color:#3B6D11}
+  .a-gemini{background:#412402;border-color:#BA7517}
+  .a-deepseek{background:#26215C;border-color:#534AB7}
+  .a-kimi{background:#4A1B0C;border-color:#993C1D}
+}
+.agent-name{font-size:13px;font-weight:600;color:var(--color-text-primary);margin:0 0 2px}
+.agent-role{font-size:11px;color:var(--color-text-secondary);margin:0 0 7px}
+.tag{display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;margin:2px 2px 0 0;background:var(--color-background-secondary);color:var(--color-text-secondary);border:0.5px solid var(--color-border-tertiary)}
+.tag-blue{background:#E6F1FB;color:#0C447C;border-color:#85B7EB}
+.tag-green{background:#EAF3DE;color:#27500A;border-color:#97C459}
+.tag-amber{background:#FAEEDA;color:#633806;border-color:#EF9F27}
+.tag-red{background:#FCEBEB;color:#791F1F;border-color:#F09595}
+.tag-purple{background:#EEEDFE;color:#3C3489;border-color:#AFA9EC}
+.tag-coral{background:#FAECE7;color:#712B13;border-color:#F0997B}
+@media(prefers-color-scheme:dark){
+  .tag-blue{background:#042C53;color:#B5D4F4;border-color:#185FA5}
+  .tag-green{background:#173404;color:#C0DD97;border-color:#3B6D11}
+  .tag-amber{background:#412402;color:#FAC775;border-color:#BA7517}
+  .tag-red{background:#501313;color:#F7C1C1;border-color:#A32D2D}
+  .tag-purple{background:#26215C;color:#CECBF6;border-color:#534AB7}
+  .tag-coral{background:#4A1B0C;color:#F5C4B3;border-color:#993C1D}
+}
+.divider{height:1px;background:var(--color-border-tertiary);margin:10px 0}
+.flow{display:flex;align-items:center;gap:0;flex-wrap:nowrap;overflow-x:auto}
+.flow-step{background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:7px;padding:5px 9px;font-size:11px;color:var(--color-text-primary);white-space:nowrap;flex-shrink:0}
+.flow-arrow{color:var(--color-text-tertiary);font-size:14px;padding:0 4px;flex-shrink:0}
+.tool-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.tool{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:6px;padding:3px 9px;font-size:11px;color:var(--color-text-primary)}
+.tool-primary{border-color:var(--color-border-secondary);font-weight:500}
+.section-label{font-size:10px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.7px;margin:10px 0 5px}
+.orch{background:var(--color-background-secondary);border:1px dashed var(--color-border-secondary);border-radius:10px;padding:10px 12px;margin-bottom:8px;text-align:center}
+.orch-title{font-size:13px;font-weight:600;color:var(--color-text-primary);margin:0 0 3px}
+.orch-sub{font-size:11px;color:var(--color-text-secondary);margin:0}
+.checklist{margin:0;padding:0;list-style:none}
+.checklist li{font-size:11px;color:var(--color-text-secondary);padding:3px 0;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:flex-start;gap:6px}
+.checklist li:last-child{border-bottom:none}
+.check-icon{width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;margin-top:1px}
+.c-ok{background:#EAF3DE;color:#27500A}
+.c-warn{background:#FAEEDA;color:#633806}
+.c-crit{background:#FCEBEB;color:#791F1F}
+@media(prefers-color-scheme:dark){
+  .c-ok{background:#173404;color:#C0DD97}
+  .c-warn{background:#412402;color:#FAC775}
+  .c-crit{background:#501313;color:#F7C1C1}
+}
+.sprint-mini{background:var(--color-background-secondary);border-radius:8px;padding:8px 10px;border:0.5px solid var(--color-border-tertiary)}
+.sprint-title{font-size:10px;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.5px;margin:0 0 5px}
+.sprint-task{font-size:11px;color:var(--color-text-primary);padding:2px 0;padding-left:10px;position:relative}
+.sprint-task::before{content:"·";position:absolute;left:2px;color:var(--color-text-tertiary)}
+.badge-agent{font-size:9px;padding:1px 5px;border-radius:8px;margin-left:4px;font-weight:500}
+.ba-claude{background:#E6F1FB;color:#0C447C}
+.ba-openai{background:#EAF3DE;color:#1A5C0A}
+.ba-gemini{background:#FAEEDA;color:#633806}
+.ba-deepseek{background:#EEEDFE;color:#3C3489}
+.ba-kimi{background:#FAECE7;color:#712B13}
+@media(prefers-color-scheme:dark){
+  .ba-claude{background:#042C53;color:#B5D4F4}
+  .ba-openai{background:#173404;color:#C0DD97}
+  .ba-gemini{background:#412402;color:#FAC775}
+  .ba-deepseek{background:#26215C;color:#CECBF6}
+  .ba-kimi{background:#4A1B0C;color:#F5C4B3}
+}
+</style>
+
+<div class="orch">
+  <div class="orch-title">⬡ ORCHESTRATOR — Temporal.io</div>
+  <div class="orch-sub">Único ponto de verdade — Estado de cada asset — Retry automático — Dead-letter — Replay</div>
+</div>
+
+<h2>Agentes e Responsabilidades</h2>
+<div class="grid g5">
+
+  <div class="agent a-claude">
+    <div class="agent-name">Claude Code</div>
+    <div class="agent-role">Backend Core + Segurança</div>
+    <span class="tag tag-blue">Workers</span>
+    <span class="tag tag-blue">QC Rules</span>
+    <span class="tag tag-blue">Auth JWT</span>
+    <span class="tag tag-blue">Audit Trail</span>
+    <span class="tag tag-blue">File Safety</span>
+    <span class="tag tag-blue">Testes Integração</span>
+    <span class="tag tag-blue">Delivery</span>
+  </div>
+
+  <div class="agent a-openai">
+    <div class="agent-name">OpenAI Codex</div>
+    <div class="agent-role">Orquestração + API Design</div>
+    <span class="tag tag-green">Temporal Workflows</span>
+    <span class="tag tag-green">Decision Engine</span>
+    <span class="tag tag-green">REST API OpenAPI</span>
+    <span class="tag tag-green">Fastify Routes</span>
+    <span class="tag tag-green">E2E API Tests</span>
+  </div>
+
+  <div class="agent a-gemini">
+    <div class="agent-name">Gemini / AI Studio</div>
+    <div class="agent-role">Frontend + UX</div>
+    <span class="tag tag-amber">Next.js 14</span>
+    <span class="tag tag-amber">React Components</span>
+    <span class="tag tag-amber">Recharts Dashboard</span>
+    <span class="tag tag-amber">Upload Flow</span>
+    <span class="tag tag-amber">Playwright E2E</span>
+  </div>
+
+  <div class="agent a-deepseek">
+    <div class="agent-name">DeepSeek Coder</div>
+    <div class="agent-role">FFmpeg + Performance</div>
+    <span class="tag tag-purple">FFmpeg Commands</span>
+    <span class="tag tag-purple">GPU Detection</span>
+    <span class="tag tag-purple">VMAF Scoring</span>
+    <span class="tag tag-purple">Two-pass R128</span>
+    <span class="tag tag-purple">Benchmarks</span>
+  </div>
+
+  <div class="agent a-kimi">
+    <div class="agent-name">Kimi</div>
+    <div class="agent-role">Logs + Debug Intelligence</div>
+    <span class="tag tag-coral">FFmpeg stderr parse</span>
+    <span class="tag tag-coral">Error patterns</span>
+    <span class="tag tag-coral">Root cause</span>
+    <span class="tag tag-coral">Fix suggestions</span>
+    <span class="tag tag-coral">Anomaly detect</span>
+  </div>
+
+</div>
+
+<div class="divider"></div>
+<h2>Pipeline de Processamento (fluxo completo)</h2>
+<div class="flow">
+  <div class="flow-step">① Ingest<br><span style="font-size:10px;color:var(--color-text-tertiary)">Claude Code</span></div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">② QC pré<br><span style="font-size:10px;color:var(--color-text-tertiary)">Claude Code</span></div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">③ Análise<br><span style="font-size:10px;color:var(--color-text-tertiary)">Codex</span></div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">④ Decisão<br><span style="font-size:10px;color:var(--color-text-tertiary)">Codex</span></div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">⑤ Transcode<br><span style="font-size:10px;color:var(--color-text-tertiary)">DeepSeek</span></div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">⑥ Áudio R128<br><span style="font-size:10px;color:var(--color-text-tertiary)">DeepSeek</span></div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">⑦ Proxy+Thumb<br><span style="font-size:10px;color:var(--color-text-tertiary)">Claude Code</span></div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">⑧ QC pós<br><span style="font-size:10px;color:var(--color-text-tertiary)">DeepSeek/Claude</span></div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">⑨ Delivery<br><span style="font-size:10px;color:var(--color-text-tertiary)">Claude Code</span></div>
+</div>
+<div style="margin-top:5px;font-size:10px;color:var(--color-text-tertiary)">
+  Kimi analisa logs em cada step → Gemini mostra no dashboard → Temporal orquestra todo o fluxo
+</div>
+
+<div class="divider"></div>
+<div class="grid g2">
+
+  <div>
+    <h2>Stack Open Source — Seleção de Tool por Job</h2>
+    <div class="card" style="padding:8px">
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:4px 6px;color:var(--color-text-secondary);border-bottom:1px solid var(--color-border-tertiary)">Job</th>
+            <th style="text-align:left;padding:4px 6px;color:var(--color-text-secondary);border-bottom:1px solid var(--color-border-tertiary)">Tool primário</th>
+            <th style="text-align:left;padding:4px 6px;color:var(--color-text-secondary);border-bottom:1px solid var(--color-border-tertiary)">Fallback</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)">Broadcast transcode</td><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)"><strong>FFmpeg</strong></td><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary);color:var(--color-text-tertiary)">—</td></tr>
+          <tr><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)">OTT / CMAF</td><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)"><strong>FFmpeg</strong></td><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary);color:var(--color-text-tertiary)">—</td></tr>
+          <tr><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)">Proxy / Web encode</td><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)"><strong>HandBrakeCLI</strong></td><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)">FFmpeg</td></tr>
+          <tr><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)">Loudness measure</td><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)"><strong>BS1770GAIN</strong></td><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)">FFmpeg ebur128</td></tr>
+          <tr><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)">Container analysis</td><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)"><strong>MediaInfo</strong></td><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)">FFprobe</td></tr>
+          <tr><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)">Conformance check</td><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)"><strong>MediaConch</strong></td><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary);color:var(--color-text-tertiary)">—</td></tr>
+          <tr><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)">VMAF scoring</td><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)"><strong>FFmpeg libvmaf</strong></td><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary);color:var(--color-text-tertiary)">—</td></tr>
+          <tr><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)">Playback sanity</td><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)"><strong>VLC headless</strong></td><td style="padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary);color:var(--color-text-tertiary)">opcional</td></tr>
+          <tr><td style="padding:4px 6px">Thumbnail sprites</td><td style="padding:4px 6px"><strong>FFmpeg</strong> -vf tile</td><td style="padding:4px 6px;color:var(--color-text-tertiary)">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div>
+    <h2>Regras Imutáveis (ADRs — não podem ser revertidas)</h2>
+    <ul class="checklist">
+      <li><div class="check-icon c-crit">✕</div><span>FFmpeg <strong>nunca</strong> com exec() — sempre execFile() ou spawn()</span></li>
+      <li><div class="check-icon c-crit">✕</div><span>GOP <strong>sempre</strong> Closed + IDR + sc_threshold=0 + bf=0</span></li>
+      <li><div class="check-icon c-crit">✕</div><span>Áudio: two-pass R128 + True Peak verificado com BS1770GAIN</span></li>
+      <li><div class="check-icon c-crit">✕</div><span>Checksums: <strong>SHA-256</strong> sempre — MD5 proibido</span></li>
+      <li><div class="check-icon c-crit">✕</div><span>Audit trail: INSERT-only — UPDATE e DELETE proibidos</span></li>
+      <li><div class="check-icon c-crit">✕</div><span>Pixel format: <strong>yuv420p</strong> obrigatório (ou yuv420p10le HDR)</span></li>
+      <li><div class="check-icon c-crit">✕</div><span>Auth: RS256 JWT — HS256 proibido em produção</span></li>
+      <li><div class="check-icon c-crit">✕</div><span>Secrets: nunca em env vars em produção — Vault ou AWS SM</span></li>
+      <li><div class="check-icon c-crit">✕</div><span>Filenames: nunca usados em shell commands — sempre UUID interno</span></li>
+      <li><div class="check-icon c-ok">✓</div><span>VMAF score calculado e guardado para todos os outputs</span></li>
+    </ul>
+  </div>
+
+</div>
+
+<div class="divider"></div>
+<h2>Execução por Semana — Qual Agente, Qual Tarefa</h2>
+<div class="grid g4">
+  <div class="sprint-mini">
+    <div class="sprint-title">Semana 1</div>
+    <div class="sprint-task">Setup projecto, tsconfig, ESLint <span class="badge-agent ba-claude">Claude</span></div>
+    <div class="sprint-task">Prisma schema + migrations <span class="badge-agent ba-claude">Claude</span></div>
+    <div class="sprint-task">FFmpeg executor isolado <span class="badge-agent ba-deepseek">DeepSeek</span></div>
+    <div class="sprint-task">GPU detection + fallback <span class="badge-agent ba-deepseek">DeepSeek</span></div>
+    <div class="sprint-task">QC rules engine (video+audio) <span class="badge-agent ba-claude">Claude</span></div>
+    <div class="sprint-task">Docker Compose base <span class="badge-agent ba-openai">Codex</span></div>
+  </div>
+  <div class="sprint-mini">
+    <div class="sprint-title">Semana 2</div>
+    <div class="sprint-task">BullMQ queues + workers <span class="badge-agent ba-claude">Claude</span></div>
+    <div class="sprint-task">Two-pass EBU R128 <span class="badge-agent ba-deepseek">DeepSeek</span></div>
+    <div class="sprint-task">Temporal.io workflows <span class="badge-agent ba-openai">Codex</span></div>
+    <div class="sprint-task">Decision Engine <span class="badge-agent ba-openai">Codex</span></div>
+    <div class="sprint-task">REST API + OpenAPI spec <span class="badge-agent ba-openai">Codex</span></div>
+    <div class="sprint-task">Auth JWT RS256 <span class="badge-agent ba-claude">Claude</span></div>
+  </div>
+  <div class="sprint-mini">
+    <div class="sprint-title">Semana 3</div>
+    <div class="sprint-task">Frontend Next.js setup <span class="badge-agent ba-gemini">Gemini</span></div>
+    <div class="sprint-task">Dashboard + charts <span class="badge-agent ba-gemini">Gemini</span></div>
+    <div class="sprint-task">Upload flow + progress <span class="badge-agent ba-gemini">Gemini</span></div>
+    <div class="sprint-task">Log parser (FFmpeg stderr) <span class="badge-agent ba-kimi">Kimi</span></div>
+    <div class="sprint-task">Error pattern matcher <span class="badge-agent ba-kimi">Kimi</span></div>
+    <div class="sprint-task">VMAF integration <span class="badge-agent ba-deepseek">DeepSeek</span></div>
+  </div>
+  <div class="sprint-mini">
+    <div class="sprint-title">Semana 4</div>
+    <div class="sprint-task">Asset detail + QC report <span class="badge-agent ba-gemini">Gemini</span></div>
+    <div class="sprint-task">HandBrake + BS1770 adapters <span class="badge-agent ba-claude">Claude</span></div>
+    <div class="sprint-task">Prometheus + Grafana <span class="badge-agent ba-openai">Codex</span></div>
+    <div class="sprint-task">Playwright E2E tests <span class="badge-agent ba-gemini">Gemini</span></div>
+    <div class="sprint-task">k6 performance tests <span class="badge-agent ba-openai">Codex</span></div>
+    <div class="sprint-task">Security hardening final <span class="badge-agent ba-claude">Claude</span></div>
+  </div>
+</div>
