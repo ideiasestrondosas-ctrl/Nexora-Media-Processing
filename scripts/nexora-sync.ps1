@@ -1,5 +1,4 @@
 param (
-    [switch]$Rollback,
     [string]$Message
 )
 
@@ -17,26 +16,6 @@ function Write-Step($msg) { Write-Host "[STEP] $msg" -ForegroundColor Cyan }
 function Write-Success($msg) { Write-Host "[OK] $msg" -ForegroundColor Green }
 function Write-Warning($msg) { Write-Host "[WARN] $msg" -ForegroundColor Yellow }
 function Write-ErrorMsg($msg) { Write-Host "[ERROR] $msg" -ForegroundColor Red }
-
-# ---------------------------------------------------------
-# FUNCAO DE ROLLBACK
-# ---------------------------------------------------------
-if ($Rollback) {
-    Write-Warning "Iniciando procedimento de Rollback..."
-    
-    $confirm = Read-Host "Tem certeza que deseja desfazer o ultimo commit (local e remoto)? (y/n)"
-    if ($confirm -ne "y") { Write-Host "Operacao cancelada."; exit }
-
-    Write-Step "Revertendo commit local..."
-    git reset --hard HEAD~1
-    
-    Write-Step "Revertendo commit remoto (GitHub)..."
-    $branch = git branch --show-current
-    git push origin $branch --force
-    
-    Write-Success "Rollback concluido com sucesso!"
-    exit
-}
 
 # ---------------------------------------------------------
 # VERIFICACAO DE AMBIENTE
@@ -80,10 +59,15 @@ Write-Host $status
 $commitMsg = $Message
 if (!$commitMsg) {
     # Sugestao automatica baseada no status
-    $firstFile = ($status -split "`n")[0].Substring(3).Trim()
+    $firstLine = ($status -split "`n")[0]
     $fileCount = ($status -split "`n").Count
-    $suggestedDesc = "atualizar $firstFile"
-    if ($fileCount -gt 1) { $suggestedDesc += " e mais $($fileCount -1) ficheiros" }
+    if ($firstLine.Length -gt 3) {
+        $firstFile = $firstLine.Substring(3).Trim()
+        $suggestedDesc = "atualizar $firstFile"
+        if ($fileCount -gt 1) { $suggestedDesc += " e mais $($fileCount -1) ficheiros" }
+    } else {
+        $suggestedDesc = "atualizacoes gerais"
+    }
     
     Write-Host "`nNormas de Commit (GitHub):"
     Write-Host "1. feat: (Novas funcionalidades)"
