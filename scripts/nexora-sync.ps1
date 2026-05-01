@@ -1,3 +1,8 @@
+param (
+    [switch]$Rollback,
+    [string]$Message
+)
+
 <#
 .SYNOPSIS
     Nexora Sync - Automatiza a sincronização do workspace com o GitHub.
@@ -7,22 +12,11 @@
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-param (
-    [switch]$Rollback,
-    [string]$Message
-)
-
-# Configurações de Cores (Compatibilidade PowerShell)
-$Green  = "`e[32m"
-$Blue   = "`e[34m"
-$Yellow = "`e[33m"
-$Red    = "`e[31m"
-$Reset  = "`e[0m"
-
-function Write-Step($msg) { Write-Host "${Blue}[STEP]${Reset} $msg" }
-function Write-Success($msg) { Write-Host "${Green}[OK]${Reset} $msg" }
-function Write-Warning($msg) { Write-Host "${Yellow}[WARN]${Reset} $msg" }
-function Write-ErrorMsg($msg) { Write-Host "${Red}[ERROR]${Reset} $msg" }
+# Funções de Log com cores nativas do PowerShell (sem caracteres ANSI estranhos)
+function Write-Step($msg) { Write-Host "[STEP] $msg" -ForegroundColor Cyan }
+function Write-Success($msg) { Write-Host "[OK] $msg" -ForegroundColor Green }
+function Write-Warning($msg) { Write-Host "[WARN] $msg" -ForegroundColor Yellow }
+function Write-ErrorMsg($msg) { Write-Host "[ERROR] $msg" -ForegroundColor Red }
 
 # ---------------------------------------------------------
 # FUNÇÃO DE ROLLBACK
@@ -123,11 +117,10 @@ if ($LASTEXITCODE -ne 0) {
 # ---------------------------------------------------------
 # LIMPEZA PÓS-COMMIT (GRAPHIFY)
 # ---------------------------------------------------------
-# Pequena pausa para garantir que o hook terminou de escrever os ficheiros
 Start-Sleep -Seconds 1
 $postStatus = git status --porcelain
 if ($postStatus) {
-    Write-Step "Detetadas alterações pós-commit (Graphify). A sincronizar..."
+    Write-Step "Sincronizando alterações automáticas (Graphify)..."
     git add .
     git commit -m "docs: atualizar grafo e relatórios (auto)" --no-verify
 }
@@ -142,5 +135,5 @@ git push -u origin $branch
 if ($LASTEXITCODE -eq 0) {
     Write-Success "Projeto atualizado no GitHub com sucesso!"
 } else {
-    Write-ErrorMsg "Falha ao enviar para o GitHub. Verifique as suas credenciais ou ligação."
+    Write-ErrorMsg "Falha ao enviar para o GitHub."
 }
