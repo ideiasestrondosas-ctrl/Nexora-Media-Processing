@@ -28,7 +28,7 @@
 - [x] Repositório GitHub configurado
 - [x] **Prompt 1 executado — Backend Core (Antigravity, 2026-05-02)**
 - [x] **Prompt 5 executado — FFmpeg Avançado + Performance (Antigravity, 2026-05-02)**
-- [ ] Prompt 2 executado (API + Temporal — Claude)
+- [x] **Prompt 2 executado — Temporal.io Workflows + API REST Completa (Antigravity, 2026-05-02)**
 - [ ] Prompt 6 executado (Docker + Infra — Claude)
 - [ ] Prompt 3 executado (Frontend — Gemini)
 - [ ] Prompt 4 executado (Logs/Debug — Claude)

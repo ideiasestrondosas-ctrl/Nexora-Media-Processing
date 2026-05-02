@@ -2,11 +2,16 @@
 // Ficheiro: src/api/routes/index.ts
 //
 // Regista todas as rotas da API com prefixo /api/v1.
-// Adicionar aqui novas rotas à medida que o projecto cresce.
 
 import type { FastifyInstance } from 'fastify';
 import { assetsRoutes } from './assets';
 import { jobsRoutes } from './jobs';
+import { profilesRoutes } from './profiles';
+import { metricsSummaryRoutes } from './metrics-summary';
+import { queueStatsRoutes } from './queue-stats';
+import { webhooksRoutes } from './webhooks';
+import { statusSseRoutes } from './status-sse';
+import { reviewRoutes } from './review';
 
 /**
  * Regista todas as rotas da API no Fastify.
@@ -16,9 +21,15 @@ import { jobsRoutes } from './jobs';
 export async function registerRoutes(fastify: FastifyInstance): Promise<void> {
   const prefix = `/api/${process.env.API_VERSION ?? 'v1'}`;
 
-  // Rotas de Assets
-  await fastify.register(assetsRoutes, { prefix: `${prefix}` });
+  // ── Prompt 1 — Rotas base ────────────────────────────────────────
+  await fastify.register(assetsRoutes,  { prefix });
+  await fastify.register(jobsRoutes,    { prefix });
 
-  // Rotas de Jobs
-  await fastify.register(jobsRoutes, { prefix: `${prefix}` });
+  // ── Prompt 2 — Rotas adicionais ──────────────────────────────────
+  await fastify.register(profilesRoutes,      { prefix });
+  await fastify.register(metricsSummaryRoutes, { prefix });
+  await fastify.register(queueStatsRoutes,    { prefix });
+  await fastify.register(webhooksRoutes,      { prefix });
+  await fastify.register(statusSseRoutes,     { prefix });
+  await fastify.register(reviewRoutes,        { prefix });
 }

@@ -219,3 +219,35 @@ model WorkflowRun {
   @@index([status])
   @@index([assetId])
 }
+
+// ── Webhooks ─────────────────────────────────────────────────────
+
+/// Eventos suportados para notificações via webhook
+enum WebhookEvent {
+  ASSET_INGESTED
+  ASSET_QC_PASSED
+  ASSET_QC_QUARANTINED
+  ASSET_QC_REJECTED
+  ASSET_TRANSCODING_STARTED
+  ASSET_TRANSCODING_COMPLETED
+  ASSET_PROCESSING_COMPLETED
+  ASSET_PROCESSING_FAILED
+  JOB_COMPLETED
+  JOB_FAILED
+}
+
+/// Registo de webhooks para notificações de eventos.
+/// Quando um evento ocorre, o sistema faz HTTP POST para o URL registado.
+model WebhookRegistration {
+  id        String         @id @default(uuid())
+  url       String                               // URL de destino do webhook
+  events    WebhookEvent[]                       // eventos que activam o webhook
+  secret    String?                              // segredo HMAC para assinatura (opcional)
+  isActive  Boolean        @default(true)
+  metadata  Json?                                // dados extra (ex: headers personalizados)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@map("webhook_registrations")
+  @@index([isActive])
+}

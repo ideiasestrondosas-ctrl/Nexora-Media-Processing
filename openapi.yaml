@@ -1,0 +1,728 @@
+openapi: 3.1.0
+info:
+  title: Nexora Media Processing API
+  description: |
+    Plataforma profissional de ingest, transcoding e entrega de media para broadcast e OTT.
+
+    ## Autenticação
+    Todos os endpoints requerem JWT RS256. Obter token via `POST /auth/token` (não incluído nesta spec — interno).
+
+    ## ADRs Relevantes
+    - **ADR-002**: FFmpeg via execFile/spawn (nunca exec() com string)
+    - **ADR-004**: yuv420p obrigatório em outputs de distribuição
+    - **ADR-005**: Two-pass EBU R128 + BS1770GAIN
+    - **ADR-007**: Audit trail append-only
+    - **ADR-010**: VMAF score para todos os outputs
+  version: 0.1.0
+  contact:
+    name: Nexora Engineering
+
+servers:
+  - url: http://localhost:3000
+    description: Desenvolvimento
+  - url: https://api.nexora.io
+    description: Produção
+
+security:
+  - bearerAuth: []
+
+# ══════════════════════════════════════════════════════════════════
+# PATHS
+# ══════════════════════════════════════════════════════════════════
+
+paths:
+
+  # ── Health ───────────────────────────────────────────────────────
+
+  /health:
+    get:
+      tags: [System]
+      summary: Health check geral
+      security: []
+      responses:
+        '200':
+          description: Serviço operacional
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:    { type: string, example: ok }
+                  version:   { type: string, example: 0.1.0 }
+                  timestamp: { type: string, format: date-time }
+
+  /health/ready:
+    get:
+      tags: [System]
+      summary: Readiness probe (verifica PostgreSQL)
+      security: []
+      responses:
+        '200':
+          description: Serviço pronto
+        '503':
+          description: Serviço indisponível
+
+  # ── Assets ───────────────────────────────────────────────────────
+
+  /api/v1/assets:
+    post:
+      tags: [Assets]
+      summary: Fazer upload de um asset de media
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Ficheiro de media (vídeo, áudio)
+                profile:
+                  type: string
+                  enum: [broadcast-hd, ott-hd, web-sd, proxy]
+                  default: broadcast-hd
+                priority:
+                  type: integer
+                  enum: [10, 7, 5, 3]
+                  default: 5
+      responses:
+        '201':
+          description: Asset criado e ingest iniciado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    get:
+      tags: [Assets]
+      summary: Listar assets
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AssetStatus'
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        '200':
+          description: Lista de assets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Asset'
+                  total: { type: integer }
+                  page:  { type: integer }
+                  limit: { type: integer }
+
+  /api/v1/assets/{id}:
+    get:
+      tags: [Assets]
+      summary: Obter asset por ID
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+      responses:
+        '200':
+          description: Asset encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Assets]
+      summary: Eliminar asset (soft delete)
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+      responses:
+        '204':
+          description: Asset eliminado
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/assets/{id}/status:
+    get:
+      tags: [Assets]
+      summary: Stream SSE de progresso em tempo real
+      description: |
+        Server-Sent Events — mantém conexão aberta e emite eventos:
+        - `progress` — percentagem de transcode (0-100)
+        - `status_change` — mudança de estado do asset
+        - `heartbeat` — keepalive a cada 15s
+        - `completed` — pipeline concluída
+        - `failed` — falha no processamento
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+      responses:
+        '200':
+          description: Stream SSE iniciado
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                example: |
+                  event: progress
+                  data: {"assetId":"...","percent":42,"fps":25,"speed":"1.2x"}
+
+                  event: status_change
+                  data: {"assetId":"...","status":"TRANSCODING"}
+
+  /api/v1/assets/{id}/review:
+    post:
+      tags: [Assets]
+      summary: Aprovar ou rejeitar asset em quarentena
+      description: Envia sinal ao workflow Temporal para desbloquear o pipeline.
+      parameters:
+        - $ref: '#/components/parameters/AssetId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [approve, reject]
+                reason:
+                  type: string
+                  maxLength: 1000
+      responses:
+        '200':
+          description: Decisão enviada ao workflow
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:    { type: boolean }
+                  assetId:    { type: string }
+                  decision:   { type: string }
+                  workflowId: { type: string }
+                  message:    { type: string }
+        '409':
+          description: Asset não está em quarentena ou sem workflow activo
+
+  # ── Jobs ─────────────────────────────────────────────────────────
+
+  /api/v1/jobs:
+    post:
+      tags: [Jobs]
+      summary: Criar job de processamento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assetId, type]
+              properties:
+                assetId:  { type: string, format: uuid }
+                type:
+                  type: string
+                  enum: [INGEST, QC, TRANSCODE, AUDIO, PROXY, DELIVERY]
+                profile:
+                  type: string
+                  enum: [broadcast-hd, ott-hd, web-sd, proxy]
+                priority:
+                  type: integer
+                  enum: [10, 7, 5, 3]
+      responses:
+        '201':
+          description: Job criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+
+    get:
+      tags: [Jobs]
+      summary: Listar jobs
+      parameters:
+        - name: assetId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/JobStatus'
+        - name: type
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: Lista de jobs
+
+  /api/v1/jobs/{id}:
+    get:
+      tags: [Jobs]
+      summary: Obter job por ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Job encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+
+    delete:
+      tags: [Jobs]
+      summary: Cancelar job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Job cancelado
+
+  # ── Profiles ─────────────────────────────────────────────────────
+
+  /api/v1/profiles:
+    get:
+      tags: [Encoding]
+      summary: Listar perfis de encoding disponíveis
+      security: []
+      responses:
+        '200':
+          description: Lista de perfis
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profiles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EncodingProfile'
+                  count: { type: integer }
+
+  /api/v1/profiles/{id}:
+    get:
+      tags: [Encoding]
+      summary: Obter perfil de encoding por ID
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [broadcast-hd, ott-hd, web-sd, proxy]
+      responses:
+        '200':
+          description: Perfil encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EncodingProfile'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Metrics ──────────────────────────────────────────────────────
+
+  /api/v1/metrics/summary:
+    get:
+      tags: [Monitoring]
+      summary: Estatísticas globais do sistema
+      responses:
+        '200':
+          description: Resumo de métricas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsSummary'
+
+  /api/v1/queue/stats:
+    get:
+      tags: [Monitoring]
+      summary: Estado das filas BullMQ
+      responses:
+        '200':
+          description: Stats das filas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueStats'
+
+  # ── Webhooks ─────────────────────────────────────────────────────
+
+  /api/v1/webhooks:
+    post:
+      tags: [Webhooks]
+      summary: Registar webhook para notificações
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWebhookRequest'
+      responses:
+        '201':
+          description: Webhook registado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookRegistration'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+    get:
+      tags: [Webhooks]
+      summary: Listar webhooks activos
+      responses:
+        '200':
+          description: Lista de webhooks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  webhooks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WebhookRegistration'
+                  count: { type: integer }
+
+  /api/v1/webhooks/{id}:
+    get:
+      tags: [Webhooks]
+      summary: Obter webhook por ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Webhook encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookRegistration'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Webhooks]
+      summary: Remover webhook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Webhook removido
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+# ══════════════════════════════════════════════════════════════════
+# COMPONENTS
+# ══════════════════════════════════════════════════════════════════
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT RS256 — assinar com chave privada RSA 4096-bit (ADR-008)
+
+  parameters:
+    AssetId:
+      name: id
+      in: path
+      required: true
+      description: ID do asset (UUID)
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    ValidationError:
+      description: Dados de input inválidos
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: VALIDATION_ERROR
+            message: Dados de input inválidos
+
+    Unauthorized:
+      description: Token JWT inválido ou expirado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: UNAUTHORIZED
+            message: Token inválido
+
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: NOT_FOUND
+            message: Recurso não encontrado
+
+  schemas:
+
+    # ── Enums ───────────────────────────────────────────────────────
+
+    AssetStatus:
+      type: string
+      enum:
+        - PENDING
+        - INGESTING
+        - QC_RUNNING
+        - QC_PASSED
+        - QC_QUARANTINED
+        - QC_REJECTED
+        - TRANSCODING
+        - AUDIO_PROCESSING
+        - DELIVERING
+        - COMPLETED
+        - FAILED
+        - DELETED
+
+    JobStatus:
+      type: string
+      enum: [PENDING, ACTIVE, COMPLETED, FAILED, CANCELLED]
+
+    JobType:
+      type: string
+      enum: [INGEST, QC, TRANSCODE, AUDIO, PROXY, DELIVERY]
+
+    WebhookEventType:
+      type: string
+      enum:
+        - ASSET_INGESTED
+        - ASSET_QC_PASSED
+        - ASSET_QC_QUARANTINED
+        - ASSET_QC_REJECTED
+        - ASSET_TRANSCODING_STARTED
+        - ASSET_TRANSCODING_COMPLETED
+        - ASSET_PROCESSING_COMPLETED
+        - ASSET_PROCESSING_FAILED
+        - JOB_COMPLETED
+        - JOB_FAILED
+
+    # ── Entidades ───────────────────────────────────────────────────
+
+    Asset:
+      type: object
+      properties:
+        id:          { type: string, format: uuid }
+        filename:    { type: string }
+        mimeType:    { type: string }
+        size:        { type: integer, description: Tamanho em bytes }
+        sha256:      { type: string, description: Checksum SHA-256 (ADR-003) }
+        status:
+          $ref: '#/components/schemas/AssetStatus'
+        profile:     { type: string }
+        metadata:
+          type: object
+          description: Resultado MediaInfo/FFprobe (bruto)
+        createdAt:   { type: string, format: date-time }
+        updatedAt:   { type: string, format: date-time }
+
+    Job:
+      type: object
+      properties:
+        id:          { type: string, format: uuid }
+        type:
+          $ref: '#/components/schemas/JobType'
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        priority:    { type: integer }
+        assetId:     { type: string, format: uuid }
+        result:
+          type: object
+          description: Resultado quando concluído (inclui VMAF, encoder, outputKey)
+        error:       { type: string }
+        startedAt:   { type: string, format: date-time, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        createdAt:   { type: string, format: date-time }
+
+    WebhookRegistration:
+      type: object
+      properties:
+        id:        { type: string, format: uuid }
+        url:       { type: string, format: uri }
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookEventType'
+        isActive:  { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateWebhookRequest:
+      type: object
+      required: [url, events]
+      properties:
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+          example: https://meu-sistema.io/webhooks/nexora
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookEventType'
+          minItems: 1
+          example: [ASSET_PROCESSING_COMPLETED, ASSET_PROCESSING_FAILED]
+        secret:
+          type: string
+          maxLength: 256
+          description: Segredo HMAC-SHA256 para assinatura do payload
+
+    EncodingProfile:
+      type: object
+      properties:
+        id:          { type: string, example: broadcast-hd }
+        name:        { type: string }
+        description: { type: string }
+        priority:    { type: integer }
+        vmafThreshold: { type: integer }
+        container:   { type: string }
+        useCases:
+          type: array
+          items: { type: string }
+        video:
+          type: object
+          properties:
+            codec:        { type: string }
+            bitrateKbps:  { type: integer }
+            maxrateKbps:  { type: integer }
+            pixelFormat:  { type: string }
+            colorspace:   { type: string, nullable: true }
+            gopSize:      { type: integer }
+            bFrames:      { type: integer }
+            closedGop:    { type: boolean }
+            cfr:          { type: boolean }
+        audio:
+          type: object
+          properties:
+            codec:              { type: string }
+            sampleRate:         { type: integer }
+            loudnessTargetLufs: { type: number }
+            truePeakLimitDbtp:  { type: number }
+
+    MetricsSummary:
+      type: object
+      properties:
+        assets:
+          type: object
+          properties:
+            total: { type: integer }
+            byStatus:
+              type: object
+              additionalProperties: { type: integer }
+        jobs:
+          type: object
+          properties:
+            total: { type: integer }
+            byStatus:
+              type: object
+              additionalProperties: { type: integer }
+            last24h:
+              type: object
+              properties:
+                completed:   { type: integer }
+                failed:      { type: integer }
+                successRate: { type: integer, description: Percentagem 0-100 }
+        auditLog:
+          type: object
+          properties:
+            totalEntries: { type: integer }
+        generatedAt: { type: string, format: date-time }
+
+    QueueStats:
+      type: object
+      properties:
+        queues:
+          type: array
+          items:
+            type: object
+            properties:
+              name:      { type: string }
+              queueKey:  { type: string }
+              waiting:   { type: integer }
+              active:    { type: integer }
+              completed: { type: integer }
+              failed:    { type: integer }
+              delayed:   { type: integer }
+              paused:    { type: integer }
+              total:     { type: integer }
+        totals:
+          type: object
+          properties:
+            waiting:   { type: integer }
+            active:    { type: integer }
+            completed: { type: integer }
+            failed:    { type: integer }
+        generatedAt: { type: string, format: date-time }
+
+    Error:
+      type: object
+      properties:
+        error:   { type: string }
+        message: { type: string }
+        details:
+          type: object
+          nullable: true
+
+# ══════════════════════════════════════════════════════════════════
+# TAGS
+# ══════════════════════════════════════════════════════════════════
+
+tags:
+  - name: System
+    description: Health checks e estado do sistema
+  - name: Assets
+    description: Gestão de assets de media
+  - name: Jobs
+    description: Jobs de processamento BullMQ
+  - name: Encoding
+    description: Perfis de encoding disponíveis
+  - name: Monitoring
+    description: Métricas e estado de filas
+  - name: Webhooks
+    description: Notificações via HTTP webhooks
