@@ -114,10 +114,43 @@ if ($postStatus) {
 # ---------------------------------------------------------
 Write-Step "Enviando para o GitHub..."
 $branch = git branch --show-current
-git push -u origin $branch
+
+# Capturar output para análise de erros
+$pushResult = git push -u origin $branch 2>&1
 
 if ($LASTEXITCODE -eq 0) {
     Write-Success "Projeto atualizado no GitHub com sucesso!"
 } else {
     Write-ErrorMsg "Falha ao enviar para o GitHub."
+    
+    # Verificação de erro de permissão de workflow
+    if ($pushResult -like "*without `*workflow`* scope*") {
+        Write-Warning "DETETADO: O seu Token nao tem permissao para atualizar workflows (.github/)."
+        $fix = Read-Host "Deseja ignorar a pasta .github/ no Git para resolver este erro automaticamente? (y/n)"
+        if ($fix -eq "y") {
+            Write-Step "Aplicando correcao automatica..."
+            
+            # Adicionar ao .gitignore se nao estiver la
+            $ignoreContent = Get-Content ".gitignore" -ErrorAction SilentlyContinue
+            if ($ignoreContent -notcontains ".github/") {
+                Add-Content -Path ".gitignore" -Value "`n.github/"
+                Write-Success ".github/ adicionado ao .gitignore"
+            }
+            
+            # Remover do index
+            git rm -r --cached .github 2>$null
+            git add .gitignore
+            git commit -m "fix: contornar erro de permissao de workflow (auto)"
+            
+            Write-Step "Tentando enviar novamente..."
+            git push -u origin $branch
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "Projeto atualizado com sucesso apos correcao!"
+            }
+        } else {
+            Write-Host "Dica: Atualize o seu Token no GitHub com o scope 'workflow' para permitir automacoes." -ForegroundColor Cyan
+        }
+    } else {
+        Write-Host $pushResult -ForegroundColor Gray
+    }
 }
