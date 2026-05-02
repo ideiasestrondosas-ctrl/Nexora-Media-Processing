@@ -1,0 +1,55 @@
+{
+  "PresetList": [
+    {
+      "PresetName": "NexoraProxyLowRes",
+      "Type": 1,
+      "FileFormat": "av_mp4",
+      "Mp4HttpOptimize": true,
+      "VideoEncoder": "x264",
+      "VideoPreset": "veryfast",
+      "VideoProfile": "high",
+      "VideoLevel": "3.1",
+      "VideoQualityType": 1,
+      "VideoAvgBitrate": 800,
+      "VideoTwoPass": true,
+      "VideoTurboTwoPass": true,
+      "PictureWidth": 1280,
+      "PictureHeight": 720,
+      "PictureKeepRatio": true,
+      "AudioList": [
+        {
+          "AudioEncoder": "copy:aac",
+          "AudioFallbackEncoder": "av_aac",
+          "AudioBitrate": 128,
+          "AudioSamplerate": "48",
+          "AudioMixdown": "stereo"
+        }
+      ],
+      "ChapterMarkers": false
+    },
+    {
+      "PresetName": "NexoraWebOptimized1080p",
+      "Type": 1,
+      "FileFormat": "av_mp4",
+      "Mp4HttpOptimize": true,
+      "VideoEncoder": "x264",
+      "VideoPreset": "slow",
+      "VideoProfile": "high",
+      "VideoLevel": "4.0",
+      "VideoQualityType": 1,
+      "VideoAvgBitrate": 4000,
+      "VideoTwoPass": true,
+      "PictureWidth": 1920,
+      "PictureHeight": 1080,
+      "AudioList": [
+        {
+          "AudioEncoder": "av_aac",
+          "AudioBitrate": 192,
+          "AudioSamplerate": "48",
+          "AudioMixdown": "stereo"
+        }
+      ],
+      "ChapterMarkers": false
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+// Verificação de saúde do worker — usado pelo HEALTHCHECK do Docker
+
+import { createConnection } from 'ioredis';
+
+async function check(): Promise<void> {
+  const redis = createConnection(process.env.REDIS_URL ?? 'redis://localhost:6379');
+
+  try {
+    await redis.ping();
+    console.log('OK');
+    process.exit(0);
+  } catch {
+    console.error('Redis não disponível');
+    process.exit(1);
+  } finally {
+    redis.disconnect();
+  }
+}
+
+void check();

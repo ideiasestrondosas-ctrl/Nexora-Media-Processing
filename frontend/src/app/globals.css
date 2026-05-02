@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+:root { --font-sans: system-ui, sans-serif; --font-mono: monospace; }
+* { scrollbar-width: thin; scrollbar-color: #404040 transparent; }
+html { color-scheme: dark; }
+body { min-height: 100vh; }

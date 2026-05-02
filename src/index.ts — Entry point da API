@@ -1,0 +1,86 @@
+// Nexora Media Processing — Entry point da API
+// Inicializa o servidor Fastify, regista plugins e rotas
+
+import Fastify, { FastifyInstance } from 'fastify';
+import { registerPlugins } from './api/plugins';
+import { registerRoutes } from './api/routes';
+import { initDatabase } from './db/prisma';
+import { initQueues } from './workers/queues';
+import { metricsServer } from './observability/metrics';
+import { logger } from './observability/logger';
+
+const app: FastifyInstance = Fastify({
+  logger: {
+    level: process.env.LOG_LEVEL ?? 'info',
+    transport: process.env.NODE_ENV === 'development'
+      ? { target: 'pino-pretty', options: { colorize: true } }
+      : undefined
+  }
+});
+
+async function start(): Promise<void> {
+  try {
+    // Verificar variáveis de ambiente obrigatórias
+    validateEnvironment();
+
+    // Inicializar base de dados
+    await initDatabase();
+    logger.info('Base de dados conectada');
+
+    // Registar plugins Fastify (auth, CORS, multipart, etc.)
+    await registerPlugins(app);
+
+    // Registar rotas da API
+    await registerRoutes(app);
+
+    // Inicializar filas BullMQ
+    await initQueues();
+    logger.info('Filas BullMQ inicializadas');
+
+    // Iniciar servidor de métricas Prometheus na porta separada
+    await metricsServer.start(Number(process.env.PROMETHEUS_PORT ?? 9100));
+
+    // Iniciar servidor principal
+    const port = Number(process.env.PORT ?? 3000);
+    await app.listen({ port, host: '0.0.0.0' });
+    logger.info({ port }, 'Nexora Media Processing iniciado');
+
+  } catch (error) {
+    logger.error(error, 'Erro ao iniciar o servidor');
+    process.exit(1);
+  }
+}
+
+// Gestão limpa de encerramento
+process.on('SIGTERM', async () => {
+  logger.info('SIGTERM recebido — a encerrar graciosamente');
+  await app.close();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  logger.info('SIGINT recebido — a encerrar graciosamente');
+  await app.close();
+  process.exit(0);
+});
+
+function validateEnvironment(): void {
+  const required = [
+    'DATABASE_URL',
+    'REDIS_URL',
+    'MINIO_ENDPOINT',
+    'NEXORA_INPUT_DIR',
+    'NEXORA_OUTPUT_DIR',
+    'NEXORA_TEMP_DIR'
+  ];
+
+  const missing = required.filter(key => !process.env[key]);
+  if (missing.length > 0) {
+    throw new Error(
+      `Variáveis de ambiente em falta: ${missing.join(', ')}\n` +
+      'Copia .env.example para .env e preenche os valores.'
+    );
+  }
+}
+
+void start();

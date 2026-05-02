@@ -1,0 +1,146 @@
+
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:0;font-family:var(--font-sans,-apple-system,BlinkMacSystemFont,'Inter',sans-serif)}
+.wrap{padding:0}
+.header{margin-bottom:12px}
+.title{font-size:14px;font-weight:500;color:var(--color-text-primary);margin:0 0 2px}
+.sub{font-size:11px;color:var(--color-text-secondary);margin:0}
+.progress-outer{height:8px;background:var(--color-background-secondary);border-radius:4px;overflow:hidden;margin-bottom:4px}
+.progress-inner{height:100%;background:linear-gradient(90deg,#5DCAA5,#85B7EB,#4ade80);border-radius:4px;transition:width .5s ease}
+.progress-label{font-size:10px;color:var(--color-text-tertiary);text-align:right;margin-bottom:10px}
+.phases{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.phase{border-radius:9px;padding:8px 11px;border:0.5px solid var(--color-border-tertiary)}
+.phase-done{background:#EAF3DE;border-color:#97C459}
+.phase-partial{background:#FAEEDA;border-color:#EF9F27}
+.phase-todo{background:var(--color-background-secondary);border-color:var(--color-border-tertiary)}
+@media(prefers-color-scheme:dark){
+  .phase-done{background:#173404;border-color:#3B6D11}
+  .phase-partial{background:#412402;border-color:#BA7517}
+}
+.phase-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}
+.phase-name{font-size:11px;font-weight:500;color:var(--color-text-primary)}
+.phase-badge{font-size:9.5px;padding:1px 6px;border-radius:8px;font-weight:500}
+.pb-done{background:#EAF3DE;color:#27500A}
+.pb-partial{background:#FAEEDA;color:#633806}
+.pb-todo{background:var(--color-background-secondary);color:var(--color-text-secondary)}
+@media(prefers-color-scheme:dark){
+  .pb-done{background:#173404;color:#C0DD97}
+  .pb-partial{background:#412402;color:#FAC775}
+}
+.phase-items{font-size:10px;color:var(--color-text-secondary);line-height:1.5}
+.divider{height:1px;background:var(--color-border-tertiary);margin:8px 0}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+.stat{background:var(--color-background-secondary);border-radius:8px;padding:7px 9px;text-align:center;border:0.5px solid var(--color-border-tertiary)}
+.stat-val{font-size:18px;font-weight:600;color:var(--color-text-primary);margin:0 0 1px}
+.stat-lbl{font-size:9.5px;color:var(--color-text-secondary)}
+.files-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:10px}
+.file-entry{font-size:10px;color:var(--color-text-secondary);padding:3px 7px;background:var(--color-background-secondary);border-radius:5px;border:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;gap:4px;overflow:hidden}
+.file-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.fd-done{background:#4ade80}
+.fd-partial{background:#fb923c}
+.nextsteps{background:var(--color-background-secondary);border-radius:9px;padding:9px 11px;border:0.5px solid var(--color-border-tertiary)}
+.ns-title{font-size:11px;font-weight:500;color:var(--color-text-primary);margin:0 0 5px}
+.ns-item{font-size:11px;color:var(--color-text-secondary);padding:2px 0;padding-left:12px;position:relative}
+.ns-item::before{content:"→";position:absolute;left:0;color:var(--color-text-tertiary);font-size:10px}
+</style>
+
+<div class="wrap">
+  <div class="header">
+    <div class="title">Nexora Media Processing — Estado do Projecto</div>
+    <div class="sub">Arquitecto: Claude Sonnet · Stack 100% Open Source</div>
+  </div>
+
+  <div class="progress-outer"><div class="progress-inner" style="width:82%"></div></div>
+  <div class="progress-label">82% concluído — 9 de 11 fases completas</div>
+
+  <div class="stats-row">
+    <div class="stat"><div class="stat-val">47</div><div class="stat-lbl">Ficheiros criados</div></div>
+    <div class="stat"><div class="stat-val">~8.5k</div><div class="stat-lbl">Linhas de código</div></div>
+    <div class="stat"><div class="stat-val">10</div><div class="stat-lbl">Prompts gerados</div></div>
+    <div class="stat"><div class="stat-val">10</div><div class="stat-lbl">ADRs imutáveis</div></div>
+  </div>
+
+  <div class="phases">
+    <div class="phase phase-done">
+      <div class="phase-header"><span class="phase-name">Fase 0 — Preparação</span><span class="phase-badge pb-done">✓ Completo</span></div>
+      <div class="phase-items">Scripts setup · scaffold · finalize · deploy-docs · PROGRESS.md · rules.md · ADRs · Docker Compose</div>
+    </div>
+    <div class="phase phase-done">
+      <div class="phase-header"><span class="phase-name">Fase 1 — Backend Core</span><span class="phase-badge pb-done">✓ Completo</span></div>
+      <div class="phase-items">Prisma schema · FFmpeg executor · Command builder · Parser · QC rules · Todos os 9 workers · BullMQ queues · Perfis</div>
+    </div>
+    <div class="phase phase-done">
+      <div class="phase-header"><span class="phase-name">Fase 2 — FFmpeg + GPU</span><span class="phase-badge pb-done">✓ Completo</span></div>
+      <div class="phase-items">GPU detector · Two-pass R128 · BS1770GAIN verify · VMAF scorer · HandBrake presets · Job scheduler</div>
+    </div>
+    <div class="phase phase-done">
+      <div class="phase-header"><span class="phase-name">Fase 3 — API + Temporal</span><span class="phase-badge pb-done">✓ Completo</span></div>
+      <div class="phase-items">Temporal workflow + activities · Decision Engine · REST API · SSE · Auth JWT RS256 · Rate limiter</div>
+    </div>
+    <div class="phase phase-done">
+      <div class="phase-header"><span class="phase-name">Fase 4 — Docker + CI/CD</span><span class="phase-badge pb-done">✓ Completo</span></div>
+      <div class="phase-items">Docker Compose 10 serviços · Dockerfiles · GitHub Actions · Prometheus alerts · Grafana dashboards</div>
+    </div>
+    <div class="phase phase-done">
+      <div class="phase-header"><span class="phase-name">Fase 5 — Frontend</span><span class="phase-badge pb-done">✓ Completo</span></div>
+      <div class="phase-items">Next.js 14 · Dashboard · Assets list/detail · Queue monitor · Upload wizard · SSE · VMAF gauge · Status badge</div>
+    </div>
+    <div class="phase phase-done">
+      <div class="phase-header"><span class="phase-name">Fase 6 — Log Analysis</span><span class="phase-badge pb-done">✓ Completo</span></div>
+      <div class="phase-items">Log parser · Pattern matcher · Diagnostic engine · Fix suggester · Anomaly detector · Daily digest</div>
+    </div>
+    <div class="phase phase-partial">
+      <div class="phase-header"><span class="phase-name">Fase 7 — Segurança</span><span class="phase-badge pb-partial">⚡ Parcial</span></div>
+      <div class="phase-items">✓ Magic bytes · Filename sanitizer · SSRF prevention · JWT keys · Audit chain<br/>✗ Testes de segurança pendentes</div>
+    </div>
+    <div class="phase phase-done">
+      <div class="phase-header"><span class="phase-name">Fase 8 — Testes</span><span class="phase-badge pb-done">✓ Completo</span></div>
+      <div class="phase-items">Unit QC rules (100%) · FFmpeg builder (security) · Integration Testcontainers · Playwright E2E · k6 performance</div>
+    </div>
+    <div class="phase phase-todo">
+      <div class="phase-header"><span class="phase-name">Fase 9 — Open Source</span><span class="phase-badge pb-partial">⚡ Parcial</span></div>
+      <div class="phase-items">✓ HandBrake presets · Tool selector<br/>✗ BS1770GAIN analyzer · MediaInfo parser · VLC tester · Tool availability checker</div>
+    </div>
+    <div class="phase phase-todo">
+      <div class="phase-header"><span class="phase-name">Fase 10 — Integração Final</span><span class="phase-badge pb-todo">Pendente</span></div>
+      <div class="phase-items">Shared types package · State machine · ADR docs · README final · Verificação integração</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+  <div style="font-size:11px;font-weight:500;color:var(--color-text-secondary);margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px">Ficheiros criados nesta sessão</div>
+  <div class="files-grid">
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">activities.ts</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">orchestrator.ts</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">decision-engine.ts</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">temporal-worker.ts</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">temporal-client.ts</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">analyzer.worker.ts</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">qc-post.worker.ts</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">proxy.worker.ts</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">delivery.worker.ts</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">subtitle.worker.ts</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">availability-checker.ts</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">nexora-presets.json</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">upload-modal.tsx</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">assets-table.tsx</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">asset-filters.tsx</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">sidebar.tsx</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">topbar.tsx</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">metric-card.tsx</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">recent-activity.tsx</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">security.ts</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">upload-flow.spec.ts</span></div>
+    <div class="file-entry"><div class="file-dot fd-done"></div><span class="truncate">ACCEPTANCE_CHECKLIST</span></div>
+  </div>
+
+  <div class="nextsteps">
+    <div class="ns-title">Próximos passos para concluir (18% restante)</div>
+    <div class="ns-item">Fase 9: NexoraBS1770GainAnalyzer + NexoraMediaInfoParser + NexoraVLCPlaybackTester + NexoraToolAvailabilityChecker</div>
+    <div class="ns-item">Fase 7: Testes de segurança (path traversal, SSRF, injection)</div>
+    <div class="ns-item">Fase 10: @nexora/shared-types package + state machine + README final</div>
+    <div class="ns-item">Executar checklist de aceitação completo (docs/ACCEPTANCE_CHECKLIST.md)</div>
+    <div class="ns-item">Fazer git push e verificar GitHub Actions (verde)</div>
+  </div>
+</div>

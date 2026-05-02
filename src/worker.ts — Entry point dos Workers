@@ -1,0 +1,90 @@
+// Nexora Media Processing — Entry point dos Workers BullMQ
+// Inicializa todos os workers de processamento de media
+
+import { logger } from './observability/logger';
+import { IngestWorker } from './workers/ingest.worker';
+import { QCWorker } from './workers/qc.worker';
+import { AnalyzerWorker } from './workers/analyzer.worker';
+import { TranscodeWorker } from './workers/transcode.worker';
+import { AudioWorker } from './workers/audio.worker';
+import { ProxyWorker } from './workers/proxy.worker';
+import { QCPostWorker } from './workers/qc-post.worker';
+import { DeliveryWorker } from './workers/delivery.worker';
+import { SubtitleWorker } from './workers/subtitle.worker';
+import { checkToolAvailability } from './pipeline/tools/availability-checker';
+import { metricsServer } from './observability/metrics';
+
+async function startWorkers(): Promise<void> {
+  try {
+    logger.info('A iniciar workers Nexora...');
+
+    // Verificar disponibilidade das ferramentas de media
+    const toolStatus = await checkToolAvailability();
+    logToolStatus(toolStatus);
+
+    // Falhar se FFmpeg não estiver disponível (obrigatório)
+    if (!toolStatus.ffmpeg) {
+      throw new Error(
+        'FFmpeg não encontrado. Instala com:\n' +
+        '  macOS:  brew install ffmpeg\n' +
+        '  Ubuntu: sudo apt install ffmpeg\n' +
+        '  Windows: choco install ffmpeg'
+      );
+    }
+
+    // Iniciar métricas na porta separada
+    await metricsServer.start(Number(process.env.PROMETHEUS_PORT ?? 9101));
+
+    // Iniciar todos os workers
+    const workers = [
+      new IngestWorker(),
+      new QCWorker(),
+      new AnalyzerWorker(),
+      new TranscodeWorker(),
+      new AudioWorker(),
+      new SubtitleWorker(),
+      new ProxyWorker(),
+      new QCPostWorker(),
+      new DeliveryWorker()
+    ];
+
+    for (const worker of workers) {
+      await worker.start();
+      logger.info({ worker: worker.name }, 'Worker iniciado');
+    }
+
+    logger.info(
+      { count: workers.length },
+      'Todos os workers iniciados com sucesso'
+    );
+
+    // Manter o processo vivo
+    process.on('SIGTERM', async () => {
+      logger.info('SIGTERM — a encerrar workers graciosamente');
+      await Promise.all(workers.map(w => w.stop()));
+      process.exit(0);
+    });
+
+    process.on('SIGINT', async () => {
+      logger.info('SIGINT — a encerrar workers graciosamente');
+      await Promise.all(workers.map(w => w.stop()));
+      process.exit(0);
+    });
+
+  } catch (error) {
+    logger.error(error, 'Erro fatal ao iniciar workers');
+    process.exit(1);
+  }
+}
+
+function logToolStatus(status: Record<string, boolean>): void {
+  for (const [tool, available] of Object.entries(status)) {
+    if (available) {
+      logger.info({ tool }, '✓ Ferramenta disponível');
+    } else {
+      logger.warn({ tool }, '⚠ Ferramenta não encontrada (usando fallback se disponível)');
+    }
+  }
+}
+
+void startWorkers();

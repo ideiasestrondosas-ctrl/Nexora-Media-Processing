@@ -1,126 +1,37 @@
 # Nexora Media Processing
 
-> Plataforma profissional de processamento de media para Broadcast & OTT  
-> Stack 100% Open Source · EBU R128 · AS-11 · CMAF · VMAF
+> Plataforma profissional de processamento de media para Broadcast & OTT
+> Stack 100% Open Source
 
-[![Tests](https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing/actions/workflows/test.yml/badge.svg)](https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing/actions/workflows/test.yml)
-[![Coverage](https://codecov.io/gh/ideiasestrondosas-ctrl/Nexora-Media-Processing/branch/main/graph/badge.svg)](https://codecov.io/gh/ideiasestrondosas-ctrl/Nexora-Media-Processing)
-
----
-
-## O que é
-
-O Nexora Media Processing recebe ficheiros de vídeo e áudio, valida-os automaticamente
-contra os standards de broadcast, corrige problemas de qualidade, converte-os para os
-formatos pedidos e entrega-os prontos a emitir.
-
-**Pipeline:** Ingest → QC pré → Análise → Transcode + Áudio → Proxy → QC pós → Delivery
-
----
-
-## Começar em 10 comandos
+## Setup rápido (10 comandos)
 
 ```bash
-# 1. Clonar o repositório
-git clone https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing.git
+git clone https://github.com/[utilizador]/nexora-media-processing.git
 cd nexora-media-processing
-
-# 2. Executar setup do ambiente (instala todas as ferramentas)
 bash scripts/nexora-setup.sh
-
-# 3. Configurar variáveis de ambiente
 cp .env.example .env
-# Edita o .env com as tuas configurações
-
-# 4. Instalar dependências Node.js
+# Edita o .env
 npm install
-
-# 5. Iniciar serviços de infra
 docker compose up -d postgres redis minio temporal temporal-ui
-
-# 6. Aguardar serviços iniciarem (~30 segundos)
-sleep 30
-
-# 7. Aplicar migrações da base de dados
-npm run db:migrate
-
-# 8. Colocar dados de teste (opcional)
-npm run db:seed
-
-# 9. Iniciar a API
-npm run dev
-
-# 10. Iniciar os workers (em novo terminal)
-npm run worker
+sleep 30 && npm run db:migrate
+npm run dev          # Terminal 1
+npm run worker       # Terminal 2
 ```
 
-Aceder em:
-- **App:** http://localhost:3000
-- **Temporal UI:** http://localhost:8080
-- **Grafana:** http://localhost:3001 (admin/nexora)
-- **MinIO:** http://localhost:9001 (nexoraadmin/nexora_minio_secret)
+## Interfaces
 
----
-
-## Arquitectura
-
-```
-Ingest → QC & Validação → Intelligence → Processing → QC Pós-encode → Delivery
-                                              ↓
-                              Workers distribuídos (Temporal.io):
-                              Transcode · Áudio · Legendas · DRM · Proxy
-```
-
-**Stack:** Node.js 20 + TypeScript + Fastify + BullMQ + Redis + PostgreSQL + MinIO + Temporal.io  
-**Frontend:** Next.js 14 + React + Tailwind CSS  
-**Media tools:** FFmpeg · HandBrakeCLI · MediaInfo · FFprobe · MediaConch · BS1770GAIN
-
----
-
-## Perfis de encoding
-
-| Perfil | Formato | Uso |
+| Interface | URL | Login |
 |---|---|---|
-| `nexora_broadcast_hd` | MXF OP1a + H.264 | Broadcasters (RTP, SIC, TVI, BBC...) |
-| `nexora_ott_premium` | CMAF + H.265 + DRM | Netflix, Amazon, Disney+ |
-| `nexora_streaming_web` | MP4 + H.264 ladder | YouTube, web players |
-| `nexora_proxy_lowres` | MP4 720p 800kbps | Revisão editorial |
-| `nexora_archive` | MXF + ProRes 4444 | Arquivo profissional |
-
----
-
-## Standards cobertos
-
-EBU R128 · ITU-R BS.1770-4 · AS-11 UK DPP · IMF SMPTE ST 2067 ·
-CMAF ISO 23000-19 · EBU Core · Apple HLS Authoring · DASH-IF IOP ·
-Harding FPA · SCTE-35 · SPEKE/CPIX · Netflix per-title encoding
-
----
-
-## Desenvolvimento
-
-```bash
-npm run dev              # API em modo desenvolvimento
-npm run worker           # Workers BullMQ
-npm test                 # Testes unitários
-npm run test:coverage    # Testes com cobertura
-npm run test:e2e         # Testes E2E (Playwright)
-npm run lint             # ESLint
-npm run db:studio        # Prisma Studio (UI da base de dados)
-```
-
----
+| App | http://localhost:3000 | — |
+| Temporal UI | http://localhost:8080 | — |
+| Grafana | http://localhost:3001 | admin/nexora |
+| MinIO | http://localhost:9001 | nexoraadmin/nexora_minio_secret |
 
 ## Documentação
 
-- [Manual técnico completo](docs/manual-v4.md)
-- [Arquitectura detalhada](docs/architecture.md)
-- [Architecture Decision Records](docs/adr/)
-- [API Reference](openapi.yaml)
+- [Manual completo](docs/manual-v4.md)
 - [Estado do projecto](PROGRESS.md)
+- [ADRs](docs/adr/)
+- [API Reference](openapi.yaml)
 
----
-
-## Licença
-
-MIT — ver [LICENSE](LICENSE)
+## Licença: MIT

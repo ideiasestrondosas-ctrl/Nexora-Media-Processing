@@ -1,0 +1,50 @@
+groups:
+  - name: nexora_pipeline
+    rules:
+      - alert: NexoraPipelineStalled
+        expr: nexora_queue_depth > 50
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pipeline parado — fila com mais de 50 jobs"
+          description: "Queue {{ $labels.worker_type }} tem {{ $value }} jobs pendentes há 10 minutos"
+
+      - alert: NexoraHighRejectionRate
+        expr: rate(nexora_assets_rejected_total[5m]) / rate(nexora_assets_ingested_total[5m]) > 0.20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Taxa de rejeição alta (>20%)"
+
+      - alert: NexoraWorkerDown
+        expr: up{job="nexora-worker"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Worker Nexora offline há 2 minutos"
+
+      - alert: NexoraLowVMAF
+        expr: histogram_quantile(0.5, nexora_vmaf_score) < 85
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "VMAF mediano abaixo de 85"
+
+      - alert: NexoraFFmpegTimeout
+        expr: increase(nexora_ffmpeg_timeout_total[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "FFmpeg timeout detectado"
+
+      - alert: NexoraDiskWarning
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disco abaixo de 20% disponível"

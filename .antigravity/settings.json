@@ -1,0 +1,37 @@
+{
+  "ai": {
+    "defaultAgent": "claude",
+    "contextFiles": [
+      "PROGRESS.md",
+      ".antigravity/rules.md"
+    ],
+    "autoReadContext": true,
+    "language": "pt-PT"
+  },
+  "rules": {
+    "file": ".antigravity/rules.md",
+    "enforceOnEverySession": true
+  },
+  "agents": {
+    "claude": {
+      "role": "arquitectura, backend, segurança, testes",
+      "prompts": [
+        1,
+        2,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ]
+    },
+    "gemini": {
+      "role": "frontend, UI, dashboard",
+      "prompts": [
+        3
+      ]
+    }
+  }
+}

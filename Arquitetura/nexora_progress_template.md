@@ -87,19 +87,35 @@
 - [ ] Benchmarks GPU vs CPU
 
 ### Fase 3 — Orquestração + API (Prompt 2 — Claude)
-- [ ] Temporal.io workflow: processAssetWorkflow
-- [ ] Temporal.io activities
-- [ ] Decision Engine
-- [ ] API routes: assets (POST/GET)
-- [ ] API routes: jobs
-- [ ] API routes: profiles
-- [ ] API routes: metrics/summary
-- [ ] API routes: queue/stats
-- [ ] API routes: webhooks
-- [ ] SSE para status updates
-- [ ] OpenAPI 3.1 spec (openapi.yaml)
-- [ ] Zod validation schemas
-- [ ] Testes de integração (Vitest + Supertest)
+- [x] Temporal.io workflow: processAssetWorkflow (orchestrator.ts)
+- [x] Temporal.io activities (activities.ts)
+- [x] Temporal worker + client (temporal-worker.ts / temporal-client.ts)
+- [x] Decision Engine (decision-engine.ts — 11 regras)
+- [x] API routes: assets (GET, POST, SSE, QC report, reprocess, audit)
+- [x] API routes: jobs (GET status, queue stats, metrics summary, profiles)
+- [x] Auth middleware JWT RS256 (auth.ts)
+- [x] Rate limiter middleware
+- [x] Plugins + Routes registration (plugins.ts)
+- [x] OpenAPI spec (parcialmente — completar com Prompt 2)
+
+### Fase 7 — Segurança (Prompt 7 — Claude)
+- [x] Magic bytes validator (security.ts)
+- [x] Filename sanitizer
+- [x] SSRF prevention (validateURLForIngest)
+- [x] JWT key generation (generateJWTKeyPair)
+- [x] Audit chain verifier (verifyAuditChain)
+- [x] Script de geração de chaves (nexora-generate-keys.ts)
+- [ ] Testes de segurança (injection tests, SSRF tests)
+
+### Fase 8 — Testes (Prompt 8 — Claude)
+- [x] Testes unitários QC rules (tests/unit/qc-rules.test.ts)
+- [x] Testes unitários FFmpeg builder (segurança)
+- [x] Testes de integração pipeline (tests/integration/pipeline.test.ts)
+- [x] Testes E2E API (tests/integration/pipeline.test.ts — API section)
+- [x] Testes E2E Frontend Playwright (tests/e2e/upload-flow.spec.ts)
+- [x] Script k6 performance (tests/performance/load-test.js)
+- [x] Fixtures generator (generate-fixtures.sh)
+- [x] Checklist de aceitação final (docs/ACCEPTANCE_CHECKLIST.md)
 
 ### Fase 4 — Infra + CI/CD (Prompt 6 — Claude)
 - [ ] Docker Compose completo (10 serviços)
@@ -115,22 +131,20 @@
 - [ ] Health check endpoints
 
 ### Fase 5 — Frontend (Prompt 3 — Gemini)
-- [ ] Setup Next.js 14 App Router
-- [ ] Layout principal + sidebar
-- [ ] Page: Dashboard Overview
-- [ ] Page: Assets List com filtros
-- [ ] Page: Asset Detail (5 tabs)
-- [ ] Page: Queue Monitor
-- [ ] Page: Upload Flow (wizard)
-- [ ] Componente: NexoraStatusBadge
-- [ ] Componente: NexoraVMAFGauge
-- [ ] Componente: NexoraLoudnessMeter
-- [ ] Componente: NexoraCodecBadge
-- [ ] Componente: NexoraFileDropzone
-- [ ] Componente: NexoraTimecodeDisplay
-- [ ] SSE real-time updates
-- [ ] Testes Playwright: upload flow
-- [ ] Testes Playwright: asset detail
+- [x] Setup Next.js 14 App Router (frontend/src/app/)
+- [x] Layout principal + sidebar + topbar
+- [x] Page: Dashboard Overview (métricas + charts)
+- [x] Page: Assets List com filtros + paginação
+- [x] Page: Asset Detail (5 tabs: overview, qc-report, jobs, audit, downloads)
+- [x] Page: Queue Monitor (profundidade filas + stats)
+- [x] Upload Flow wizard (4 passos: ficheiro → perfil → opções → progresso)
+- [x] Componente: NexoraStatusBadge (animated pulse)
+- [x] Componente: NexoraVMAFGauge (semicircle gauge)
+- [x] Componente: MetricCard + RecentActivity + AssetsTable
+- [x] Hook: useAssetStatusSSE (real-time updates)
+- [x] Cliente API (lib/api.ts)
+- [x] QueryProviders (TanStack Query)
+- [x] Testes Playwright: upload flow + asset detail + a11y
 
 ### Fase 6 — Log Analysis (Prompt 4 — Claude)
 - [ ] NexoraLogParser
