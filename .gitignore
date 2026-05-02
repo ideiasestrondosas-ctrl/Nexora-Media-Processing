@@ -26,3 +26,5 @@ tests/output/*
 tests/temp/*
 !tests/output/.gitkeep
 !tests/temp/.gitkeep
+
+.github/
