@@ -1,0 +1,107 @@
+// Nexora Media Processing — Métricas Prometheus
+// Ficheiro: src/observability/metrics.ts
+//
+// Expõe endpoint /metrics para scraping pelo Prometheus.
+// Servidor Fastify separado na porta PROMETHEUS_PORT.
+
+import {
+  Registry,
+  Counter,
+  Histogram,
+  Gauge,
+  collectDefaultMetrics,
+} from 'prom-client';
+import Fastify from 'fastify';
+
+// Registry dedicado para métricas Nexora
+export const nexoraRegistry = new Registry();
+
+// Recolher métricas padrão do Node.js (CPU, memória, event loop)
+collectDefaultMetrics({ register: nexoraRegistry, prefix: 'nexora_node_' });
+
+// ── Contadores ─────────────────────────────────────────────────
+
+export const assetsIngested = new Counter({
+  name: 'nexora_assets_ingested_total',
+  help: 'Total de assets recebidos pelo sistema',
+  registers: [nexoraRegistry],
+});
+
+export const assetsRejected = new Counter({
+  name: 'nexora_assets_rejected_total',
+  help: 'Total de assets rejeitados no QC',
+  labelNames: ['reason'] as const,
+  registers: [nexoraRegistry],
+});
+
+export const ffmpegTimeouts = new Counter({
+  name: 'nexora_ffmpeg_timeout_total',
+  help: 'Total de timeouts do FFmpeg',
+  registers: [nexoraRegistry],
+});
+
+// ── Histogramas ────────────────────────────────────────────────
+
+export const transcodeDuration = new Histogram({
+  name: 'nexora_transcode_duration_seconds',
+  help: 'Duração do transcode em segundos',
+  labelNames: ['profile'] as const,
+  buckets: [30, 120, 600, 1800, 3600, 14400],
+  registers: [nexoraRegistry],
+});
+
+export const vmafScore = new Histogram({
+  name: 'nexora_vmaf_score',
+  help: 'Distribuição dos scores VMAF',
+  labelNames: ['profile'] as const,
+  buckets: [60, 70, 75, 80, 85, 90, 93, 95, 98, 100],
+  registers: [nexoraRegistry],
+});
+
+export const loudnessLufs = new Histogram({
+  name: 'nexora_loudness_lufs',
+  help: 'Distribuição de LUFS integrado',
+  buckets: [-30, -25, -23, -20, -16, -14, -10],
+  registers: [nexoraRegistry],
+});
+
+export const uploadDuration = new Histogram({
+  name: 'nexora_upload_duration_seconds',
+  help: 'Duração de uploads para storage',
+  labelNames: ['destination'] as const,
+  buckets: [1, 5, 15, 30, 60, 120, 300],
+  registers: [nexoraRegistry],
+});
+
+// ── Gauges ─────────────────────────────────────────────────────
+
+export const queueDepth = new Gauge({
+  name: 'nexora_queue_depth',
+  help: 'Número de jobs na fila por tipo de worker',
+  labelNames: ['worker_type'] as const,
+  registers: [nexoraRegistry],
+});
+
+export const jobSuccessRate = new Gauge({
+  name: 'nexora_job_success_rate',
+  help: 'Taxa de sucesso de jobs nos últimos 5 minutos',
+  registers: [nexoraRegistry],
+});
+
+// ── Servidor de métricas (porta separada) ──────────────────────
+
+export const metricsServer = {
+  async start(port: number): Promise<void> {
+    const app = Fastify({ logger: false });
+
+    app.get('/metrics', async (_, reply) => {
+      void reply.header('Content-Type', nexoraRegistry.contentType);
+      const metrics = await nexoraRegistry.metrics();
+      return metrics;
+    });
+
+    app.get('/health', async () => ({ status: 'ok' }));
+
+    await app.listen({ port, host: '0.0.0.0' });
+  },
+};

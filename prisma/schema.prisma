@@ -1,3 +1,6 @@
+// Nexora Media Processing — Prisma Schema Completo
+// Schema PostgreSQL com 6 modelos e enums para o pipeline de media
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,28 +10,212 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Job {
-  id        String   @id @default(uuid())
-  type      String
-  status    String   @default("pending")
-  payload   Json?
-  result    Json?
-  error     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// ── Enums ────────────────────────────────────────────────────────
 
-  @@map("jobs")
+enum AssetStatus {
+  PENDING
+  INGESTING
+  QC_RUNNING
+  QC_PASSED
+  QC_QUARANTINED
+  QC_REJECTED
+  TRANSCODING
+  AUDIO_PROCESSING
+  DELIVERING
+  COMPLETED
+  FAILED
+  DELETED
 }
 
+enum JobType {
+  INGEST
+  QC
+  TRANSCODE
+  AUDIO
+  PROXY
+  DELIVERY
+}
+
+enum JobStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum QCDecision {
+  PASS
+  QUARANTINE
+  REJECT
+}
+
+enum DeliveryType {
+  S3
+  FTP
+  HTTP
+  LOCAL
+}
+
+// ── Modelos ──────────────────────────────────────────────────────
+
+/// Representa um ficheiro de media recebido pelo sistema.
+/// Ciclo de vida gerido por AssetStatus.
 model Asset {
-  id        String   @id @default(uuid())
-  filename  String
-  path      String
-  mimeType  String?
-  size      BigInt?
-  metadata  Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String      @id @default(uuid())
+  filename     String
+  originalPath String?                      // caminho local antes do upload
+  minioKey     String?                      // chave no MinIO (bucket/key)
+  mimeType     String?
+  size         BigInt?                      // tamanho em bytes
+  sha256       String?                      // checksum ADR-003
+  metadata     Json?                        // resultado MediaInfo (bruto)
+  profile      String?                      // perfil de encoding usado
+  status       AssetStatus @default(PENDING)
+  deletedAt    DateTime?                    // soft delete (ADR-007)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Relações
+  jobs          Job[]
+  qcReports     QCReport[]
+  auditLogs     AuditLog[]
+  workflowRuns  WorkflowRun[]
+  deliveryTargets AssetDeliveryTarget[]
 
   @@map("assets")
+  @@index([status])
+  @@index([sha256])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+/// Representa uma tarefa de processamento numa fila BullMQ.
+/// Cada Job corresponde a uma entrada numa fila específica.
+model Job {
+  id          String    @id @default(uuid())
+  type        JobType
+  status      JobStatus @default(PENDING)
+  priority    Int       @default(5)         // 10=broadcast, 7=ott, 5=web, 3=proxy
+  payload     Json?                         // parâmetros do job
+  result      Json?                         // resultado quando concluído
+  error       String?                       // mensagem de erro (se falhou)
+  attempt     Int       @default(0)
+  maxAttempts Int       @default(3)
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relações
+  assetId       String
+  asset         Asset        @relation(fields: [assetId], references: [id])
+  workflowRunId String?
+  workflowRun   WorkflowRun? @relation(fields: [workflowRunId], references: [id])
+
+  @@map("jobs")
+  @@index([status])
+  @@index([type])
+  @@index([assetId])
+  @@index([createdAt])
+}
+
+/// Relatório de Controlo de Qualidade de um asset.
+/// Contém a decisão (PASS/QUARANTINE/REJECT) e todos os resultados individuais.
+model QCReport {
+  id        String     @id @default(uuid())
+  decision  QCDecision
+  results   Json                            // array de QCResult (ver src/qc/rules/index.ts)
+  summary   String
+  profile   String?                         // perfil QC usado
+  createdAt DateTime   @default(now())
+
+  // Relações
+  assetId String
+  asset   Asset  @relation(fields: [assetId], references: [id])
+
+  @@map("qc_reports")
+  @@index([assetId])
+  @@index([decision])
+  @@index([createdAt])
+}
+
+/// Destino de entrega para onde os assets processados são enviados.
+/// Um asset pode ser entregue a múltiplos destinos.
+model DeliveryTarget {
+  id       String       @id @default(uuid())
+  name     String       @unique
+  type     DeliveryType
+  config   Json                             // configuração específica do tipo (endpoint, credenciais)
+  isActive Boolean      @default(true)
+
+  // Relações (many-to-many com Asset via tabela pivot)
+  assets AssetDeliveryTarget[]
+
+  @@map("delivery_targets")
+  @@index([type])
+  @@index([isActive])
+}
+
+/// Tabela pivot para relação many-to-many Asset ↔ DeliveryTarget.
+/// Regista o estado de entrega para cada combinação.
+model AssetDeliveryTarget {
+  assetId          String
+  deliveryTargetId String
+  status           JobStatus @default(PENDING)
+  deliveredAt      DateTime?
+  error            String?
+
+  asset          Asset          @relation(fields: [assetId], references: [id])
+  deliveryTarget DeliveryTarget @relation(fields: [deliveryTargetId], references: [id])
+
+  @@id([assetId, deliveryTargetId])
+  @@map("asset_delivery_targets")
+}
+
+/// Log de auditoria append-only para todas as operações relevantes.
+/// ADR-007: UPDATE e DELETE são proibidos nesta tabela.
+/// Implementar Row Level Security no PostgreSQL para reforçar.
+model AuditLog {
+  id         String   @id @default(uuid())
+  action     String                          // ex: ASSET_INGESTED, QC_REJECTED, JOB_CANCELLED
+  entityType String                          // ex: Asset, Job, QCReport
+  entityId   String
+  userId     String?                         // quem executou a acção (null se sistema)
+  ipAddress  String?
+  metadata   Json?                           // dados adicionais da acção
+  createdAt  DateTime @default(now())
+
+  // Relação opcional com Asset para filtros
+  assetId String?
+  asset   Asset?  @relation(fields: [assetId], references: [id])
+
+  @@map("audit_logs")
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([assetId])
+  @@index([createdAt])
+}
+
+/// Representa uma execução de workflow no Temporal.io.
+/// Correlaciona o workflow do Temporal com os jobs BullMQ correspondentes.
+model WorkflowRun {
+  id          String    @id @default(uuid())
+  workflowId  String    @unique              // ID do workflow no Temporal
+  runId       String?                        // run ID do Temporal
+  taskQueue   String?
+  status      String    @default("RUNNING")  // RUNNING | COMPLETED | FAILED | CANCELLED
+  error       String?
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  // Relações
+  assetId String
+  asset   Asset  @relation(fields: [assetId], references: [id])
+  jobs    Job[]
+
+  @@map("workflow_runs")
+  @@index([workflowId])
+  @@index([status])
+  @@index([assetId])
 }

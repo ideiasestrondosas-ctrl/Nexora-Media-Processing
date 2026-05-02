@@ -21,12 +21,12 @@
 
 ## ✅ O que está concluído
 
-- [ ] Setup do ambiente (nexora-setup.sh executado)
-- [ ] Scaffold do projecto (nexora-scaffold.js executado)
-- [ ] PROGRESS.md criado
-- [ ] .antigravity/rules.md criado
-- [ ] Repositório GitHub configurado
-- [ ] Prompt 1 executado (Backend Core — Claude)
+- [x] Setup do ambiente (nexora-setup.sh executado)
+- [x] Scaffold do projecto (nexora-scaffold.js executado)
+- [x] PROGRESS.md criado
+- [x] .antigravity/rules.md criado
+- [x] Repositório GitHub configurado
+- [x] **Prompt 1 executado — Backend Core (Antigravity, 2026-05-02)**
 - [ ] Prompt 5 executado (FFmpeg + Performance — Claude)
 - [ ] Prompt 2 executado (API + Temporal — Claude)
 - [ ] Prompt 6 executado (Docker + Infra — Claude)
@@ -42,19 +42,55 @@
 ## 🔄 Em progresso agora
 
 ```
-Data: ___________
-Agente: ___________
-A trabalhar em: ___________
-Bloqueios: ___________
+Data: 2026-05-02
+Agente: Antigravity (Gemini)
+A trabalhar em: Prompt 2 (API avançada + Temporal workflows)
+Bloqueios: Nenhum
 ```
 
 ---
 
-## 📁 Estrutura de ficheiros
+## 📁 Ficheiros implementados no Prompt 1
 
 ```
-nexora-media-processing/   ← actualiza à medida que cresce
-├── (scaffold inicial criado)
+prisma/
+  schema.prisma              ✅ 6 modelos + 5 enums + migração aplicada
+  migrations/
+    20260502190306_init/
+    20260502201157_backend_core_prompt1/
+
+secrets/
+  jwt_private.pem            ✅ RSA 4096-bit gerada (Node.js crypto)
+  jwt_public.pem             ✅ RSA 4096-bit gerada
+
+src/
+  db/
+    prisma.ts                ✅ Singleton + lifecycle + Pino logging
+  common/
+    errors.ts                ✅ Hierarquia NexoraError + 8 sub-classes
+    minio.ts                 ✅ Singleton + bucket init + stream helpers
+    redis.ts                 ✅ Dual singleton (general + pub/sub) + progress publisher
+  observability/
+    logger.ts                ✅ Pino estruturado (JSON prod / pretty dev)
+    metrics.ts               ✅ Prometheus: counters, histogramas, gauges + servidor
+  workers/
+    queues.ts                ✅ 6 filas + dead-letter + retry exp. + enqueue helpers
+    ingest.worker.ts         ✅ SHA-256 stream, MediaInfo, MinIO upload, QC enqueue
+    qc.worker.ts             ✅ FFprobe, motor regras QC, routing PASS/QUARANTINE/REJECT
+    transcode.worker.ts      ✅ 4 perfis, spawn ADR-002, progresso Redis pub/sub
+    audio.worker.ts          ✅ Two-pass EBU R128, BS1770GAIN, retry ±0.5 LU
+  api/
+    plugins.ts               ✅ CORS, multipart, rateLimit, Swagger, auth, audit, erros
+    routes/
+      index.ts               ✅ Prefixo /api/v1
+      assets.ts              ✅ Upload, list, get, soft delete + audit
+      jobs.ts                ✅ Create, list, get, cancel (BullMQ + DB)
+    middleware/
+      auth.ts                ✅ JWT RS256 (jose), hook onRequest, generateToken
+      rateLimiter.ts         ✅ Redis-backed, 100 req/min, X-RateLimit headers
+      audit.ts               ✅ AuditLog append-only, hook onResponse
+  index.ts                   ✅ Startup sequencial + graceful shutdown
+  worker.ts                  ✅ Tool check + 4 workers + graceful shutdown
 ```
 
 ---
@@ -63,7 +99,8 @@ nexora-media-processing/   ← actualiza à medida que cresce
 
 | Data | Problema | Estado |
 |---|---|---|
-| — | Nenhum | — |
+| 2026-05-02 | `openssl` não disponível no PATH do Windows | Resolvido — chaves RSA geradas com Node.js crypto |
+| 2026-05-02 | Ficheiros stub com `—` no nome não são importáveis | Resolvido — criados ficheiros com nomes correctos |
 
 ---
 
@@ -89,17 +126,17 @@ nexora-media-processing/   ← actualiza à medida que cresce
 | Data | Feito | Agente | Ficheiros |
 |---|---|---|---|
 | 2026-05-02 | Ficheiros de config criados | nexora-deploy-docs.js | PROGRESS.md, rules.md, ADRs |
+| 2026-05-02 | **Prompt 1 — Backend Core completo** | Antigravity (Gemini) | 18 ficheiros novos, migração DB aplicada, 0 erros TS |
 
 ---
 
 ## 🎯 Próximos passos
 
-1. Executar Prompt 1 no Antigravity (agente: Claude)
-2. Executar Prompt 5 no Antigravity (agente: Claude)
-3. Executar Prompt 2 no Antigravity (agente: Claude)
-4. Executar Prompt 6 no Antigravity (agente: Claude)
-5. Executar Prompt 3 no Antigravity (agente: Gemini)
+1. **Prompt 5** — FFmpeg avançado + Performance (pipeline de análise VMAF, streaming otimizado)
+2. **Prompt 2** — API avançada + Temporal workflows (orquestração completa de pipeline)
+3. **Prompt 6** — Docker + Infra (Dockerfile multi-stage, docker-compose, Helm charts)
+4. **Prompt 3** — Frontend Next.js (dashboard de assets, monitorização em tempo real)
 
 ---
 
-*Última actualização: 2026-05-02*
+*Última actualização: 2026-05-02 — Prompt 1 concluído*
