@@ -27,7 +27,7 @@
 - [x] .antigravity/rules.md criado
 - [x] Repositório GitHub configurado
 - [x] **Prompt 1 executado — Backend Core (Antigravity, 2026-05-02)**
-- [ ] Prompt 5 executado (FFmpeg + Performance — Claude)
+- [x] **Prompt 5 executado — FFmpeg Avançado + Performance (Antigravity, 2026-05-02)**
 - [ ] Prompt 2 executado (API + Temporal — Claude)
 - [ ] Prompt 6 executado (Docker + Infra — Claude)
 - [ ] Prompt 3 executado (Frontend — Gemini)
@@ -43,8 +43,8 @@
 
 ```
 Data: 2026-05-02
-Agente: Antigravity (Gemini)
-A trabalhar em: Prompt 2 (API avançada + Temporal workflows)
+Agente: Antigravity (Claude Sonnet)
+A trabalhar em: Concluído — Prompt 5 executado com sucesso
 Bloqueios: Nenhum
 ```
 
@@ -95,12 +95,61 @@ src/
 
 ---
 
+## 📁 Ficheiros implementados no Prompt 5
+
+```
+src/pipeline/ffmpeg/
+  builder.ts                 ✅ NexoraFFmpegCommandBuilder — 8 comandos (4 perfis x GPU+CPU)
+                                ADR-002: string[] tipado, nunca string concatenada
+                                ADR-004: yuv420p forcado em todos os perfis
+                                ADR-006: Closed GOP, 0 B-frames broadcast, force-cfr=1
+                                Colorspace BT.709 obrigatorio
+  gpu-detector.ts            ✅ NexoraGPUDetector — deteccao NVIDIA/Intel/AMD
+                                nvidia-smi + vainfo + encode test 5 frames
+                                Cache Redis TTL 30 minutos
+                                Fallback automatico para CPU se GPU falhar
+  loudness.ts                ✅ NexoraLoudnessNormalizer — two-pass EBU R128
+                                ADR-005: Pass 1 (analise) + Pass 2 (linear)
+                                ADR-009: BS1770GAIN verificacao definitiva
+                                Retry inteligente +-0.5 LU, max 3 tentativas
+                                Fallback FFmpeg se BS1770GAIN nao instalado
+  vmaf.ts                    ✅ NexoraVMAFScorer — scoring libvmaf via FFmpeg
+                                ADR-010: score guardado para todos os outputs
+                                Thresholds: archive>=93, broadcast>=90, streaming>=85, proxy>=70
+                                1st percentile como floor de qualidade
+                                Suporta JSON v2 (pooled_metrics) e v3 (VMAF.aggregate)
+  scheduler.ts               ✅ NexoraJobScheduler — semaforos Redis
+                                GPU: max 2 simultaneos (VRAM)
+                                CPU broadcast: cores/4 | OTT/web: cores/2 | proxy: sem limite
+                                SETNX atomico + TTL 4h (anti-deadlock se worker crashar)
+
+src/workers/
+  queues.ts                  ✅ HOTFIX: filas renomeadas nexora:* -> nexora-* (BullMQ)
+  transcode.worker.ts        ✅ Refactored — delega a builder + GPU + VMAF + scheduler
+                                GPU->CPU fallback automatico em caso de erro
+  audio.worker.ts            ✅ Refactored — thin wrapper sobre NexoraLoudnessNormalizer
+
+src/observability/
+  metrics.ts                 ✅ +4 metricas: vmaf_failures_total, gpu_detection_total,
+                                gpu_available (gauge), scheduler_slots_used (gauge)
+
+config/handbrake/
+  nexora-presets.json        ✅ 4 presets HandBrakeCLI:
+                                Nexora Broadcast HD (8Mbps, PCM, Closed GOP, 0 B-frames)
+                                Nexora OTT HD (5Mbps, AAC 192k, 2-pass)
+                                Nexora Web SD (2Mbps, 720p, AAC 128k)
+                                Nexora Proxy (800kbps, 480p, fast preset)
+```
+
+---
+
 ## ⚠️ Problemas conhecidos
 
 | Data | Problema | Estado |
 |---|---|---|
-| 2026-05-02 | `openssl` não disponível no PATH do Windows | Resolvido — chaves RSA geradas com Node.js crypto |
-| 2026-05-02 | Ficheiros stub com `—` no nome não são importáveis | Resolvido — criados ficheiros com nomes correctos |
+| 2026-05-02 | `openssl` nao disponivel no PATH do Windows | Resolvido — chaves RSA geradas com Node.js crypto |
+| 2026-05-02 | Ficheiros stub com nome errado nao sao importaveis | Resolvido — criados ficheiros com nomes correctos |
+| 2026-05-02 | BullMQ rejeita nomes de fila com `:` | Resolvido — filas renomeadas de `nexora:*` para `nexora-*` |
 
 ---
 
@@ -127,16 +176,17 @@ src/
 |---|---|---|---|
 | 2026-05-02 | Ficheiros de config criados | nexora-deploy-docs.js | PROGRESS.md, rules.md, ADRs |
 | 2026-05-02 | **Prompt 1 — Backend Core completo** | Antigravity (Gemini) | 18 ficheiros novos, migração DB aplicada, 0 erros TS |
+| 2026-05-02 | **Prompt 5 — FFmpeg Avançado + Performance** | Antigravity (Claude Sonnet) | 8 ficheiros novos, 4 refactored, 0 erros TS, 0 erros lint |
 
 ---
 
 ## 🎯 Próximos passos
 
-1. **Prompt 5** — FFmpeg avançado + Performance (pipeline de análise VMAF, streaming otimizado)
-2. **Prompt 2** — API avançada + Temporal workflows (orquestração completa de pipeline)
-3. **Prompt 6** — Docker + Infra (Dockerfile multi-stage, docker-compose, Helm charts)
-4. **Prompt 3** — Frontend Next.js (dashboard de assets, monitorização em tempo real)
+1. **Prompt 2** — API avançada + Temporal workflows (orquestração completa de pipeline)
+2. **Prompt 6** — Docker + Infra (Dockerfile multi-stage, docker-compose, Helm charts)
+3. **Prompt 3** — Frontend Next.js (dashboard de assets, monitorização em tempo real)
+4. **Prompt 4** — Logs/Debug (request tracing, alertas, dashboards Grafana)
 
 ---
 
-*Última actualização: 2026-05-02 — Prompt 1 concluído*
+*Última actualização: 2026-05-02 — Prompt 5 (FFmpeg Avançado + Performance) concluído — 0 erros TS, 0 erros lint*

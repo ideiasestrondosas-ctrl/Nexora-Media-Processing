@@ -12,13 +12,13 @@ import { logger } from '../observability/logger';
 // ── Nomes das filas ──────────────────────────────────────────────
 
 export const QUEUE_NAMES = {
-  INGEST:     'nexora:ingest',
-  QC:         'nexora:qc',
-  TRANSCODE:  'nexora:transcode',
-  AUDIO:      'nexora:audio',
-  PROXY:      'nexora:proxy',
-  DELIVERY:   'nexora:delivery',
-  DEAD_LETTER: 'nexora:dead-letter',
+  INGEST:     'nexora-ingest',
+  QC:         'nexora-qc',
+  TRANSCODE:  'nexora-transcode',
+  AUDIO:      'nexora-audio',
+  PROXY:      'nexora-proxy',
+  DELIVERY:   'nexora-delivery',
+  DEAD_LETTER: 'nexora-dead-letter',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];

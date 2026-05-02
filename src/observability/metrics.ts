@@ -40,6 +40,20 @@ export const ffmpegTimeouts = new Counter({
   registers: [nexoraRegistry],
 });
 
+export const vmafFailures = new Counter({
+  name: 'nexora_vmaf_failures_total',
+  help: 'Total de outputs rejeitados por VMAF abaixo do threshold',
+  labelNames: ['profile'] as const,
+  registers: [nexoraRegistry],
+});
+
+export const gpuDetectionTotal = new Counter({
+  name: 'nexora_gpu_detection_total',
+  help: 'Total de detecções GPU executadas',
+  labelNames: ['result'] as const,
+  registers: [nexoraRegistry],
+});
+
 // ── Histogramas ────────────────────────────────────────────────
 
 export const transcodeDuration = new Histogram({
@@ -85,6 +99,20 @@ export const queueDepth = new Gauge({
 export const jobSuccessRate = new Gauge({
   name: 'nexora_job_success_rate',
   help: 'Taxa de sucesso de jobs nos últimos 5 minutos',
+  registers: [nexoraRegistry],
+});
+
+export const gpuAvailable = new Gauge({
+  name: 'nexora_gpu_available',
+  help: '1 se GPU disponível para encoding, 0 se apenas CPU',
+  labelNames: ['gpu_type'] as const,
+  registers: [nexoraRegistry],
+});
+
+export const schedulerSlotsUsed = new Gauge({
+  name: 'nexora_scheduler_slots_used',
+  help: 'Número de slots de encoding actualmente em uso',
+  labelNames: ['job_type'] as const,
   registers: [nexoraRegistry],
 });
 

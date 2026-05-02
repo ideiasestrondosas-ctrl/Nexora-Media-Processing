@@ -1,10 +1,16 @@
 // Nexora Media Processing — Transcode Worker
 // Ficheiro: src/workers/transcode.worker.ts
 //
-// Worker de transcoding de vídeo com todos os perfis Nexora.
-// ADR-002: FFmpeg sempre via executor isolado com timeout.
-// ADR-006: Parâmetros GOP obrigatórios em todos os perfis broadcast.
-// Progresso em tempo real via Redis pub/sub.
+// Worker de transcoding de vídeo — orquestra os módulos da pipeline:
+//   - NexoraFFmpegCommandBuilder: gera argumentos FFmpeg tipados
+//   - NexoraGPUDetector: selecção automática GPU/CPU com cache
+//   - NexoraVMAFScorer: validação de qualidade pós-encode (ADR-010)
+//   - NexoraJobScheduler: controlo de concorrência por tipo de job
+//
+// ADR-002: FFmpeg via spawn() com array (nunca exec() com string)
+// ADR-004: yuv420p obrigatório — enforçado pelo builder
+// ADR-006: Closed GOP — enforçado pelo builder para broadcast
+// ADR-010: VMAF score calculado e guardado para todos os outputs
 
 import { Worker, Job as BullJob } from 'bullmq';
 import { spawn } from 'child_process';
@@ -15,7 +21,7 @@ import { AssetStatus, JobStatus } from '@prisma/client';
 
 import { prisma } from '../db/prisma';
 import { logger, jobLogger } from '../observability/logger';
-import { transcodeDuration } from '../observability/metrics';
+import { transcodeDuration, vmafFailures, gpuAvailable } from '../observability/metrics';
 import {
   downloadFile,
   uploadFile,
@@ -26,85 +32,26 @@ import { QUEUE_NAMES, addToDeadLetter } from './queues';
 import { TranscodeError } from '../common/errors';
 import type { TranscodeJobPayload } from './queues';
 
-// ── Perfis de encoding ────────────────────────────────────────────
-
-interface EncodingProfile {
-  name: string;
-  videoBitrateK: number;
-  maxrateK: number;
-  bufsizeK: number;
-  gopSize: number;          // keyframe interval (ADR-006)
-  pixFmt: string;           // yuv420p obrigatório (ADR-004)
-  colorspace: string;
-  preset: string;           // libx264 preset
-  bFrames: number;          // 0 para broadcast (ADR-006)
-  audioBitrateK: number;
-  audioSampleRate: number;  // 48000 Hz obrigatório
-}
-
-const ENCODING_PROFILES: Record<string, EncodingProfile> = {
-  'broadcast-hd': {
-    name: 'Nexora Broadcast HD',
-    videoBitrateK: 8000,
-    maxrateK: 10000,
-    bufsizeK: 20000,
-    gopSize: 50,       // 2s a 25fps — ADR-006
-    pixFmt: 'yuv420p', // ADR-004
-    colorspace: 'bt709',
-    preset: 'slow',
-    bFrames: 0,        // ADR-006: zero B-frames para broadcast
-    audioBitrateK: 256,
-    audioSampleRate: 48000,
-  },
-  'ott-hd': {
-    name: 'Nexora OTT HD',
-    videoBitrateK: 5000,
-    maxrateK: 7000,
-    bufsizeK: 14000,
-    gopSize: 48,       // 2s a 24fps
-    pixFmt: 'yuv420p',
-    colorspace: 'bt709',
-    preset: 'medium',
-    bFrames: 2,        // B-frames permitidos em OTT
-    audioBitrateK: 192,
-    audioSampleRate: 48000,
-  },
-  'web-sd': {
-    name: 'Nexora Web SD',
-    videoBitrateK: 2000,
-    maxrateK: 3000,
-    bufsizeK: 6000,
-    gopSize: 60,
-    pixFmt: 'yuv420p',
-    colorspace: 'bt709',
-    preset: 'medium',
-    bFrames: 2,
-    audioBitrateK: 128,
-    audioSampleRate: 48000,
-  },
-  'proxy': {
-    name: 'Nexora Proxy',
-    videoBitrateK: 800,
-    maxrateK: 1000,
-    bufsizeK: 2000,
-    gopSize: 60,
-    pixFmt: 'yuv420p',
-    colorspace: 'bt709',
-    preset: 'fast',
-    bFrames: 2,
-    audioBitrateK: 96,
-    audioSampleRate: 48000,
-  },
-};
+// Pipeline modules
+import { ffmpegBuilder } from '../pipeline/ffmpeg/builder';
+import { detectGPU } from '../pipeline/ffmpeg/gpu-detector';
+import { vmafScorer } from '../pipeline/ffmpeg/vmaf';
+import { NexoraJobScheduler } from '../pipeline/ffmpeg/scheduler';
+import { getRedisClient } from '../common/redis';
 
 // ── Worker ───────────────────────────────────────────────────────
 
 export class TranscodeWorker {
   public readonly name = 'TranscodeWorker';
   private worker: Worker | null = null;
+  private scheduler: NexoraJobScheduler | null = null;
 
   async start(): Promise<void> {
     const maxConcurrent = Number(process.env.MAX_CONCURRENT_TRANSCODE_JOBS ?? 4);
+
+    // Inicializar scheduler com Redis
+    const redis = getRedisClient();
+    this.scheduler = new NexoraJobScheduler(redis as unknown as Parameters<typeof NexoraJobScheduler.prototype['getMaxCapacity']>[0] extends never ? never : ConstructorParameters<typeof NexoraJobScheduler>[0]);
 
     this.worker = new Worker(
       QUEUE_NAMES.TRANSCODE,
@@ -128,11 +75,10 @@ export class TranscodeWorker {
           QUEUE_NAMES.TRANSCODE, job.id ?? '', job.name,
           job.data, err.message, err.stack, job.attemptsMade
         );
-        // Actualizar status do asset para FAILED
         await prisma.asset.update({
           where: { id: job.data.assetId },
           data: { status: AssetStatus.FAILED },
-        }).catch(() => {}); // Ignorar erro se asset não existir
+        }).catch(() => {});
       }
     });
 
@@ -154,21 +100,47 @@ export class TranscodeWorker {
 
     log.info({ assetId, profile }, 'A iniciar transcode');
 
-    // 1. Seleccionar perfil de encoding
-    const encodingProfile = ENCODING_PROFILES[profile] ?? ENCODING_PROFILES['broadcast-hd'];
-    log.info({ profile: encodingProfile.name }, 'Perfil de encoding seleccionado');
+    // 1. Detectar GPU disponível (com cache Redis 30min)
+    const gpuCapability = await detectGPU();
+    log.info(
+      { gpuAvailable: gpuCapability.available, gpuType: gpuCapability.type },
+      'GPU detectada'
+    );
+    gpuAvailable.set({ gpu_type: gpuCapability.type }, gpuCapability.available ? 1 : 0);
 
     // 2. Criar directoria temporária
     const tmpDir = await mkdtemp(join(tmpdir(), 'nexora-transcode-'));
     const inputPath = join(tmpDir, 'input');
     const outputPath = join(tmpDir, 'output.mp4');
 
+    // 3. Resolver encoder e tipo de slot
+    const commandPair = ffmpegBuilder.build(profile, inputPath, outputPath, gpuCapability);
+    const selectedCommand = commandPair.gpu ?? commandPair.cpu;
+    const jobType = NexoraJobScheduler.resolveJobType(profile, selectedCommand.encoder);
+
+    // 4. Adquirir slot de concorrência
+    const slotResult = this.scheduler
+      ? await this.scheduler.acquire(job.id ?? 'unknown', jobType, selectedCommand.encoder)
+      : { acquired: true, slot: undefined, currentUsage: 0, maxCapacity: 99 };
+
+    if (!slotResult.acquired) {
+      throw new TranscodeError(
+        `Sem slots disponíveis para ${jobType} (${slotResult.currentUsage}/${slotResult.maxCapacity})`,
+        { jobId: job.id, jobType, profile }
+      );
+    }
+
+    log.info(
+      { encoder: selectedCommand.encoder, jobType, profile },
+      'Slot de encoding adquirido'
+    );
+
     try {
-      // 3. Descarregar ficheiro do MinIO
+      // 5. Descarregar ficheiro do MinIO
       log.info({ inputMinioKey }, 'A descarregar ficheiro para transcode...');
       await downloadFile(BUCKETS.INPUT, inputMinioKey, inputPath);
 
-      // 4. Actualizar job no PostgreSQL
+      // 6. Actualizar job no PostgreSQL
       await prisma.job.updateMany({
         where: {
           assetId,
@@ -181,14 +153,31 @@ export class TranscodeWorker {
         },
       });
 
-      // 5. Construir e executar comando FFmpeg
-      // NOTA ADR-002: usar spawn() com array, NUNCA exec() com string
-      const ffmpegArgs = this.buildFFmpegArgs(inputPath, outputPath, encodingProfile);
-      log.info({ ffmpegArgs }, 'A executar FFmpeg...');
+      // 7. Executar FFmpeg com o comando gerado pelo builder
+      // Tentar GPU primeiro; se falhar, fallback para CPU
+      let usedCommand = selectedCommand;
+      try {
+        log.info(
+          { encoder: selectedCommand.encoder, args: selectedCommand.args.slice(0, 6) },
+          'A executar FFmpeg...'
+        );
+        await this.runFFmpeg(job.id ?? 'unknown', assetId, selectedCommand.args, log);
+      } catch (gpuErr) {
+        if (commandPair.gpu && selectedCommand.encoder !== 'cpu') {
+          log.warn(
+            { err: String(gpuErr) },
+            'GPU encode falhou — a tentar CPU fallback'
+          );
+          usedCommand = commandPair.cpu;
 
-      await this.runFFmpeg(job.id ?? 'unknown', assetId, ffmpegArgs, log);
+          // Reconstruir args com paths correctos (o builder já os tem)
+          await this.runFFmpeg(job.id ?? 'unknown', assetId, commandPair.cpu.args, log);
+        } else {
+          throw gpuErr;
+        }
+      }
 
-      // 6. Upload do output para MinIO
+      // 8. Upload do output para MinIO
       const outputKey = `output/${assetId}/${profile}/output.mp4`;
       log.info({ outputKey }, 'A fazer upload do output...');
 
@@ -197,10 +186,25 @@ export class TranscodeWorker {
         metadata: {
           'x-nexora-asset-id': assetId,
           'x-nexora-profile': profile,
+          'x-nexora-encoder': usedCommand.encoder,
         },
       });
 
-      // 7. Actualizar Asset e Job no PostgreSQL
+      // 9. Score VMAF (ADR-010) — comparar encoded vs. original
+      let vmafResult: Awaited<ReturnType<typeof vmafScorer.score>> | null = null;
+      try {
+        vmafResult = await vmafScorer.score(inputPath, outputPath, profile);
+        log.info({ vmaf: vmafResult }, 'VMAF score calculado');
+
+        if (!vmafResult.passed) {
+          vmafFailures.inc({ profile });
+          log.warn({ vmaf: vmafResult }, 'VMAF abaixo do threshold — output marcado como degradado');
+        }
+      } catch (vmafErr) {
+        log.warn({ err: String(vmafErr) }, 'VMAF falhou — a continuar sem score');
+      }
+
+      // 10. Actualizar Asset e Job no PostgreSQL
       const durationMs = Date.now() - startTime;
 
       await prisma.asset.update({
@@ -217,78 +221,56 @@ export class TranscodeWorker {
             outputKey: `${BUCKETS.OUTPUT}/${outputKey}`,
             durationMs,
             profile,
+            encoder: usedCommand.encoder,
+            vmaf: vmafResult ? {
+              mean: vmafResult.mean,
+              percentile1: vmafResult.percentile1,
+              passed: vmafResult.passed,
+            } : null,
           },
         },
       });
 
-      // 8. Métricas
-      const durationSeconds = durationMs / 1000;
-      transcodeDuration.observe({ profile }, durationSeconds);
+      // 11. Métricas
+      transcodeDuration.observe({ profile }, durationMs / 1000);
 
-      // 9. Audit log
+      // 12. Audit log
       await prisma.auditLog.create({
         data: {
           action: 'TRANSCODE_COMPLETED',
           entityType: 'Asset',
           entityId: assetId,
           assetId,
-          metadata: { profile, durationMs, outputKey, jobId: job.id },
+          metadata: {
+            profile,
+            durationMs,
+            outputKey,
+            encoder: usedCommand.encoder,
+            vmafMean: vmafResult?.mean,
+            vmafPassed: vmafResult?.passed,
+            jobId: job.id,
+          } as object,
         },
       });
 
-      log.info({ assetId, durationMs, outputKey }, 'Transcode concluído');
+      log.info(
+        { assetId, durationMs, outputKey, encoder: usedCommand.encoder, vmafMean: vmafResult?.mean },
+        'Transcode concluído'
+      );
 
     } finally {
-      // Limpar sempre a directoria temporária
+      // Libertar slot de concorrência
+      if (slotResult.slot && this.scheduler) {
+        await this.scheduler.release(slotResult.slot.slotId).catch(() => {});
+      }
+
+      // Limpar directoria temporária
       try {
         await rm(tmpDir, { recursive: true, force: true });
       } catch (err) {
         log.warn({ tmpDir, err }, 'Erro ao limpar directoria temporária transcode');
       }
     }
-  }
-
-  /**
-   * Constrói o array de argumentos FFmpeg para o perfil dado.
-   * ADR-002: retorna string[] — NUNCA uma string única para exec()
-   */
-  private buildFFmpegArgs(
-    inputPath: string,
-    outputPath: string,
-    profile: EncodingProfile
-  ): string[] {
-    const args: string[] = [
-      '-y',                                        // sobrescrever output
-      '-i', inputPath,                             // input
-      // Vídeo
-      '-c:v', 'libx264',
-      '-preset', profile.preset,
-      '-tune', 'film',
-      '-profile:v', 'high',
-      '-level:v', '4.1',
-      '-pix_fmt', profile.pixFmt,                  // ADR-004: yuv420p
-      '-g', profile.gopSize.toString(),            // GOP size — ADR-006
-      '-keyint_min', profile.gopSize.toString(),   // keyint_min = gopSize
-      '-sc_threshold', '0',                        // desactivar scene detection
-      '-flags', '+cgop',                           // Closed GOP — ADR-006
-      '-bf', profile.bFrames.toString(),           // B-frames
-      '-b:v', `${profile.videoBitrateK}k`,
-      '-maxrate', `${profile.maxrateK}k`,
-      '-bufsize', `${profile.bufsizeK}k`,
-      '-colorspace', profile.colorspace,
-      '-color_primaries', profile.colorspace,
-      '-color_trc', profile.colorspace,
-      '-vsync', 'cfr',                             // CFR obrigatório — ADR-006
-      // Áudio
-      '-c:a', 'aac',
-      '-b:a', `${profile.audioBitrateK}k`,
-      '-ar', profile.audioSampleRate.toString(),   // 48000 Hz
-      // Container
-      '-movflags', '+faststart',                   // Fast Start para streaming
-      outputPath,
-    ];
-
-    return args;
   }
 
   /**
@@ -334,7 +316,7 @@ export class TranscodeWorker {
           }
         }
 
-        // Parsear linha de progresso: "frame= 125 fps= 24 q=28.0 size=  1024kB time=00:00:05.00 bitrate=..."
+        // Parsear linha de progresso
         const timeMatch = text.match(/time=(\d+):(\d+):(\d+\.?\d*)/);
         const fpsMatch = text.match(/fps=\s*(\d+\.?\d*)/);
         const speedMatch = text.match(/speed=\s*(\d+\.?\d*x)/);
@@ -351,7 +333,6 @@ export class TranscodeWorker {
             ? Math.round((totalDuration - currentTime) / (fps / 25))
             : undefined;
 
-          // Publicar progresso via Redis (fire-and-forget)
           publishTranscodeProgress({
             jobId,
             assetId,
@@ -360,7 +341,7 @@ export class TranscodeWorker {
             speed,
             frame,
             eta,
-          }).catch(() => {}); // Não falhar o transcode se Redis falhar
+          }).catch(() => {});
         }
       });
 
@@ -368,7 +349,6 @@ export class TranscodeWorker {
         clearTimeout(timeoutId);
 
         if (code === 0) {
-          // Publicar 100% ao terminar
           publishTranscodeProgress({ jobId, assetId, percent: 100 }).catch(() => {});
           resolve();
         } else {

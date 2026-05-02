@@ -1,0 +1,227 @@
+{
+  "PresetList": [
+    {
+      "PresetName": "Nexora Broadcast HD",
+      "Description": "Perfil broadcast profissional H.264 para distribuição TV/OTT. yuv420p, BT.709, Closed GOP, 0 B-frames, PCM 24-bit. Equivalente ao perfil broadcast-hd do FFmpeg.",
+      "Type": 1,
+      "Default": false,
+      "Folder": false,
+      "FolderOpen": false,
+
+      "VideoEncoder": "x264",
+      "VideoPreset": "slow",
+      "VideoTune": "film",
+      "VideoProfile": "high",
+      "VideoLevel": "4.1",
+      "VideoQualityType": 1,
+      "VideoAvgBitrate": 8000,
+      "VideoTwoPass": false,
+      "VideeTurboTwoPass": false,
+      "VideoOptionExtra": "open-gop=0:bframes=0:ref=4:nal-hrd=cbr:force-cfr=1:keyint=50:keyint-min=50:no-scenecut=1",
+      "VideoColorMatrixCode": 1,
+      "VideoFramerate": "25",
+      "VideoFramerateMode": "cfr",
+
+      "PicturePAR": "none",
+      "PictureWidth": 1920,
+      "PictureHeight": 1080,
+      "PictureKeepRatio": true,
+      "PictureModulus": 2,
+
+      "AudioList": [
+        {
+          "AudioEncoder": "none",
+          "AudioTrack": 1,
+          "AudioTrackName": "",
+          "AudioSamplerate": "48",
+          "AudioMixdown": "stereo",
+          "AudioNormalizeLoudness": true,
+          "AudioDitherMethod": "none",
+          "AudioCompressionLevel": 0
+        }
+      ],
+      "AudioLanguageList": [],
+      "AudioSecondaryEncoderMode": false,
+      "AudioTrackSelectionBehavior": "first",
+
+      "SubtitleList": [],
+      "SubtitleLanguageList": [],
+      "SubtitleTrackSelectionBehavior": "none",
+      "SubtitleBurnBDSub": false,
+      "SubtitleBurnDVDSub": false,
+
+      "ChapterMarkers": true,
+      "FileFormat": "av_mp4",
+      "Mp4HttpOptimize": true,
+      "Mp4iPodCompatible": false
+    },
+    {
+      "PresetName": "Nexora OTT HD",
+      "Description": "Perfil OTT/streaming H.264 1080p. yuv420p, BT.709, AAC 192kbps, 2 B-frames. Optimizado para entrega adaptativa (ABR/DASH/HLS).",
+      "Type": 1,
+      "Default": false,
+      "Folder": false,
+      "FolderOpen": false,
+
+      "VideoEncoder": "x264",
+      "VideoPreset": "medium",
+      "VideoTune": "film",
+      "VideoProfile": "high",
+      "VideoLevel": "4.0",
+      "VideoQualityType": 1,
+      "VideoAvgBitrate": 5000,
+      "VideoTwoPass": true,
+      "VideeTurboTwoPass": true,
+      "VideoOptionExtra": "keyint=48:keyint-min=48:ref=4",
+      "VideoColorMatrixCode": 1,
+      "VideoFramerate": "24",
+      "VideoFramerateMode": "cfr",
+
+      "PicturePAR": "none",
+      "PictureWidth": 1920,
+      "PictureHeight": 1080,
+      "PictureKeepRatio": true,
+      "PictureModulus": 2,
+
+      "AudioList": [
+        {
+          "AudioEncoder": "av_aac",
+          "AudioTrack": 1,
+          "AudioTrackName": "",
+          "AudioBitrate": 192,
+          "AudioSamplerate": "48",
+          "AudioMixdown": "stereo",
+          "AudioNormalizeLoudness": true,
+          "AudioDitherMethod": "none"
+        }
+      ],
+      "AudioLanguageList": [],
+      "AudioSecondaryEncoderMode": false,
+      "AudioTrackSelectionBehavior": "first",
+
+      "SubtitleList": [],
+      "SubtitleLanguageList": [],
+      "SubtitleTrackSelectionBehavior": "none",
+      "SubtitleBurnBDSub": false,
+      "SubtitleBurnDVDSub": false,
+
+      "ChapterMarkers": true,
+      "FileFormat": "av_mp4",
+      "Mp4HttpOptimize": true,
+      "Mp4iPodCompatible": false
+    },
+    {
+      "PresetName": "Nexora Web SD",
+      "Description": "Perfil web H.264 720p. yuv420p, BT.709, AAC 128kbps. Optimizado para entrega em plataformas web com largura de banda limitada.",
+      "Type": 1,
+      "Default": false,
+      "Folder": false,
+      "FolderOpen": false,
+
+      "VideoEncoder": "x264",
+      "VideoPreset": "medium",
+      "VideoTune": "",
+      "VideoProfile": "main",
+      "VideoLevel": "3.1",
+      "VideoQualityType": 1,
+      "VideoAvgBitrate": 2000,
+      "VideoTwoPass": true,
+      "VideeTurboTwoPass": true,
+      "VideoOptionExtra": "keyint=60:keyint-min=60:ref=3",
+      "VideoColorMatrixCode": 1,
+      "VideoFramerate": "25",
+      "VideoFramerateMode": "cfr",
+
+      "PicturePAR": "none",
+      "PictureWidth": 1280,
+      "PictureHeight": 720,
+      "PictureKeepRatio": true,
+      "PictureModulus": 2,
+
+      "AudioList": [
+        {
+          "AudioEncoder": "av_aac",
+          "AudioTrack": 1,
+          "AudioTrackName": "",
+          "AudioBitrate": 128,
+          "AudioSamplerate": "48",
+          "AudioMixdown": "stereo",
+          "AudioNormalizeLoudness": true,
+          "AudioDitherMethod": "none"
+        }
+      ],
+      "AudioLanguageList": [],
+      "AudioSecondaryEncoderMode": false,
+      "AudioTrackSelectionBehavior": "first",
+
+      "SubtitleList": [],
+      "SubtitleLanguageList": [],
+      "SubtitleTrackSelectionBehavior": "none",
+      "SubtitleBurnBDSub": false,
+      "SubtitleBurnDVDSub": false,
+
+      "ChapterMarkers": false,
+      "FileFormat": "av_mp4",
+      "Mp4HttpOptimize": true,
+      "Mp4iPodCompatible": false
+    },
+    {
+      "PresetName": "Nexora Proxy",
+      "Description": "Perfil proxy/preview H.264 480p de baixo bitrate. Para revisão editorial e edição não-linear. Encode rápido.",
+      "Type": 1,
+      "Default": false,
+      "Folder": false,
+      "FolderOpen": false,
+
+      "VideoEncoder": "x264",
+      "VideoPreset": "fast",
+      "VideoTune": "",
+      "VideoProfile": "main",
+      "VideoLevel": "3.1",
+      "VideoQualityType": 1,
+      "VideoAvgBitrate": 800,
+      "VideoTwoPass": false,
+      "VideeTurboTwoPass": false,
+      "VideoOptionExtra": "keyint=60:keyint-min=60:ref=2",
+      "VideoColorMatrixCode": 1,
+      "VideoFramerate": "25",
+      "VideoFramerateMode": "cfr",
+
+      "PicturePAR": "none",
+      "PictureWidth": 854,
+      "PictureHeight": 480,
+      "PictureKeepRatio": true,
+      "PictureModulus": 2,
+
+      "AudioList": [
+        {
+          "AudioEncoder": "av_aac",
+          "AudioTrack": 1,
+          "AudioTrackName": "",
+          "AudioBitrate": 96,
+          "AudioSamplerate": "48",
+          "AudioMixdown": "stereo",
+          "AudioNormalizeLoudness": false,
+          "AudioDitherMethod": "none"
+        }
+      ],
+      "AudioLanguageList": [],
+      "AudioSecondaryEncoderMode": false,
+      "AudioTrackSelectionBehavior": "first",
+
+      "SubtitleList": [],
+      "SubtitleLanguageList": [],
+      "SubtitleTrackSelectionBehavior": "none",
+      "SubtitleBurnBDSub": false,
+      "SubtitleBurnDVDSub": false,
+
+      "ChapterMarkers": false,
+      "FileFormat": "av_mp4",
+      "Mp4HttpOptimize": true,
+      "Mp4iPodCompatible": false
+    }
+  ],
+  "VersionMajor": 47,
+  "VersionMicro": 0,
+  "VersionMinor": 0
+}

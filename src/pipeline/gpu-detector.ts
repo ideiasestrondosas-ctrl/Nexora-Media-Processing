@@ -1,6 +1,3 @@
-
-// Nexora Media Processing — GPU Detector
-// Ficheiro: src/pipeline/gpu-detector.ts
-//
-// Detecta GPU disponível e verifica se funciona com FFmpeg.
-// Fallback automático para CPU se GPU falhar.
+// Re-export do NexoraGPUDetector — módulo movido para src/pipeline/ffmpeg/gpu-detector.ts
+// Este ficheiro existe apenas para compatibilidade retroactiva.
+export * from './ffmpeg/gpu-detector';
