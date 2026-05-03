@@ -17,6 +17,7 @@ export const QUEUE_NAMES = {
   TRANSCODE:  'nexora-transcode',
   AUDIO:      'nexora-audio',
   PROXY:      'nexora-proxy',
+  SUBTITLE:   'nexora-subtitle',
   DELIVERY:   'nexora-delivery',
   DEAD_LETTER: 'nexora-dead-letter',
 } as const;
@@ -111,6 +112,7 @@ export function getNexoraQueues(): NexoraQueues {
     TRANSCODE:   new Queue(QUEUE_NAMES.TRANSCODE,    { connection, defaultJobOptions: DEFAULT_JOB_OPTIONS }),
     AUDIO:       new Queue(QUEUE_NAMES.AUDIO,        { connection, defaultJobOptions: DEFAULT_JOB_OPTIONS }),
     PROXY:       new Queue(QUEUE_NAMES.PROXY,        { connection, defaultJobOptions: DEFAULT_JOB_OPTIONS }),
+    SUBTITLE:    new Queue(QUEUE_NAMES.SUBTITLE,     { connection, defaultJobOptions: DEFAULT_JOB_OPTIONS }),
     DELIVERY:    new Queue(QUEUE_NAMES.DELIVERY,     { connection, defaultJobOptions: DEFAULT_JOB_OPTIONS }),
     DEAD_LETTER: new Queue(QUEUE_NAMES.DEAD_LETTER,  { connection, defaultJobOptions: {
       removeOnComplete: { age: 604800, count: 5000 }, // dead-letter: guardar 7 dias
@@ -241,6 +243,13 @@ export interface ProxyJobPayload {
   inputMinioKey: string;
 }
 
+export interface SubtitleJobPayload {
+  assetId: string;
+  inputMinioKey: string;
+  outputFormat: 'ttml' | 'webvtt' | 'srt';
+  offsetMs?: number;
+}
+
 export interface DeliveryJobPayload {
   assetId: string;
   outputMinioKey: string;
@@ -305,5 +314,19 @@ export async function enqueueAudio(
 
   const job = await queues.AUDIO.add('audio', payload, { jobId });
   logger.info({ jobId: job.id, assetId: payload.assetId }, 'Job áudio enfileirado');
+  return job.id ?? '';
+}
+
+/**
+ * Adiciona um job de processamento de legendas à fila.
+ */
+export async function enqueueSubtitle(
+  payload: SubtitleJobPayload,
+  jobId?: string
+): Promise<string> {
+  const queues = getNexoraQueues();
+
+  const job = await queues.SUBTITLE.add('subtitle', payload, { jobId });
+  logger.info({ jobId: job.id, assetId: payload.assetId, format: payload.outputFormat }, 'Job legendas enfileirado');
   return job.id ?? '';
 }

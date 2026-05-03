@@ -14,6 +14,7 @@ import { execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import { logger } from '../../observability/logger';
 import { loudnessLufs } from '../../observability/metrics';
+import { bs1770gainAdapter } from '../tools/bs1770gain-adapter';
 
 const execFileAsync = promisify(execFile);
 
@@ -263,58 +264,30 @@ export class NexoraLoudnessNormalizer {
   /**
    * Verifica loudness com BS1770GAIN (ADR-005 + ADR-009).
    * Esta é a verificação definitiva — se falhar, a normalização é inválida.
+   * Delega no bs1770gainAdapter (Prompt 9) — único ponto de parsing XML.
    * Fallback: usa FFmpeg loudnorm se BS1770GAIN não estiver disponível (com warning).
    */
   async verify(
     filePath: string,
     log = logger
   ): Promise<BS1770GainResult> {
-    const bs1770gainPath = process.env.BS1770GAIN_PATH ?? 'bs1770gain';
-
     try {
-      const { stdout } = await execFileAsync(
-        bs1770gainPath,
-        [
-          '--integrated',
-          '--true-peak',
-          '--lra',
-          '-o', 'xml',
-          filePath,
-        ],
-        { timeout: BS1770GAIN_TIMEOUT_MS }
-      );
-
+      // bs1770gainAdapter.measure() lança ToolNotAvailableError se não instalado
+      const m = await bs1770gainAdapter.measure(filePath);
       return {
-        ...this.parseBS1770GainXML(stdout),
+        integratedLufs: m.integratedLufs,
+        truePeakDbtp:   m.truePeakDbtp,
+        loudnessRange:  m.loudnessRange,
         verifiedByBS1770Gain: true,
       };
-
     } catch (detectionErr) {
       // BS1770GAIN não instalado — fallback para FFmpeg (ADR-009: warning obrigatório)
       log.warn(
         { err: String(detectionErr) },
         'BS1770GAIN não disponível — a usar FFmpeg como verificação de fallback (ADR-009 violation risk)'
       );
-
       return this.verifyWithFFmpeg(filePath);
     }
-  }
-
-  /** Parseia o XML de output do BS1770GAIN */
-  private parseBS1770GainXML(xml: string): Omit<BS1770GainResult, 'verifiedByBS1770Gain'> {
-    // BS1770GAIN XML: <integrated lufs="-23.5"/> ou <integrated>-23.5</integrated>
-    const lufsMatch = xml.match(/integrated[^>]*?lufs=['"]([-\d.]+)['"]/i)
-      ?? xml.match(/<integrated[^>]*>([-\d.]+)<\/integrated>/i);
-    const tpMatch = xml.match(/true[_-]?peak[^>]*?dbtp=['"]([-\d.]+)['"]/i)
-      ?? xml.match(/<true[_-]?peak[^>]*>([-\d.]+)<\/true[_-]?peak>/i);
-    const lraMatch = xml.match(/lra[^>]*?lu=['"]([-\d.]+)['"]/i)
-      ?? xml.match(/<lra[^>]*>([-\d.]+)<\/lra>/i);
-
-    return {
-      integratedLufs: lufsMatch ? Number(lufsMatch[1]) : 0,
-      truePeakDbtp: tpMatch ? Number(tpMatch[1]) : 0,
-      loudnessRange: lraMatch ? Number(lraMatch[1]) : 0,
-    };
   }
 
   /** Fallback: verifica loudness com FFmpeg loudnorm (menos preciso) */

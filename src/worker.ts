@@ -2,7 +2,7 @@
 // Ficheiro: src/worker.ts
 //
 // Inicializa todos os workers de processamento de media.
-// Verifica disponibilidade das ferramentas (FFmpeg obrigatório).
+// Verifica disponibilidade das ferramentas via NexoraToolRegistry.
 // Graceful shutdown: aguarda jobs activos antes de encerrar.
 
 import { logger } from './observability/logger';
@@ -10,56 +10,18 @@ import { IngestWorker } from './workers/ingest.worker';
 import { QCWorker } from './workers/qc.worker';
 import { TranscodeWorker } from './workers/transcode.worker';
 import { AudioWorker } from './workers/audio.worker';
+import { SubtitleWorker } from './workers/subtitle.worker';
 import { initDatabase, closeDatabase } from './db/prisma';
 import { ensureBuckets } from './common/minio';
 import { closeRedis } from './common/redis';
 import { metricsServer } from './observability/metrics';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-
-const execFileAsync = promisify(execFile);
+import { toolRegistry } from './pipeline/tools/availability-checker';
 
 // Interface partilhada por todos os workers
 interface NexoraWorker {
   readonly name: string;
   start(): Promise<void>;
   stop(): Promise<void>;
-}
-
-// ── Verificação de ferramentas ────────────────────────────────────
-
-interface ToolStatus {
-  ffmpeg: boolean;
-  ffprobe: boolean;
-  mediainfo: boolean;
-  bs1770gain: boolean;
-  handbrake: boolean;
-}
-
-async function checkToolAvailability(): Promise<ToolStatus> {
-  const tools: Array<{ key: keyof ToolStatus; envKey: string; defaultName: string; args: string[] }> = [
-    { key: 'ffmpeg',    envKey: 'FFMPEG_PATH',    defaultName: 'ffmpeg',    args: ['-version'] },
-    { key: 'ffprobe',   envKey: 'FFPROBE_PATH',   defaultName: 'ffprobe',   args: ['-version'] },
-    { key: 'mediainfo', envKey: 'MEDIAINFO_PATH',  defaultName: 'mediainfo', args: ['--version'] },
-    { key: 'bs1770gain',envKey: 'BS1770GAIN_PATH', defaultName: 'bs1770gain',args: ['--version'] },
-    { key: 'handbrake', envKey: 'HANDBRAKE_CLI_PATH', defaultName: 'HandBrakeCLI', args: ['--version'] },
-  ];
-
-  const status: ToolStatus = {
-    ffmpeg: false, ffprobe: false, mediainfo: false, bs1770gain: false, handbrake: false,
-  };
-
-  await Promise.all(tools.map(async ({ key, envKey, defaultName, args }) => {
-    const toolPath = process.env[envKey] ?? defaultName;
-    try {
-      await execFileAsync(toolPath, args, { timeout: 5000 });
-      status[key] = true;
-    } catch {
-      status[key] = false;
-    }
-  }));
-
-  return status;
 }
 
 // ── Startup ──────────────────────────────────────────────────────
@@ -83,23 +45,25 @@ async function startWorkers(): Promise<void> {
     await ensureBuckets();
 
     // 4. Verificar disponibilidade das ferramentas de media
-    const toolStatus = await checkToolAvailability();
+    //    Substituição do checkToolAvailability() inline pelo NexoraToolRegistry (Prompt 9)
+    const report = await toolRegistry.checkAllTools();
 
-    for (const [tool, available] of Object.entries(toolStatus)) {
-      if (available) {
-        logger.info({ tool }, `✓ Ferramenta disponível: ${tool}`);
-      } else {
-        logger.warn({ tool }, `⚠ Ferramenta não encontrada: ${tool}`);
-      }
-    }
-
-    // FFmpeg é obrigatório — sem ele não há processamento
-    if (!toolStatus.ffmpeg) {
+    // Ferramentas críticas (FFmpeg/FFprobe) — startup falha se ausentes
+    if (report.criticalMissing.length > 0) {
       throw new Error(
-        'FFmpeg não encontrado. Instala com:\n' +
+        `Ferramentas críticas não encontradas: ${report.criticalMissing.join(', ')}.\n` +
+        'Instala com:\n' +
         '  Windows: choco install ffmpeg\n' +
         '  macOS:   brew install ffmpeg\n' +
         '  Ubuntu:  sudo apt install ffmpeg'
+      );
+    }
+
+    // Log de ferramentas opcionais em falta (aviso, não bloqueia)
+    if (report.optionalMissing.length > 0) {
+      logger.warn(
+        { missing: report.optionalMissing },
+        `Ferramentas opcionais não disponíveis: ${report.optionalMissing.join(', ')}`
       );
     }
 
@@ -114,11 +78,10 @@ async function startWorkers(): Promise<void> {
       new QCWorker(),
       new TranscodeWorker(),
       new AudioWorker(),
-      // Os workers seguintes serão implementados nos Prompts 2 e 9:
-      // new ProxyWorker()    — Prompt 9
-      // new DeliveryWorker() — Prompt 9
-      // new AnalyzerWorker() — Prompt 9
-      // new SubtitleWorker() — Prompt 9
+      new SubtitleWorker(),
+      // Os workers seguintes serão implementados em prompts futuros:
+      // new ProxyWorker()    — Prompt futuro
+      // new DeliveryWorker() — Prompt futuro
     ];
 
     for (const worker of workers) {

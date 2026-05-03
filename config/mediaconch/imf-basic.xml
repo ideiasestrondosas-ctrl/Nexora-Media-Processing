@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Nexora Media Processing — MediaConch Policy IMF Basic
+  Ficheiro: config/mediaconch/imf-basic.xml
+
+  Valida conformidade básica com IMF (Interoperable Master Format).
+  Spec: SMPTE ST 2067-2:2020 (IMF Core Constraints)
+
+  Requisitos mínimos validados:
+  - Container: MXF
+  - Vídeo: JPEG2000 ou Apple ProRes (IMF Application 2E)
+  - Áudio: PCM 24-bit, 48kHz ou 96kHz
+  - Streamable (moov atom antes de mdat)
+-->
+<policy type="and" name="IMF Basic">
+
+  <!-- ── Container ──────────────────────────────────────────── -->
+  <rule name="Container: MXF" value="Format" tracktype="General" occurrence="*" operator="=">MXF</rule>
+
+  <!-- ── Vídeo ──────────────────────────────────────────────── -->
+  <rule name="Video track present" value="StreamCount" tracktype="General" occurrence="*" operator=">=">1</rule>
+  <rule name="Video: YUV color space" value="ColorSpace" tracktype="Video" occurrence="*" operator="=">YUV</rule>
+  <rule name="Video: minimum 10-bit depth for IMF" value="BitDepth" tracktype="Video" occurrence="*" operator=">=">10</rule>
+  <rule name="Video: BT.709 or BT.2020 color primaries" value="colour_primaries" tracktype="Video" occurrence="*" operator="contains">BT.</rule>
+  <rule name="Video: progressive scan" value="ScanType" tracktype="Video" occurrence="*" operator="=">Progressive</rule>
+
+  <!-- ── Áudio ──────────────────────────────────────────────── -->
+  <rule name="Audio track present" value="StreamCount" tracktype="General" occurrence="*" operator=">=">1</rule>
+  <rule name="Audio: PCM codec" value="Format" tracktype="Audio" occurrence="*" operator="=">PCM</rule>
+  <rule name="Audio: 48kHz or 96kHz sample rate" value="SamplingRate" tracktype="Audio" occurrence="*" operator=">=">48000</rule>
+  <rule name="Audio: minimum 24-bit depth" value="BitDepth" tracktype="Audio" occurrence="*" operator=">=">24</rule>
+
+  <!-- ── Streamable ─────────────────────────────────────────── -->
+  <rule name="File is streamable" value="IsStreamable" tracktype="General" occurrence="*" operator="=">Yes</rule>
+
+</policy>

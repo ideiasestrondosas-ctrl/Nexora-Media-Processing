@@ -213,6 +213,34 @@ export class InternalError extends NexoraError {
   }
 }
 
+// ── Erros de Ferramentas Externas (Prompt 9) ────────────────────
+
+export class ToolNotAvailableError extends NexoraError {
+  constructor(toolName: string, details?: Record<string, unknown>) {
+    super(
+      `Ferramenta '${toolName}' não está disponível no sistema`,
+      'TOOL_NOT_AVAILABLE',
+      503,
+      { toolName, ...details }
+    );
+    this.name = 'ToolNotAvailableError';
+  }
+}
+
+export class SubtitleError extends NexoraError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, 'SUBTITLE_ERROR', 500, details);
+    this.name = 'SubtitleError';
+  }
+}
+
+export class MediaConchValidationError extends NexoraError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(message, 'MEDIACONCH_VALIDATION_ERROR', 422, details);
+    this.name = 'MediaConchValidationError';
+  }
+}
+
 // ── Type Guard ──────────────────────────────────────────────────
 
 /** Verifica se um erro desconhecido é um NexoraError */

@@ -34,7 +34,7 @@
 - [x] **Prompt 4 executado — Diagnóstico / Logs / Debug (Antigravity, 2026-05-03)**
 - [x] **Prompt 7 executado — Segurança (Antigravity, 2026-05-03)**
 - [x] **Prompt 8 executado — Testes da Suite Nexora (Antigravity, 2026-05-03)**
-- [ ] Prompt 9 executado (Open Source adapters — Claude)
+- [x] **Prompt 9 executado — Open Source Adapters (Antigravity, 2026-05-03)**
 - [ ] Prompt 10 executado (Integração final — Claude)
 
 ---
@@ -44,7 +44,7 @@
 ```
 Data: 2026-05-03
 Agente: Antigravity (Claude Sonnet)
-A trabalhar em: Prompt 8 — Testes (Concluído)
+A trabalhar em: Prompt 10 — Integração final
 Bloqueios: Nenhum
 ```
 
@@ -347,11 +347,38 @@ vitest.config.ts              ✅ Configuração do Vitest com thresholds a 80% 
 
 ---
 
-## 🎯 Próximos passos
+## 📁 Ficheiros implementados no Prompt 9
 
-1. **Prompt 9** — Open Source adapters
-2. **Prompt 10** — Integração final
+```
+src/pipeline/tools/
+  availability-checker.ts   ✅ NexoraToolRegistry singleton — 7 ferramentas, versões, gauges Prometheus
+  mediainfo-adapter.ts      ✅ Wrapper type-safe MediaInfo JSON — VideoMetadata/AudioMetadata/ContainerMetadata
+  mediaconch-adapter.ts     ✅ Validação AS-11/IMF com policies XML — parseReport, requirePass
+  bs1770gain-adapter.ts     ✅ Medição EBU R128 independente — consolidou XML parsing duplicado
+  handbrake-adapter.ts      ✅ Proxy generation com nexora-presets.json — spawn seguro, parsing FPS/progress
+
+src/workers/
+  subtitle.worker.ts        ✅ SRT→TTML/WebVTT, validação timing (overlap, CPS, min/max), re-sync offset
+
+config/mediaconch/
+  as11-uk-dpp.xml           ✅ Policy XML AS-11 UK DPP (1080i/25, PCM 24-bit, MXF OP1a)
+  imf-basic.xml             ✅ Policy XML IMF Basic (SMPTE ST 2067-2, 10-bit, MXF)
+
+— Refactorizações —
+src/workers/queues.ts       ✅ +fila nexora-subtitle, +SubtitleJobPayload, +enqueueSubtitle()
+src/worker.ts               ✅ Usa toolRegistry.checkAllTools() — removido checkToolAvailability() inline
+src/workers/ingest.worker.ts ✅ Usa mediainfoAdapter.analyzeSafe() — removidas interfaces duplicadas
+src/pipeline/ffmpeg/loudness.ts ✅ verify() delega em bs1770gainAdapter — removido parseBS1770GainXML() duplicado
+src/common/errors.ts        ✅ +ToolNotAvailableError, +SubtitleError, +MediaConchValidationError
+src/observability/metrics.ts ✅ +6 novas métricas Prometheus (tool_available, mediaconch, bs1770gain, handbrake, subtitles)
+```
 
 ---
 
-*Última actualização: 2026-05-03 — Prompt 8 (Testes) concluído — 9 ficheiros novos criados e cobertura de >80% implementada — 0 erros TS*
+## 🎯 Próximos passos
+
+1. **Prompt 10** — Integração final
+
+---
+
+*Última actualização: 2026-05-03 — Prompt 9 (Open Source Adapters) concluído — 13 ficheiros criados/modificados — 0 erros TS*

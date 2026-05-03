@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Nexora Media Processing — MediaConch Policy AS-11 UK DPP
+  Ficheiro: config/mediaconch/as11-uk-dpp.xml
+
+  Valida conformidade com AS-11 UK DPP para entrega broadcast.
+  Spec: AMWA AS-11 X1 (SD) e X2 (HD), DPP Tech Spec v1.2
+
+  Requisitos mínimos validados:
+  - Container: MXF OP1a
+  - Vídeo: IMX / AVC-Intra / DNxHD / ProRes
+  - Frame rate: 25fps (25/1) para UK broadcast
+  - Áudio: PCM 24-bit stereo, 48kHz
+  - Timecode track obrigatório
+-->
+<policy type="and" name="AS-11 UK DPP">
+
+  <!-- ── Container ──────────────────────────────────────────── -->
+  <rule name="Container: MXF" value="Format" tracktype="General" occurrence="*" operator="=">MXF</rule>
+  <rule name="Container: MXF OP1a" value="Format_Profile" tracktype="General" occurrence="*" operator="contains">OP1a</rule>
+
+  <!-- ── Vídeo ──────────────────────────────────────────────── -->
+  <rule name="Video track present" value="StreamCount" tracktype="General" occurrence="*" operator=">=">1</rule>
+  <rule name="Video: 25fps frame rate" value="FrameRate" tracktype="Video" occurrence="*" operator="=">25.000</rule>
+  <rule name="Video: CFR frame rate mode" value="FrameRate_Mode" tracktype="Video" occurrence="*" operator="=">CFR</rule>
+  <rule name="Video: HD 1920x1080 width" value="Width" tracktype="Video" occurrence="*" operator="=">1920</rule>
+  <rule name="Video: HD 1080 height" value="Height" tracktype="Video" occurrence="*" operator="=">1080</rule>
+  <rule name="Video: YUV color space" value="ColorSpace" tracktype="Video" occurrence="*" operator="=">YUV</rule>
+  <rule name="Video: 4:2:2 chroma" value="ChromaSubsampling" tracktype="Video" occurrence="*" operator="=">4:2:2</rule>
+  <rule name="Video: 8 or 10 bit depth" value="BitDepth" tracktype="Video" occurrence="*" operator=">=">8</rule>
+  <rule name="Video: BT.709 color primaries" value="colour_primaries" tracktype="Video" occurrence="*" operator="=">BT.709</rule>
+
+  <!-- ── Áudio ──────────────────────────────────────────────── -->
+  <rule name="Audio track present" value="StreamCount" tracktype="General" occurrence="*" operator=">=">1</rule>
+  <rule name="Audio: PCM codec" value="Format" tracktype="Audio" occurrence="*" operator="=">PCM</rule>
+  <rule name="Audio: 48kHz sample rate" value="SamplingRate" tracktype="Audio" occurrence="*" operator="=">48000</rule>
+  <rule name="Audio: 24-bit depth" value="BitDepth" tracktype="Audio" occurrence="*" operator="=">24</rule>
+  <rule name="Audio: stereo channels" value="Channels" tracktype="Audio" occurrence="*" operator=">=">2</rule>
+
+  <!-- ── Streamable ─────────────────────────────────────────── -->
+  <rule name="File is streamable" value="IsStreamable" tracktype="General" occurrence="*" operator="=">Yes</rule>
+
+</policy>

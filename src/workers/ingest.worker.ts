@@ -6,8 +6,6 @@
 // No final, emite job para a fila QC.
 
 import { Worker, Job as BullJob } from 'bullmq';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
 import { createReadStream, statSync } from 'fs';
 import { unlink } from 'fs/promises';
 import { createHash } from 'crypto';
@@ -24,37 +22,7 @@ import {
   StorageError,
 } from '../common/errors';
 import type { IngestJobPayload } from './queues';
-
-const execFileAsync = promisify(execFile);
-
-// ── Tipos internos ───────────────────────────────────────────────
-
-interface MediaInfoOutput {
-  media?: {
-    track?: MediaInfoTrack[];
-  };
-}
-
-interface MediaInfoTrack {
-  '@type': string;
-  Format?: string;
-  Format_Profile?: string;
-  Format_Level?: string;
-  Width?: string;
-  Height?: string;
-  FrameRate?: string;
-  FrameRate_Mode?: string;
-  BitRate?: string;
-  Duration?: string;
-  ColorSpace?: string;
-  SamplingRate?: string;
-  BitDepth?: string;
-  Channels?: string;
-  ChannelPositions?: string;
-  StreamSize?: string;
-  Encoded_Library?: string;
-  [key: string]: string | undefined;
-}
+import { mediainfoAdapter } from '../pipeline/tools/mediainfo-adapter';
 
 // ── Worker ───────────────────────────────────────────────────────
 
@@ -143,9 +111,9 @@ export class IngestWorker {
       // Não lançar erro — apenas logar e continuar (pode ser re-ingest intencional)
     }
 
-    // 4. Extrair metadata com MediaInfo
+    // 4. Extrair metadata com MediaInfo (via adaptador type-safe — Prompt 9)
     log.info('A extrair metadata com MediaInfo...');
-    const metadata = await this.extractMediaInfo(filePath);
+    const metadata = await mediainfoAdapter.analyzeSafe(filePath);
 
     // 5. Upload para MinIO (usar stream, não carregar em memória)
     const minioKey = `raw/${assetId}/original/${filename}`;
@@ -231,29 +199,7 @@ export class IngestWorker {
     });
   }
 
-  /** Extrai metadata técnica de um ficheiro usando MediaInfo */
-  private async extractMediaInfo(filePath: string): Promise<MediaInfoOutput> {
-    const mediaInfoPath = process.env.MEDIAINFO_PATH ?? 'mediainfo';
 
-    try {
-      const { stdout } = await execFileAsync(
-        mediaInfoPath,
-        ['--Output=JSON', filePath],
-        { timeout: 30000 } // 30s timeout para MediaInfo
-      );
-
-      return JSON.parse(stdout) as MediaInfoOutput;
-    } catch (error) {
-      // MediaInfo pode não estar disponível — retornar metadata mínima
-      logger.warn(
-        { filePath, error: String(error) },
-        'MediaInfo não disponível — metadata mínima'
-      );
-      return {};
-    }
-  }
-
-  /** Infere o MIME type a partir da extensão do ficheiro */
   private inferMimeType(filename: string): string {
     const ext = filename.toLowerCase().split('.').pop();
     const mimeTypes: Record<string, string> = {
