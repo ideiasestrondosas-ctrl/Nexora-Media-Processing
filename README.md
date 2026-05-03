@@ -1,37 +1,129 @@
 # Nexora Media Processing
 
-> Plataforma profissional de processamento de media para Broadcast & OTT
-> Stack 100% Open Source
+> Plataforma profissional de processamento de media para Broadcast & OTT  
+> Stack 100% Open Source · EBU R128 · AS-11 · CMAF · VMAF
 
-## Setup rápido (10 comandos)
+[![Tests](https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing/actions/workflows/test.yml/badge.svg)](https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing/actions/workflows/test.yml)
+[![Build Docker](https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing/actions/workflows/build.yml/badge.svg)](https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing/actions/workflows/build.yml)
+
+---
+
+## O que é
+
+O Nexora Media Processing recebe ficheiros de vídeo e áudio, valida-os automaticamente contra os standards de broadcast, corrige problemas de qualidade, converte-os para os formatos pedidos e entrega-os prontos a emitir.
+
+**Pipeline:** Ingest → QC pré → Análise → Transcode + Áudio → Proxy → QC pós → Delivery
+
+---
+
+## Começar em 10 comandos
 
 ```bash
-git clone https://github.com/[utilizador]/nexora-media-processing.git
+# 1. Clonar o repositório
+git clone https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing.git
 cd nexora-media-processing
+
+# 2. Executar setup do ambiente (instala todas as ferramentas)
 bash scripts/nexora-setup.sh
+
+# 3. Configurar variáveis de ambiente
 cp .env.example .env
-# Edita o .env
+# Edita o .env com as tuas configurações
+
+# 4. Instalar dependências Node.js
 npm install
+
+# 5. Iniciar serviços de infra via Docker
 docker compose up -d postgres redis minio temporal temporal-ui
-sleep 30 && npm run db:migrate
-npm run dev          # Terminal 1
-npm run worker       # Terminal 2
+
+# 6. Aguardar serviços iniciarem (~30 segundos)
+sleep 30
+
+# 7. Aplicar migrações da base de dados
+npm run db:migrate
+
+# 8. Colocar dados de teste (opcional)
+npm run db:seed
+
+# 9. Iniciar a API
+npm run dev
+
+# 10. Iniciar os workers (em novo terminal)
+npm run worker
 ```
 
-## Interfaces
+---
 
-| Interface | URL | Login |
+## Interfaces e Acessos
+
+| Interface | URL | Credenciais (Padrão) |
 |---|---|---|
-| App | http://localhost:3000 | — |
-| Temporal UI | http://localhost:8080 | — |
-| Grafana | http://localhost:3001 | admin/nexora |
-| MinIO | http://localhost:9001 | nexoraadmin/nexora_minio_secret |
+| **App / Dashboard** | http://localhost:3000 | — |
+| **Temporal UI** | http://localhost:8080 | — |
+| **Grafana** | http://localhost:3001 | `admin` / `nexora` |
+| **MinIO Console** | http://localhost:9001 | `nexoraadmin` / `nexora_minio_secret` |
+| **Prometheus** | http://localhost:9090 | — |
+
+---
+
+## Arquitectura
+
+```
+Ingest → QC & Validação → Intelligence → Processing → QC Pós-encode → Delivery
+                                              ↓
+                              Workers distribuídos (Temporal.io):
+                              Transcode · Áudio · Legendas · DRM · Proxy
+```
+
+**Stack:** Node.js 20 + TypeScript + Fastify + BullMQ + Redis + PostgreSQL + MinIO + Temporal.io  
+**Frontend:** Next.js 14 + React + Tailwind CSS  
+**Media tools:** FFmpeg · HandBrakeCLI · MediaInfo · FFprobe · MediaConch · BS1770GAIN
+
+---
+
+## Perfis de encoding profissionais
+
+| Perfil | Formato | Uso |
+|---|---|---|
+| `nexora_broadcast_hd` | MXF OP1a + H.264 | Broadcasters (RTP, SIC, TVI, BBC...) |
+| `nexora_ott_premium` | CMAF + H.265 + DRM | Netflix, Amazon, Disney+ |
+| `nexora_streaming_web` | MP4 + H.264 ladder | YouTube, web players |
+| `nexora_proxy_lowres` | MP4 480p 800kbps | Revisão editorial |
+| `nexora_archive` | MXF + ProRes 4444 | Arquivo profissional |
+
+---
+
+## Standards cobertos
+
+EBU R128 · ITU-R BS.1770-4 · AS-11 UK DPP · IMF SMPTE ST 2067 ·
+CMAF ISO 23000-19 · EBU Core · Apple HLS Authoring · DASH-IF IOP ·
+Harding FPA · SCTE-35 · SPEKE/CPIX · Netflix per-title encoding
+
+---
+
+## Comandos de Desenvolvimento
+
+```bash
+npm run dev              # API em modo desenvolvimento
+npm run worker           # Workers BullMQ / Temporal
+npm test                 # Testes unitários e de integração
+npm run test:coverage    # Testes com relatório de cobertura
+npm run lint             # Verificação de estilo (ESLint)
+npm run db:studio        # Interface visual da base de dados (Prisma)
+bash scripts/healthcheck.sh  # Verificação de saúde de todos os serviços
+```
+
+---
 
 ## Documentação
 
-- [Manual completo](docs/manual-v4.md)
+- [Manual técnico completo](docs/manual-v4.md)
 - [Estado do projecto](PROGRESS.md)
-- [ADRs](docs/adr/)
-- [API Reference](openapi.yaml)
+- [Architecture Decision Records (ADRs)](docs/adr/)
+- [API Reference (Swagger/OpenAPI)](openapi.yaml)
 
-## Licença: MIT
+---
+
+## Licença
+
+Este projecto está licenciado sob a Licença MIT — ver o ficheiro [LICENSE](LICENSE) para detalhes.

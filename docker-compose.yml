@@ -1,101 +1,254 @@
-﻿version: "3.9"
+version: "3.9"
+
+# ── Nexora Media Processing — Docker Compose ──────────────────────
+# Serviços de negócio: API + Worker + Temporal
+# Infraestrutura: PostgreSQL + Redis + MinIO
+# Observabilidade: Prometheus + Grafana + Loki + Alertmanager
+# Sistema: node-exporter + cAdvisor
 
 services:
+
+  # ── Aplicação ─────────────────────────────────────────────────────
+
   nexora-api:
-    build: .
-    ports: ["3000:3000"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexora-api
+    ports:
+      - "3000:3000"
+      - "9100:9100"   # porta de métricas da API
     env_file: .env
     environment:
       DATABASE_URL: postgresql://nexora:${DB_PASSWORD:-nexora_password}@postgres:5432/nexora_media
       REDIS_URL: redis://redis:6379
       MINIO_ENDPOINT: minio
       TEMPORAL_ADDRESS: temporal:7233
+      PROMETHEUS_PORT: "9100"
     volumes:
       - nexora_input:/media/input
       - nexora_output:/media/output
       - nexora_temp:/media/temp
-    depends_on: [postgres, redis, minio, temporal]
+      - ./secrets:/app/secrets:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      temporal:
+        condition: service_started
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health/ready"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
 
   nexora-worker:
     build:
       context: .
       dockerfile: Dockerfile.worker
+    container_name: nexora-worker
     env_file: .env
     environment:
       DATABASE_URL: postgresql://nexora:${DB_PASSWORD:-nexora_password}@postgres:5432/nexora_media
       REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      TEMPORAL_ADDRESS: temporal:7233
+      PROMETHEUS_PORT: "9101"
     volumes:
       - nexora_input:/media/input
       - nexora_output:/media/output
       - nexora_temp:/media/temp
-    depends_on: [postgres, redis]
+      - nexora_proxy:/media/proxy
+      - ./secrets:/app/secrets:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     deploy:
       resources:
         limits:
           cpus: "4"
           memory: "8G"
+    ports:
+      - "9101:9101"   # porta de métricas do worker
+
+  # ── Temporal ──────────────────────────────────────────────────────
 
   temporal:
     image: temporalio/auto-setup:1.23
-    ports: ["7233:7233"]
+    container_name: nexora-temporal
+    ports:
+      - "7233:7233"
     environment:
       DB: postgresql
       POSTGRES_USER: nexora
       POSTGRES_PWD: ${DB_PASSWORD:-nexora_password}
       POSTGRES_SEEDS: postgres
-    depends_on: [postgres]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
   temporal-ui:
     image: temporalio/ui:latest
-    ports: ["8080:8080"]
+    container_name: nexora-temporal-ui
+    ports:
+      - "8080:8080"
     environment:
       TEMPORAL_ADDRESS: temporal:7233
+    depends_on:
+      - temporal
+    restart: unless-stopped
+
+  # ── Bases de dados ────────────────────────────────────────────────
 
   postgres:
     image: postgres:15-alpine
+    container_name: nexora-postgres
     environment:
       POSTGRES_USER: nexora
       POSTGRES_PASSWORD: ${DB_PASSWORD:-nexora_password}
       POSTGRES_DB: nexora_media
-    volumes: [postgres_data:/var/lib/postgresql/data]
-    ports: ["5432:5432"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexora -d nexora_media"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
+    container_name: nexora-redis
     command: redis-server --save 60 1 --loglevel warning
-    volumes: [redis_data:/data]
-    ports: ["6379:6379"]
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   minio:
     image: minio/minio:latest
+    container_name: nexora-minio
     command: server /data --console-address ":9001"
-    ports: ["9000:9000", "9001:9001"]
+    ports:
+      - "9000:9000"
+      - "9001:9001"
     environment:
       MINIO_ROOT_USER: nexoraadmin
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-nexora_minio_secret}
-    volumes: [minio_data:/data]
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Observabilidade ───────────────────────────────────────────────
 
   prometheus:
     image: prom/prometheus:latest
-    ports: ["9090:9090"]
+    container_name: nexora-prometheus
+    ports:
+      - "9090:9090"
     volumes:
-      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: nexora-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    restart: unless-stopped
 
   grafana:
     image: grafana/grafana:latest
-    ports: ["3001:3000"]
+    container_name: nexora-grafana
+    ports:
+      - "3001:3000"
     environment:
+      GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-nexora}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/provisioning/dashboards/nexora-overview.json
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./config/grafana/provisioning:/etc/grafana/provisioning
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
 
   loki:
     image: grafana/loki:latest
-    ports: ["3100:3100"]
+    container_name: nexora-loki
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+
+  # ── Sistema (métricas de infraestrutura) ──────────────────────────
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: nexora-node-exporter
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9191:9100"   # Mapeado para 9191 para evitar conflito com nexora-api:9100
+    restart: unless-stopped
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: nexora-cadvisor
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+    ports:
+      - "9192:8080"
+    restart: unless-stopped
+
+# ── Volumes ───────────────────────────────────────────────────────
 
 volumes:
   postgres_data:
@@ -104,5 +257,7 @@ volumes:
   nexora_input:
   nexora_output:
   nexora_temp:
+  nexora_proxy:
   prometheus_data:
+  alertmanager_data:
   grafana_data:

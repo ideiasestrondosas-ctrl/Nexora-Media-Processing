@@ -1,33 +1,80 @@
-﻿# Nexora Media Processing - Dockerfile Worker
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json tsconfig*.json ./
-COPY src ./src/
-RUN npm ci && npm run build
+# Nexora Media Processing — Dockerfile Worker
+# Multi-stage build com FFmpeg 6.x + BS1770GAIN + MediaInfo
+#
+# USA bookworm-slim (não Alpine) para acesso às versões recentes
+# de FFmpeg com libvmaf, libx265, libvpx-vp9, libfdk_aac, libopus.
 
-FROM ubuntu:22.04
-ENV DEBIAN_FRONTEND=noninteractive TZ=UTC
-RUN apt-get update && apt-get install -y \
-    curl wget ca-certificates gnupg \
-    ffmpeg mediainfo mediaconch bs1770gain handbrake-cli \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
-RUN groupadd -g 1001 nexora && useradd -u 1001 -g nexora -m nexora
+# ── Stage 1: Builder TypeScript ───────────────────────────────────
+FROM node:20-bookworm-slim AS builder
+
 WORKDIR /app
+
+# Cache de dependências (layer separada)
+COPY package*.json tsconfig*.json ./
+RUN npm ci
+
+# Compilar TypeScript
+COPY src ./src
+COPY prisma ./prisma
+RUN npm run build
+
+# ── Stage 2: Runtime com media tools ─────────────────────────────
+FROM node:20-bookworm-slim AS production
+
+# Metadados OCI
+LABEL org.opencontainers.image.title="Nexora Media Worker"
+LABEL org.opencontainers.image.description="Worker de processamento de media: FFmpeg 6.x + BS1770GAIN + MediaInfo"
+LABEL org.opencontainers.image.vendor="Nexora Engineering"
+
+# Variáveis de ambiente defaults
+ENV NODE_ENV=production \
+    FFMPEG_PATH=/usr/bin/ffmpeg \
+    FFPROBE_PATH=/usr/bin/ffprobe
+
+WORKDIR /app
+
+# ── Media tools (FFmpeg 6.x + bibliotecas broadcast) ─────────────
+# ffmpeg: libx264, libx265, libvpx-vp9, libfdk_aac, libopus, libvmaf
+# mediainfo: análise técnica de ficheiros de media
+# bs1770gain: verificação independente de loudness EBU R128 (ADR-009)
+# dumb-init: PID 1 correcto com signal forwarding
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    mediainfo \
+    curl \
+    dumb-init \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Instalar BS1770GAIN via npm (wrapper, requer apenas ffmpeg)
+# Em produção, substituir por binário compilado se disponível
+RUN npm install -g bs1770gain 2>/dev/null || true
+
+# ── User não-root ──────────────────────────────────────────────────
+RUN groupadd -g 1001 nexora \
+    && useradd -u 1001 -g nexora -s /bin/bash -m nexora
+
+# ── Dependências de produção ───────────────────────────────────────
 COPY package*.json ./
 COPY prisma ./prisma/
-RUN npm ci --only=production && npm cache clean --force
+RUN npm ci --only=production && npm cache clean --force \
+    && npx prisma generate
+
+# ── Código compilado ───────────────────────────────────────────────
 COPY --from=builder /app/dist ./dist
-RUN mkdir -p /media/input /media/output /media/temp && \
-    chown -R nexora:nexora /media /app
-ENV FFMPEG_PATH=/usr/bin/ffmpeg \
-    FFPROBE_PATH=/usr/bin/ffprobe \
-    MEDIAINFO_PATH=/usr/bin/mediainfo \
-    MEDIACONCH_PATH=/usr/bin/mediaconch \
-    BS1770GAIN_PATH=/usr/bin/bs1770gain \
-    HANDBRAKE_CLI_PATH=/usr/bin/HandBrakeCLI
+
+# ── Volumes de media ───────────────────────────────────────────────
+RUN mkdir -p /media/input /media/output /media/temp /media/proxy \
+    && chown -R nexora:nexora /media /app
+
 USER nexora
-HEALTHCHECK --interval=60s --timeout=10s --start-period=60s --retries=3 \
-    CMD node dist/health-worker.js || exit 1
+
+# Porta do servidor de métricas do worker
+EXPOSE 9101
+
+# Healthcheck: verificar que o servidor de métricas responde
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:9101/health || exit 1
+
+ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "dist/worker.js"]

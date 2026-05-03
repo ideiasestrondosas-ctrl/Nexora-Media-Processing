@@ -1,0 +1,72 @@
+# Nexora Media Processing — Alertmanager Configuration
+# Routing, agrupamento e receivers para alertas Prometheus
+
+global:
+  # Tempo de espera antes de reenviar um alerta resolvido
+  resolve_timeout: 5m
+  # HTTP client para webhooks
+  http_config:
+    follow_redirects: true
+
+# ── Routing ───────────────────────────────────────────────────────
+
+route:
+  # Receiver por defeito
+  receiver: 'nexora-default'
+
+  # Agrupar por alertname + severidade para evitar flood
+  group_by: ['alertname', 'severity', 'team']
+  group_wait:      30s    # aguardar 30s antes de enviar o primeiro alerta do grupo
+  group_interval:  5m     # enviar alertas adicionais do grupo de 5 em 5 min
+  repeat_interval: 4h     # re-enviar alerta activo de 4 em 4h
+
+  # Routing por severidade
+  routes:
+    # Alertas críticos — notificação imediata
+    - match:
+        severity: critical
+      receiver: 'nexora-critical'
+      group_wait: 10s
+      repeat_interval: 1h
+
+    # Alertas de infraestrutura — equipa diferente
+    - match:
+        team: infra
+      receiver: 'nexora-infra'
+
+# ── Receivers ─────────────────────────────────────────────────────
+
+receivers:
+
+  # Default: webhook genérico (substituir por Slack/Teams/PagerDuty em produção)
+  - name: 'nexora-default'
+    webhook_configs:
+      - url: '${ALERTMANAGER_WEBHOOK_URL:-http://localhost:9999/alerts}'
+        send_resolved: true
+        http_config:
+          bearer_token: '${ALERTMANAGER_WEBHOOK_TOKEN:-}'
+        # Payload personalizado com contexto Nexora
+        max_alerts: 10
+
+  # Crítico: webhook de alta prioridade + email (configurar em produção)
+  - name: 'nexora-critical'
+    webhook_configs:
+      - url: '${ALERTMANAGER_CRITICAL_URL:-http://localhost:9999/critical}'
+        send_resolved: true
+
+  # Infra: equipa de infraestrutura
+  - name: 'nexora-infra'
+    webhook_configs:
+      - url: '${ALERTMANAGER_INFRA_URL:-http://localhost:9999/infra}'
+        send_resolved: true
+
+# ── Inibição ──────────────────────────────────────────────────────
+# Um alerta crítico inibe o alerta warning correspondente
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    # Apenas inibir se for o mesmo alerta (ex: QueueDepthCritical inibe QueueDepthWarning)
+    equal: ['alertname', 'worker_type']

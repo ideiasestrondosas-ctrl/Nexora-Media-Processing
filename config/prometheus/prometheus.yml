@@ -1,32 +1,93 @@
+# Nexora Media Processing — Prometheus Scrape Configuration
+# Intervalo de 10s para granularidade adequada em pipelines de media
+
 global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
+  scrape_interval:     10s   # scrape mais frequente que o default 15s
+  evaluation_interval: 10s
+  scrape_timeout:      8s
   external_labels:
     project: 'nexora-media-processing'
+    environment: '${ENV:-production}'
+
+# ── Regras de alerta ──────────────────────────────────────────────
 
 rule_files:
   - "alerts.yml"
+
+# ── Alertmanager ──────────────────────────────────────────────────
 
 alerting:
   alertmanagers:
     - static_configs:
         - targets: ['alertmanager:9093']
+      timeout: 5s
+
+# ── Scrape targets ────────────────────────────────────────────────
 
 scrape_configs:
+
+  # Nexora API (porta 9100 — métricas Fastify/prom-client)
   - job_name: 'nexora-api'
     static_configs:
       - targets: ['nexora-api:9100']
+        labels:
+          service: 'api'
     metrics_path: '/metrics'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+)(?::\d+)?'
+        replacement: '${1}'
 
+  # Nexora Worker (porta 9101 — métricas BullMQ + transcode)
   - job_name: 'nexora-worker'
     static_configs:
       - targets: ['nexora-worker:9101']
+        labels:
+          service: 'worker'
     metrics_path: '/metrics'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+)(?::\d+)?'
+        replacement: '${1}'
 
+  # PostgreSQL Exporter
   - job_name: 'postgres'
     static_configs:
       - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'database'
 
+  # Redis Exporter
   - job_name: 'redis'
     static_configs:
       - targets: ['redis-exporter:9121']
+        labels:
+          service: 'cache'
+
+  # Node Exporter — métricas OS (CPU, RAM, disco, rede)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'system'
+
+  # cAdvisor — métricas Docker containers
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'containers'
+    metric_relabel_configs:
+      # Reter apenas containers nexora para reduzir cardinalidade
+      - source_labels: [container_label_com_docker_compose_project]
+        regex: 'nexora.*'
+        action: keep
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'monitoring'

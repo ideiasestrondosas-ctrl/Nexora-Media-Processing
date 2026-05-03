@@ -1,50 +1,153 @@
-groups:
-  - name: nexora_pipeline
-    rules:
-      - alert: NexoraPipelineStalled
-        expr: nexora_queue_depth > 50
-        for: 10m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Pipeline parado — fila com mais de 50 jobs"
-          description: "Queue {{ $labels.worker_type }} tem {{ $value }} jobs pendentes há 10 minutos"
+# Nexora Media Processing — Prometheus Alert Rules
+# 9 alertas: pipeline, qualidade, infraestrutura
 
-      - alert: NexoraHighRejectionRate
-        expr: rate(nexora_assets_rejected_total[5m]) / rate(nexora_assets_ingested_total[5m]) > 0.20
+groups:
+
+  # ── Grupo 1: Pipeline (filas e taxa de erro) ─────────────────────
+
+  - name: nexora_pipeline
+    interval: 30s
+    rules:
+
+      # Alerta 1: Queue depth warning (>100) — pedido no prompt
+      - alert: NexoraQueueDepthWarning
+        expr: nexora_queue_depth > 100
         for: 5m
         labels:
           severity: warning
+          team: media-ops
         annotations:
-          summary: "Taxa de rejeição alta (>20%)"
+          summary: "Fila de processamento com acumulação (>100 jobs)"
+          description: >
+            A fila {{ $labels.worker_type }} tem {{ $value | printf "%.0f" }} jobs pendentes há mais de 5 minutos.
+            Verificar se os workers estão activos e com recursos disponíveis.
+          runbook_url: "https://wiki.nexora.io/runbooks/queue-depth"
 
+      # Alerta 2: Queue depth crítico (>500)
+      - alert: NexoraQueueDepthCritical
+        expr: nexora_queue_depth > 500
+        for: 2m
+        labels:
+          severity: critical
+          team: media-ops
+        annotations:
+          summary: "CRÍTICO: Fila de processamento bloqueada (>500 jobs)"
+          description: >
+            A fila {{ $labels.worker_type }} tem {{ $value | printf "%.0f" }} jobs acumulados.
+            Possível degradação severa do serviço.
+
+      # Alerta 3: Taxa de erro >5% — pedido no prompt
+      - alert: NexoraHighErrorRate
+        expr: >
+          rate(nexora_assets_rejected_total[5m])
+          /
+          (rate(nexora_assets_ingested_total[5m]) + 0.001)
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: media-ops
+        annotations:
+          summary: "CRÍTICO: Taxa de rejeição acima de 5%"
+          description: >
+            {{ $value | humanizePercentage }} dos assets estão a ser rejeitados.
+            Verificar regras QC e qualidade dos ficheiros de entrada.
+
+      # Alerta 4: Worker offline
       - alert: NexoraWorkerDown
         expr: up{job="nexora-worker"} == 0
         for: 2m
         labels:
           severity: critical
+          team: media-ops
         annotations:
-          summary: "Worker Nexora offline há 2 minutos"
+          summary: "CRÍTICO: Worker Nexora offline há 2 minutos"
+          description: "O worker {{ $labels.instance }} não responde ao scrape do Prometheus."
 
+  # ── Grupo 2: Qualidade (VMAF, loudness, transcode) ───────────────
+
+  - name: nexora_quality
+    interval: 60s
+    rules:
+
+      # Alerta 5: Tempo de transcode P95 >2h — pedido no prompt
+      - alert: NexoraTranscodeTimeSlow
+        expr: >
+          histogram_quantile(
+            0.95,
+            rate(nexora_transcode_duration_seconds_bucket[30m])
+          ) > 7200
+        for: 10m
+        labels:
+          severity: warning
+          team: media-ops
+        annotations:
+          summary: "Transcode lento: P95 > 2h"
+          description: >
+            95% dos transcodes estão a demorar mais de 2 horas.
+            Perfil: {{ $labels.profile }}. Verificar disponibilidade de GPU.
+
+      # Alerta 6: VMAF mediano baixo
       - alert: NexoraLowVMAF
-        expr: histogram_quantile(0.5, nexora_vmaf_score) < 85
+        expr: >
+          histogram_quantile(
+            0.5,
+            rate(nexora_vmaf_score_bucket[15m])
+          ) < 85
         for: 15m
         labels:
           severity: warning
+          team: media-ops
         annotations:
-          summary: "VMAF mediano abaixo de 85"
+          summary: "Qualidade de vídeo baixa: VMAF mediano < 85"
+          description: >
+            O score VMAF mediano está em {{ $value | printf "%.1f" }}.
+            Verificar parâmetros de encoding do perfil {{ $labels.profile }}.
 
+      # Alerta 7: FFmpeg timeout
       - alert: NexoraFFmpegTimeout
         expr: increase(nexora_ffmpeg_timeout_total[5m]) > 0
         labels:
           severity: critical
+          team: media-ops
         annotations:
-          summary: "FFmpeg timeout detectado"
+          summary: "CRÍTICO: FFmpeg timeout detectado"
+          description: "{{ $value | printf \"%.0f\" }} timeouts de FFmpeg nos últimos 5 minutos."
 
+      # Alerta 8: GPU indisponível
+      - alert: NexoraGPUUnavailable
+        expr: nexora_gpu_available == 0
+        for: 10m
+        labels:
+          severity: warning
+          team: media-ops
+        annotations:
+          summary: "GPU indisponível — a usar fallback CPU"
+          description: >
+            Nenhuma GPU detectada há 10 minutos.
+            Transcodes a usar CPU: performance reduzida a ~25% do normal.
+
+  # ── Grupo 3: Infraestrutura ───────────────────────────────────────
+
+  - name: nexora_infrastructure
+    interval: 60s
+    rules:
+
+      # Alerta 9: Disco com menos de 20% livre
       - alert: NexoraDiskWarning
-        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.20
+        expr: >
+          (
+            node_filesystem_avail_bytes{mountpoint="/", fstype!="tmpfs"}
+            /
+            node_filesystem_size_bytes{mountpoint="/", fstype!="tmpfs"}
+          ) < 0.20
         for: 5m
         labels:
           severity: warning
+          team: infra
         annotations:
-          summary: "Disco abaixo de 20% disponível"
+          summary: "Disco com menos de 20% disponível"
+          description: >
+            O disco em {{ $labels.mountpoint }} tem apenas
+            {{ $value | humanizePercentage }} de espaço livre.
+            Risco de falha no processamento de assets grandes.

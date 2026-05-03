@@ -29,7 +29,7 @@
 - [x] **Prompt 1 executado — Backend Core (Antigravity, 2026-05-02)**
 - [x] **Prompt 5 executado — FFmpeg Avançado + Performance (Antigravity, 2026-05-02)**
 - [x] **Prompt 2 executado — Temporal.io Workflows + API REST Completa (Antigravity, 2026-05-02)**
-- [ ] Prompt 6 executado (Docker + Infra — Claude)
+- [x] **Prompt 6 executado — DevOps / Infrastructure (Antigravity, 2026-05-02)**
 - [ ] Prompt 3 executado (Frontend — Gemini)
 - [ ] Prompt 4 executado (Logs/Debug — Claude)
 - [ ] Prompt 7 executado (Segurança — Claude)
@@ -42,9 +42,9 @@
 ## 🔄 Em progresso agora
 
 ```
-Data: 2026-05-02
-Agente: Antigravity (Claude Sonnet)
-A trabalhar em: Concluído — Prompt 5 executado com sucesso
+Data: 2026-05-03
+Agente: Antigravity (Gemini Flash)
+A trabalhar em: Unificação da documentação (README.md) concluída
 Bloqueios: Nenhum
 ```
 
@@ -180,13 +180,43 @@ config/handbrake/
 
 ---
 
-## 🎯 Próximos passos
+## 📁 Ficheiros implementados no Prompt 6
 
-1. **Prompt 2** — API avançada + Temporal workflows (orquestração completa de pipeline)
-2. **Prompt 6** — Docker + Infra (Dockerfile multi-stage, docker-compose, Helm charts)
-3. **Prompt 3** — Frontend Next.js (dashboard de assets, monitorização em tempo real)
-4. **Prompt 4** — Logs/Debug (request tracing, alertas, dashboards Grafana)
+```
+Dockerfile.worker              ✅ Multi-stage bookworm-slim: FFmpeg 6.x + BS1770GAIN + MediaInfo
+docker-compose.yml             ✅ +3 serviços: node-exporter, cAdvisor, Alertmanager
+                                  health conditions em depends_on
+                                  secrets volume mount
+
+config/prometheus/
+  prometheus.yml               ✅ scrape 10s, 6 jobs (API, worker, postgres, redis, node-exporter, cadvisor)
+  alerts.yml                   ✅ 9 alertas: pipeline + qualidade + infraestrutura
+
+config/alertmanager/
+  alertmanager.yml             ✅ Routing por severidade, 3 receivers, inhibit rules
+
+config/grafana/provisioning/dashboards/
+  nexora-overview.json         ✅ 8 painéis: jobs/min, success rate, queue depth, avg transcode
+  nexora-quality.json          ✅ 6 painéis: VMAF P50/P1, rejection rate, loudness LUFS
+  nexora-infra.json            ✅ 6 painéis: CPU/RAM/disco por container, rede I/O, event loop
+
+.github/workflows/
+  test.yml                     ✅ prisma generate, cache npm, coverage fix, integration tests
+  build.yml                    ✅ build ambas imagens (nexora-api + nexora-worker), OCI labels
+  deploy-staging.yml           ✅ retry 3x, worker health check, logs em caso de falha
+
+scripts/
+  healthcheck.sh               ✅ 8 serviços, --json / --quiet flags, exit code 0/1
+```
 
 ---
 
-*Última actualização: 2026-05-02 — Prompt 5 (FFmpeg Avançado + Performance) concluído — 0 erros TS, 0 erros lint*
+## 🎯 Próximos passos
+
+1. **Prompt 3** — Frontend Next.js (dashboard de assets, monitorização em tempo real)
+2. **Prompt 4** — Logs/Debug (request tracing, alertas, dashboards Grafana)
+3. **Prompt 7** — Segurança (rate limiting avançado, autenticação OAuth2, secrets rotation)
+
+---
+
+*Última actualização: 2026-05-02 — Prompt 6 (DevOps / Infrastructure) concluído — 0 erros TS, 0 erros lint*
