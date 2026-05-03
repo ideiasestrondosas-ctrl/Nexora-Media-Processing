@@ -10,9 +10,9 @@ if (-not (Test-Path $LOG_DIR)) { New-Item -ItemType Directory -Path $LOG_DIR | O
 if (-not (Test-Path $PID_DIR)) { New-Item -ItemType Directory -Path $PID_DIR -Force | Out-Null }
 
 $SERVICES = @{
-    "backend"  = @{ "port" = 3000; "cmd" = "npm run dev"; "cwd" = $PROJECT_ROOT; "log" = "backend.log" }
-    "worker"   = @{ "port" = $null; "cmd" = "npm run worker"; "cwd" = $PROJECT_ROOT; "log" = "worker.log" }
-    "frontend" = @{ "port" = 3001; "cmd" = "npm run dev"; "cwd" = (Join-Path $PROJECT_ROOT "frontend"); "log" = "frontend.log" }
+    "backend"  = @{ "port" = 3000; "cmd" = "npm run dev"; "cwd" = $PROJECT_ROOT; "log" = "backend.log"; "url" = "http://localhost:3000" }
+    "worker"   = @{ "port" = $null; "cmd" = "npm run worker"; "cwd" = $PROJECT_ROOT; "log" = "worker.log"; "url" = $null }
+    "frontend" = @{ "port" = 3002; "cmd" = "npm run dev -- -p 3002"; "cwd" = (Join-Path $PROJECT_ROOT "frontend"); "log" = "frontend.log"; "url" = "http://localhost:3002" }
 }
 
 function Write-Nexora([string]$msg, [string]$color = "Cyan") {
@@ -43,17 +43,21 @@ function Stop-NexoraService([string]$name) {
 }
 
 function Start-NexoraService([string]$name) {
+    $svc = $SERVICES[$name]
     if (Get-ServicePID $name) {
         Write-Nexora "$name já está a correr. Reiniciando..." "Yellow"
         Stop-NexoraService $name
     }
 
-    $svc = $SERVICES[$name]
     if ($svc.port) {
-        # Verificar se a porta está ocupada
         $portCheck = Get-NetTCPConnection -LocalPort $svc.port -ErrorAction SilentlyContinue
         if ($portCheck) {
-            Write-Nexora "ERRO: Porta $($svc.port) já está em uso por outro processo externo!" "Red"
+            $process = Get-Process -Id $portCheck.OwningProcess -ErrorAction SilentlyContinue
+            $owner = if ($process) { $process.Name } else { "Desconhecido" }
+            Write-Nexora "ERRO: Porta $($svc.port) ocupada por '$owner'!" "Red"
+            if ($owner -like "*docker*") {
+                Write-Nexora "DICA: Um contentor Docker está a usar esta porta. Verifica 'docker ps'." "Yellow"
+            }
             return $false
         }
     }
@@ -61,21 +65,20 @@ function Start-NexoraService([string]$name) {
     Write-Nexora "A iniciar $name em background..."
     $logFile = Join-Path $LOG_DIR $svc.log
     
-    # Comando para iniciar em background e redireccionar output
-    # Usamos o cmd /c para garantir que o npm corre correctamente em background
     $process = Start-Process -FilePath "cmd.exe" -ArgumentList "/c $($svc.cmd) > `"$logFile`" 2>&1" `
                -WorkingDirectory $svc.cwd -PassThru -WindowStyle Hidden
 
     if ($process) {
         $process.Id | Out-File (Join-Path $PID_DIR "$name.pid")
-        Write-Nexora "$name iniciado com sucesso (PID: $($process.Id))." "Green"
+        Write-Nexora "$name iniciado (PID: $($process.Id))." "Green"
+        if ($svc.url) { Write-Nexora "Aceder em: $($svc.url)" "Magenta" }
         return $true
     }
     return $false
 }
 
 function Show-Status {
-    Write-Nexora "--- Estado do Sistema Nexora ---" "Magenta"
+    Write-Nexora "--- Processos de Desenvolvimento (Node.js) ---" "Magenta"
     $format = "{0,-12} | {1,-8} | {2,-10} | {3,-15}"
     Write-Host ($format -f "Serviço", "Porta", "Estado", "PID") -ForegroundColor Gray
     Write-Host ("-" * 50) -ForegroundColor Gray
@@ -91,6 +94,15 @@ function Show-Status {
         Write-Host $status.PadRight(10) -NoNewline -ForegroundColor $color
         $pidStr = if ($svcPid) { $svcPid } else { "---" }
         Write-Host (" | " + $pidStr)
+    }
+    Write-Host ""
+
+    Write-Nexora "--- Infraestrutura Docker (Nexora) ---" "Magenta"
+    $dockerOut = docker ps --filter "name=nexora" --format "table {{.Names}}\t{{.Ports}}\t{{.Status}}"
+    if ($dockerOut -like "*NAMES*") {
+        Write-Host $dockerOut
+    } else {
+        Write-Nexora "Nenhum contentor Nexora activo." "Yellow"
     }
     Write-Host ""
 }
@@ -109,31 +121,49 @@ function Show-Logs([string]$name) {
     }
 }
 
+function Show-SystemDetails {
+    Write-Nexora "--- Detalhes de Memória (Nexora) ---" "Magenta"
+    $processes = @()
+    foreach ($name in $SERVICES.Keys) {
+        $pid = Get-ServicePID $name
+        if ($pid) {
+            $p = Get-Process -Id $pid -ErrorAction SilentlyContinue
+            if ($p) {
+                $mem = [Math]::Round($p.WorkingSet64 / 1MB, 2)
+                $processes += New-Object PSObject -Property @{
+                    "Servico"  = $name
+                    "PID"      = $svcPid
+                    "RAM (MB)" = $mem
+                }
+            }
+        }
+    }
+    if ($processes.Count -gt 0) {
+        $processes | Select-Object Servico, PID, "RAM (MB)" | Format-Table -AutoSize
+    } else {
+        Write-Nexora "Nenhum processo Node.js activo." "Yellow"
+    }
+}
+
 function Reset-Nexora {
-    Write-Nexora "ALERTA: Isto vai apagar todos os dados e reiniciar o ambiente. Continuar? (S/N)" "Red"
+    Write-Nexora "ALERTA: Reset total (Docker + DB). Continuar? (S/N)" "Red"
     $choice = Read-Host
     if ($choice -ne "S" -and $choice -ne "s") { return }
 
-    Write-Nexora "A parar todos os serviços..."
+    Write-Nexora "A parar tudo..."
     foreach ($name in $SERVICES.Keys) { Stop-NexoraService $name }
-
-    Write-Nexora "A limpar contentores Docker..."
     docker-compose down -v --remove-orphans
 
-    Write-Nexora "A iniciar infraestrutura..."
+    Write-Nexora "A reiniciar infraestrutura..."
     docker-compose up -d
-
-    Write-Nexora "A aguardar base de dados (5s)..."
+    Write-Nexora "A aguardar 5s..."
     Start-Sleep -s 5
 
-    Write-Nexora "A aplicar migrações Prisma..."
     npm run db:generate
     npm run db:migrate:dev -- --name reset_cli
-
-    Write-Nexora "Reset concluído com sucesso!" "Green"
+    Write-Nexora "Reset concluído!" "Green"
 }
 
-# --- Menu Lógica ---
 $action = $args[0]
 $target = $args[1]
 
@@ -153,32 +183,31 @@ switch ($action) {
     "status" { Show-Status }
     "logs" { Show-Logs $target }
     "reset" { Reset-Nexora }
+    "details" { Show-SystemDetails }
     Default {
         do {
             Clear-Host
             Write-Host "========================================" -ForegroundColor Blue
-            Write-Host "   NEXORA MEDIA PROCESSING MANAGER      " -ForegroundColor White -BackgroundColor Blue
+            Write-Host "   NEXORA MANAGER v1.1 (Multi-Port)     " -ForegroundColor White -BackgroundColor Blue
             Write-Host "========================================" -ForegroundColor Blue
             Show-Status
             Write-Host "1. Iniciar Tudo"
             Write-Host "2. Parar Tudo"
-            Write-Host "3. Reiniciar Tudo"
-            Write-Host "4. Ver Logs Backend"
-            Write-Host "5. Ver Logs Worker"
-            Write-Host "6. Ver Logs Frontend"
-            Write-Host "7. Reset Total (Nuclear)"
+            Write-Host "3. Ver Logs Backend" | Write-Host "4. Ver Logs Frontend" -NoNewline; Write-Host " | 5. Ver Logs Worker"
+            Write-Host "6. Ver Detalhes RAM"
+            Write-Host "7. Reset Total"
             Write-Host "0. Sair"
             Write-Host ""
-            $input = Read-Host "Escolha uma opção"
+            $input = Read-Host "Escolha"
 
             switch ($input) {
-                "1" { foreach ($name in $SERVICES.Keys) { Start-NexoraService $name }; Read-Host "Pressione Enter para continuar" }
-                "2" { foreach ($name in $SERVICES.Keys) { Stop-NexoraService $name }; Read-Host "Pressione Enter para continuar" }
-                "3" { foreach ($name in $SERVICES.Keys) { Stop-NexoraService $name; Start-NexoraService $name }; Read-Host "Pressione Enter para continuar" }
-                "4" { Show-Logs "backend" }
+                "1" { foreach ($name in $SERVICES.Keys) { Start-NexoraService $name }; Read-Host "Enter..." }
+                "2" { foreach ($name in $SERVICES.Keys) { Stop-NexoraService $name }; Read-Host "Enter..." }
+                "3" { Show-Logs "backend" }
+                "4" { Show-Logs "frontend" }
                 "5" { Show-Logs "worker" }
-                "6" { Show-Logs "frontend" }
-                "7" { Reset-Nexora; Read-Host "Pressione Enter para continuar" }
+                "6" { Show-SystemDetails; Read-Host "Enter..." }
+                "7" { Reset-Nexora; Read-Host "Enter..." }
                 "0" { break }
             }
         } while ($input -ne "0")

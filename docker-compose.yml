@@ -16,7 +16,7 @@ services:
       dockerfile: Dockerfile
     container_name: nexora-api
     ports:
-      - "3000:3000"
+      - "3006:3000"
       - "9100:9100"   # porta de métricas da API
     env_file: .env
     environment:
