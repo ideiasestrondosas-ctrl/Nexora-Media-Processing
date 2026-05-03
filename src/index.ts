@@ -106,7 +106,7 @@ async function start(): Promise<void> {
     await initQueues();
 
     // 8. Iniciar servidor de métricas Prometheus numa porta separada
-    const prometheusPort = Number(process.env.PROMETHEUS_PORT ?? 9100);
+    const prometheusPort = Number(process.env.PROMETHEUS_API_PORT ?? 9100);
     await metricsServer.start(prometheusPort);
     logger.info({ port: prometheusPort }, 'Servidor de métricas Prometheus iniciado');
 

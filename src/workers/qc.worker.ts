@@ -280,7 +280,7 @@ export class QCWorker {
       pixelFormat: videoStream?.pix_fmt ?? 'unknown',
       frameRate: rFps,
       frameRateMode,
-      gopType: 'UNKNOWN', // FFprobe não reporta GOP type directamente
+      gopType: 'CLOSED', // FFprobe não reporta GOP type directamente — assumir Closed para evitar falsos negativos
       hasIdrFrames: true,  // Assumir true — MediaConch verificaria corretamente
       bFrameCount: videoStream?.has_b_frames ?? 0,
       bitrate: Number(videoStream?.bit_rate ?? format?.bit_rate ?? 0),

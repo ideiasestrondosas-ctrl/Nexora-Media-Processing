@@ -68,7 +68,7 @@ async function startWorkers(): Promise<void> {
     }
 
     // 5. Iniciar métricas Prometheus (porta separada dos workers: 9101)
-    const prometheusPort = Number(process.env.PROMETHEUS_PORT ?? 9101);
+    const prometheusPort = Number(process.env.PROMETHEUS_WORKER_PORT ?? 9101);
     await metricsServer.start(prometheusPort);
     logger.info({ port: prometheusPort }, 'Prometheus workers iniciado');
 

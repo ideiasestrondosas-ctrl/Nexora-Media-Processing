@@ -6,6 +6,7 @@ import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
 import { registerRoutes } from '../../src/api/routes';
 import { prisma } from '../../src/db/prisma';
+import { registerAuthHook } from '../../src/api/middleware/auth';
 import fs from 'fs';
 import path from 'path';
 
@@ -14,7 +15,12 @@ vi.mock('../../src/db/prisma', () => ({
   prisma: {
     asset: {
       create: vi.fn().mockResolvedValue({ id: 'asset-1' }),
-      findUnique: vi.fn(),
+      findUnique: vi.fn().mockImplementation((args) => {
+        if (args.where.tokenHash) {
+          return Promise.resolve({ userId: 'test-user' });
+        }
+        return Promise.resolve({ id: 'asset-1' });
+      }),
     },
     auditLog: {
       create: vi.fn().mockResolvedValue({ id: 'audit-1' }),
@@ -22,6 +28,7 @@ vi.mock('../../src/db/prisma', () => ({
     refreshToken: {
       create: vi.fn().mockResolvedValue({ id: 'rt-1' }),
       findFirst: vi.fn(),
+      findUnique: vi.fn().mockImplementation(() => Promise.resolve({ userId: 'test-user' })),
       update: vi.fn(),
     }
   }
@@ -37,14 +44,13 @@ vi.mock('../../src/common/redis', () => ({
 }));
 
 vi.mock('../../src/common/minio', () => ({
-  minioClient: {
-    putObject: vi.fn().mockResolvedValue(true),
-  },
+  uploadBuffer: vi.fn().mockResolvedValue({ etag: 'test-etag', sizeBytes: 100 }),
+  getPresignedUrl: vi.fn().mockResolvedValue('http://localhost:9000/presigned'),
   BUCKETS: { INPUT: 'nexora-input' }
 }));
 
 vi.mock('../../src/workers/queues', () => ({
-  enqueueIngest: vi.fn().mockResolvedValue({ id: 'job-1' }),
+  enqueueIngest: vi.fn().mockResolvedValue('job-1'),
   QUEUE_NAMES: {
     INGEST: 'nexora-ingest',
     QC: 'nexora-qc',
@@ -65,8 +71,8 @@ describe('API Integration Tests (Supertest)', () => {
     
     // Registar plugins necessários manualmente para o test environment
     await app.register(multipart);
-    await app.register(jwt, { secret: process.env.NEXORA_AUTH_SECRET || 'test' });
-    await app.register(rateLimit, { max: 20, timeWindow: '1 minute' });
+    await registerAuthHook(app);
+    await app.register(rateLimit, { max: 20, timeWindow: '1 minute' }); // Limite razoável para testes
     
     // Registar rotas
     await registerRoutes(app);
@@ -82,8 +88,7 @@ describe('API Integration Tests (Supertest)', () => {
     it('deve retornar tokens ao fazer login válido', async () => {
       const response = await request(app.server)
         .post('/api/v1/auth/login')
-        .set('X-API-Key', process.env.NEXORA_AUTH_SECRET!)
-        .send({ userId: 'user-123' })
+        .send({ userId: 'user-123', secret: process.env.NEXORA_AUTH_SECRET! })
         .expect(200);
 
       expect(response.body).toHaveProperty('accessToken');
@@ -98,7 +103,7 @@ describe('API Integration Tests (Supertest)', () => {
         .send({ userId: 'user-123' })
         .expect(401);
 
-      expect(response.body.message).toContain('Unauthorized');
+      expect(response.body.message).toContain('Credenciais inválidas');
     });
   });
 
@@ -108,8 +113,8 @@ describe('API Integration Tests (Supertest)', () => {
     beforeAll(async () => {
       const response = await request(app.server)
         .post('/api/v1/auth/login')
-        .set('X-API-Key', process.env.NEXORA_AUTH_SECRET!)
-        .send({ userId: 'test-user' });
+        .send({ userId: 'test-user', secret: process.env.NEXORA_AUTH_SECRET! })
+        .expect(200);
       accessToken = response.body.accessToken;
     });
 
@@ -146,22 +151,19 @@ describe('API Integration Tests (Supertest)', () => {
         .post('/api/v1/assets/upload')
         .set('Authorization', `Bearer ${accessToken}`)
         .attach('file', fakeFile, { filename: 'malicioso.mp4', contentType: 'video/mp4' })
-        .expect(400);
+        .expect(415);
 
-      expect(response.body.message).toContain('Assinatura do ficheiro não corresponde');
+      expect(response.body.message).toContain('não suportado');
     });
   });
 
   describe('Rate Limiter', () => {
     it('deve bloquear após demasiadas tentativas de refresh', async () => {
-      const maxRequests = 20; // Segundo o rate-limit-config.ts
       let lastResponse;
 
-      // Esgotar o limite
-      for (let i = 0; i < maxRequests + 1; i++) {
-        lastResponse = await request(app.server)
-          .post('/api/v1/auth/refresh')
-          .send({ refreshToken: 'fake-token' });
+      // 20 é o limite definido no beforeAll
+      for (let i = 0; i < 21; i++) {
+        lastResponse = await request(app.server).post('/api/v1/auth/refresh').send({ refreshToken: 'fake' });
       }
 
       expect(lastResponse!.status).toBe(429);

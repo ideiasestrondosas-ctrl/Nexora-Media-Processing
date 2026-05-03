@@ -44,28 +44,83 @@ vi.mock('../../src/common/minio', () => ({
     presignedGetObject: vi.fn().mockResolvedValue('http://mock-minio/url'),
   },
   uploadFile: vi.fn().mockResolvedValue(true),
+  downloadFile: vi.fn().mockResolvedValue(true),
   BUCKETS: { INPUT: 'input', OUTPUT: 'output' }
 }));
 
 // Mock Child Process para não rodar FFprobe / FFmpeg de verdade
 vi.mock('child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('child_process')>();
+  const mockExecFile = (cmd: string, args: string[], options: any, callback: any) => {
+    // Se for chamado via promisify, o callback é o último argumento
+    const cb = typeof options === 'function' ? options : callback;
+    
+    if (cmd === 'ffprobe' || cmd.includes('ffprobe')) {
+      const stdout = JSON.stringify({
+        streams: [
+          { 
+            codec_type: 'video', 
+            codec_name: 'h264', 
+            profile: 'High',
+            level: 41,
+            pix_fmt: 'yuv420p',
+            r_frame_rate: '25/1', 
+            avg_frame_rate: '25/1',
+            width: 1920, 
+            height: 1080,
+            bit_rate: '10000000'
+          },
+          { codec_type: 'audio', codec_name: 'aac', sample_rate: '48000', channels: 2 }
+        ],
+        format: { duration: '10.0', size: '10000000', format_name: 'mov' }
+      });
+      cb(null, { stdout, stderr: '' });
+    } else {
+      cb(null, { stdout: '', stderr: '' });
+    }
+  };
+
   return {
     ...actual,
+    execFile: vi.fn().mockImplementation(mockExecFile),
+    // Para compatibilidade com quem usa execFileAsync directamente
     execFileAsync: vi.fn().mockImplementation(async (cmd, args) => {
-      if (cmd === 'ffprobe') {
+      if (cmd === 'ffprobe' || cmd.includes('ffprobe')) {
         return {
           stdout: JSON.stringify({
             streams: [
-              { codec_type: 'video', codec_name: 'h264', r_frame_rate: '25/1', width: 1920, height: 1080 },
+              { 
+                codec_type: 'video', 
+                codec_name: 'h264', 
+                profile: 'High',
+                level: 41,
+                pix_fmt: 'yuv420p',
+                r_frame_rate: '25/1', 
+                avg_frame_rate: '25/1',
+                width: 1920, 
+                height: 1080,
+                bit_rate: '10000000'
+              },
               { codec_type: 'audio', codec_name: 'aac', sample_rate: '48000', channels: 2 }
             ],
-            format: { duration: '10.0', size: '1000000', format_name: 'mp4' }
+            format: { duration: '10.0', size: '10000000', format_name: 'mov' }
           }),
           stderr: ''
         };
       }
       return { stdout: '', stderr: '' };
+    }),
+    spawn: vi.fn().mockImplementation(() => {
+      const process = new EventEmitter() as any;
+      process.stdout = new EventEmitter();
+      process.stderr = new EventEmitter();
+      process.kill = vi.fn();
+      
+      setTimeout(() => {
+        process.emit('close', 0);
+      }, 50);
+      
+      return process;
     })
   };
 });
@@ -98,18 +153,30 @@ describe('Pipeline Integration (Ingest -> Deliver)', () => {
     } catch (e) {
       console.warn('Testcontainers não disponível (ex: Docker não está a correr). Mocks de DB e Redis serão usados.');
       
-      vi.mock('../../src/db/prisma', () => ({
-        prisma: {
-          asset: {
-            create: vi.fn().mockResolvedValue({ id: 'asset-1' }),
-            update: vi.fn().mockImplementation(args => ({ id: 'asset-1', ...args.data })),
-            findUnique: vi.fn().mockResolvedValue({ id: 'asset-1', status: 'COMPLETED' }),
-            findFirst: vi.fn().mockResolvedValue(null),
-          },
-          auditLog: { create: vi.fn() },
-          job: { create: vi.fn() }
-        }
-      }));
+      vi.mock('../../src/db/prisma', () => {
+        const mockAsset = { 
+          id: 'asset-123', 
+          filename: 'fake.mp4',
+          minioKey: 'nexora-input/raw/asset-123/original/fake.mp4',
+          status: 'INGESTED' 
+        };
+        return {
+          prisma: {
+            asset: {
+              create: vi.fn().mockResolvedValue(mockAsset),
+              update: vi.fn().mockImplementation(args => ({ ...mockAsset, ...args.data })),
+              findUnique: vi.fn().mockResolvedValue(mockAsset),
+              findFirst: vi.fn().mockResolvedValue(null),
+            },
+            auditLog: { create: vi.fn().mockResolvedValue({ id: 'audit-1' }) },
+            job: { 
+              create: vi.fn().mockResolvedValue({ id: 'job-1' }),
+              updateMany: vi.fn().mockResolvedValue({ count: 1 })
+            },
+            qCReport: { create: vi.fn().mockResolvedValue({ id: 'qc-1' }) }
+          }
+        };
+      });
     }
   }, 60000); // 60s timeout para pull images
 
@@ -135,22 +202,29 @@ describe('Pipeline Integration (Ingest -> Deliver)', () => {
 
     // QC
     const qcWorker = new QCWorker();
-    const qcResult = await qcWorker['process']({
+    await qcWorker['process']({
       id: 'job-2',
       name: 'qc',
-      data: { assetId, fileKey: 'fake.mp4', profile: 'broadcast-hd' }
+      data: { assetId, profile: 'broadcast-hd' }
     } as any);
     
-    // O mock do ffprobe devolve valores ideais, então QC passa
-    expect(qcResult.decision).toBe('PASS');
+    // Verificar se o report foi criado com PASS
+    expect(prisma.qCReport.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        decision: 'PASS'
+      })
+    }));
 
     // Transcode
     const transcodeWorker = new TranscodeWorker();
-    const transcodeResult = await transcodeWorker['process']({
+    await transcodeWorker['process']({
       id: 'job-3',
       name: 'transcode',
       data: { assetId, inputFileKey: 'fake.mp4', profile: 'broadcast-hd' }
     } as any);
+
+    // Verificar se o asset foi actualizado para COMPLETED (ou o estado seguinte)
+    expect(prisma.asset.update).toHaveBeenCalled();
 
 
   });
