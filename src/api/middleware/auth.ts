@@ -48,6 +48,8 @@ const PUBLIC_ROUTES = new Set([
   '/docs/yaml',
   '/api/v1/auth/login',
   '/api/v1/auth/refresh',
+  '/auth/login',    // Adicionado para resiliencia
+  '/auth/refresh',  // Adicionado para resiliencia
 ]);
 
 // ── Configuração ──────────────────────────────────────────────────

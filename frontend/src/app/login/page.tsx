@@ -26,9 +26,9 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const response = await api.post<{ token: string }>('/auth/login', { username, secret });
-      if (response && response.token) {
-        setToken(response.token);
+      const response = await api.post<{ accessToken: string }>('/auth/login', { userId: username, secret });
+      if (response && response.accessToken) {
+        setToken(response.accessToken);
         router.push('/');
       } else {
         setError('Erro desconhecido ao obter token.');

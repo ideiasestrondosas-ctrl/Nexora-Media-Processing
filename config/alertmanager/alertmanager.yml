@@ -41,23 +41,20 @@ receivers:
   # Default: webhook genérico (substituir por Slack/Teams/PagerDuty em produção)
   - name: 'nexora-default'
     webhook_configs:
-      - url: '${ALERTMANAGER_WEBHOOK_URL:-http://localhost:9999/alerts}'
+      - url: 'http://nexora-api:3000/webhooks/alerts'
         send_resolved: true
-        http_config:
-          bearer_token: '${ALERTMANAGER_WEBHOOK_TOKEN:-}'
-        # Payload personalizado com contexto Nexora
         max_alerts: 10
 
-  # Crítico: webhook de alta prioridade + email (configurar em produção)
+  # Crítico: webhook de alta prioridade
   - name: 'nexora-critical'
     webhook_configs:
-      - url: '${ALERTMANAGER_CRITICAL_URL:-http://localhost:9999/critical}'
+      - url: 'http://nexora-api:3000/webhooks/critical'
         send_resolved: true
 
   # Infra: equipa de infraestrutura
   - name: 'nexora-infra'
     webhook_configs:
-      - url: '${ALERTMANAGER_INFRA_URL:-http://localhost:9999/infra}'
+      - url: 'http://nexora-api:3000/webhooks/infra'
         send_resolved: true
 
 # ── Inibição ──────────────────────────────────────────────────────

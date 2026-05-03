@@ -78,9 +78,17 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
 
       const { userId, roles, secret } = parsed.data;
 
-      // Validação de secret — em prod, substituir por lógica de autenticação real
-      const expectedSecret = process.env.NEXORA_AUTH_SECRET;
-      if (expectedSecret && secret !== expectedSecret) {
+      // Autenticação na Base de Dados (Nexora)
+      if (!secret) {
+        throw new UnauthorizedError('Credenciais inválidas');
+      }
+
+      // Em produção real usar bcrypt.compare. Aqui, o seed inseriu em plaintext para dev.
+      const user = await prisma.user.findUnique({
+        where: { username: userId }
+      });
+
+      if (!user || user.password !== secret) {
         // Audit: login falhado
         await prisma.auditLog.create({
           data: {
@@ -91,16 +99,19 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
             ipAddress: getClientIp(request),
             userAgent: request.headers['user-agent'] ?? null,
             severity: 'warn',
-            metadata: { reason: 'Secret inválido' },
+            metadata: { reason: 'Credenciais inválidas' },
           },
         }).catch(() => {});
 
-        logger.warn({ userId, ip: getClientIp(request) }, 'Login falhado — secret inválido');
+        logger.warn({ userId, ip: getClientIp(request) }, 'Login falhado — credenciais inválidas');
         throw new UnauthorizedError('Credenciais inválidas');
       }
 
+      // Substituir os roles fornecidos pelo client pelos do DB
+      const dbRoles = [user.role.toLowerCase()];
+
       const tokenPair = await generateTokenPair(
-        { sub: userId, roles },
+        { sub: userId, roles: dbRoles },
         getClientIp(request),
         request.headers['user-agent'],
       );
@@ -115,11 +126,11 @@ export async function authRoutes(fastify: FastifyInstance): Promise<void> {
           ipAddress: getClientIp(request),
           userAgent: request.headers['user-agent'] ?? null,
           severity: 'info',
-          metadata: { roles },
+          metadata: { roles: dbRoles },
         },
       }).catch(() => {});
 
-      logger.info({ userId, roles }, 'Login com sucesso');
+      logger.info({ userId, roles: dbRoles }, 'Login com sucesso');
 
       return reply.status(200).send(tokenPair);
     }

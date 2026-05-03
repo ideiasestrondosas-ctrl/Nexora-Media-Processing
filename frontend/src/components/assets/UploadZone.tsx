@@ -126,6 +126,9 @@ export function UploadZone({
       const xhr = new XMLHttpRequest();
       xhr.open("POST", uploadUrl);
       
+      // Timeout de 2 horas para ficheiros muito grandes (50GB)
+      xhr.timeout = 2 * 60 * 60 * 1000; 
+      
       if (token) {
         xhr.setRequestHeader("Authorization", `Bearer ${token}`);
       }
@@ -153,10 +156,18 @@ export function UploadZone({
           }
         } else {
           setStatus("error");
-          onUploadError?.(new Error(xhr.statusText));
+          let errorMessage = "Erro desconhecido";
+          try {
+            const errorData = JSON.parse(xhr.responseText);
+            errorMessage = errorData.message || xhr.statusText;
+          } catch (e) {
+            errorMessage = xhr.statusText;
+          }
+          
+          onUploadError?.(new Error(errorMessage));
           toast({
             title: "Erro no upload",
-            description: "Ocorreu um erro ao enviar o ficheiro. Tente novamente.",
+            description: `Servidor respondeu: ${errorMessage}`,
             variant: "destructive"
           });
         }
@@ -164,7 +175,12 @@ export function UploadZone({
 
       xhr.onerror = () => {
         setStatus("error");
-        onUploadError?.(new Error("Network Error"));
+        onUploadError?.(new Error("Erro de rede ou ligação recusada."));
+      };
+
+      xhr.ontimeout = () => {
+        setStatus("error");
+        onUploadError?.(new Error("Tempo limite de upload excedido."));
       };
 
       xhr.send(formData);

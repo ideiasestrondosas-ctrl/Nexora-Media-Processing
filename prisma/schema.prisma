@@ -10,6 +10,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  username  String   @unique
+  password  String
+  role      String   @default("USER")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EncodingProfile {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  description String?
+  container   String
+  videoCodec  String
+  audioCodec  String
+  settings    Json
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 // ── Enums ────────────────────────────────────────────────────────
 
 enum AssetStatus {

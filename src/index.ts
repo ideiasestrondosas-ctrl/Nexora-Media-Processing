@@ -17,6 +17,7 @@ import { logger } from './observability/logger';
 // Usar o logger do Pino em vez do logger nativo do Fastify
 // para consistência com o resto da aplicação
 const app: FastifyInstance = Fastify({
+  bodyLimit: 100 * 1024 * 1024, // 100MB para headers/metadados (multipart stream ignora isto para o ficheiro em si)
   logger: {
     level: process.env.LOG_LEVEL ?? 'info',
     transport: process.env.NODE_ENV === 'development'

@@ -4,160 +4,38 @@
 // GET /api/v1/profiles — lista todos os perfis de encoding disponíveis
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { z } from 'zod';
+import { prisma } from '../../db/prisma';
 
-// ── Configuração estática dos perfis ─────────────────────────────
-// Fonte de verdade: alinhada com NexoraFFmpegCommandBuilder
-
-const ENCODING_PROFILES = [
-  {
-    id: 'broadcast-hd',
-    name: 'Nexora Broadcast HD',
-    description: 'Broadcast television — conformidade máxima EBU/SMPTE',
-    video: {
-      codec: 'h264',
-      preset: 'slow',
-      profile: 'high',
-      level: '4.1',
-      bitrateKbps: 8000,
-      maxrateKbps: 10000,
-      bufsizeKbps: 20000,
-      pixelFormat: 'yuv420p',
-      colorspace: 'bt709',
-      gopSize: 50,
-      bFrames: 0,
-      closedGop: true,
-      cfr: true,
-      frameRate: 25,
-    },
-    audio: {
-      codec: 'pcm_s24le',
-      sampleRate: 48000,
-      loudnessTargetLufs: -23,
-      truePeakLimitDbtp: -1.0,
-    },
-    container: 'mp4',
-    priority: 10,
-    vmafThreshold: 90,
-    useCases: ['broadcast-tv', 'playout', 'archive'],
-  },
-  {
-    id: 'ott-hd',
-    name: 'Nexora OTT HD',
-    description: 'Streaming OTT — Netflix / Apple TV / Prime compatível',
-    video: {
-      codec: 'h264',
-      preset: 'medium',
-      profile: 'high',
-      level: '4.0',
-      bitrateKbps: 5000,
-      maxrateKbps: 7000,
-      bufsizeKbps: 14000,
-      pixelFormat: 'yuv420p',
-      colorspace: 'bt709',
-      gopSize: 48,
-      bFrames: 2,
-      closedGop: false,
-      cfr: false,
-      frameRate: 24,
-    },
-    audio: {
-      codec: 'aac',
-      bitrateKbps: 192,
-      sampleRate: 48000,
-      loudnessTargetLufs: -16,
-      truePeakLimitDbtp: -1.0,
-    },
-    container: 'mp4',
-    priority: 7,
-    vmafThreshold: 90,
-    useCases: ['ott-streaming', 'vod'],
-  },
-  {
-    id: 'web-sd',
-    name: 'Nexora Web SD',
-    description: 'Streaming web — compatibilidade máxima browsers',
-    video: {
-      codec: 'h264',
-      preset: 'fast',
-      profile: 'main',
-      level: '3.1',
-      bitrateKbps: 2000,
-      maxrateKbps: 3000,
-      bufsizeKbps: 6000,
-      pixelFormat: 'yuv420p',
-      colorspace: 'bt709',
-      width: 1280,
-      height: 720,
-      gopSize: 48,
-      bFrames: 2,
-      closedGop: false,
-      cfr: false,
-      frameRate: null,
-    },
-    audio: {
-      codec: 'aac',
-      bitrateKbps: 128,
-      sampleRate: 44100,
-      loudnessTargetLufs: -16,
-      truePeakLimitDbtp: -1.5,
-    },
-    container: 'mp4',
-    priority: 5,
-    vmafThreshold: 85,
-    useCases: ['web', 'social-media'],
-  },
-  {
-    id: 'proxy',
-    name: 'Nexora Proxy',
-    description: 'Proxy de edição e preview — qualidade reduzida para velocidade',
-    video: {
-      codec: 'h264',
-      preset: 'ultrafast',
-      profile: 'baseline',
-      level: '3.0',
-      bitrateKbps: 800,
-      maxrateKbps: 1000,
-      bufsizeKbps: 2000,
-      pixelFormat: 'yuv420p',
-      colorspace: null,
-      width: 854,
-      height: 480,
-      gopSize: 48,
-      bFrames: 0,
-      closedGop: false,
-      cfr: false,
-      frameRate: null,
-    },
-    audio: {
-      codec: 'aac',
-      bitrateKbps: 96,
-      sampleRate: 44100,
-      loudnessTargetLufs: -23,
-      truePeakLimitDbtp: -2.0,
-    },
-    container: 'mp4',
-    priority: 3,
-    vmafThreshold: 70,
-    useCases: ['proxy', 'preview', 'review'],
-  },
-];
-
-// ── Rota ─────────────────────────────────────────────────────────
+const profileSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  container: z.string().min(1),
+  videoCodec: z.string().min(1),
+  audioCodec: z.string().min(1),
+  settings: z.any(),
+  isDefault: z.boolean().default(false)
+});
 
 export async function profilesRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /profiles — listar todos os perfis
   fastify.get('/profiles', async (_request: FastifyRequest, _reply: FastifyReply) => {
+    const profiles = await prisma.encodingProfile.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
     return {
-      profiles: ENCODING_PROFILES,
-      count: ENCODING_PROFILES.length,
+      profiles,
+      count: profiles.length,
     };
   });
 
   // GET /profiles/:id — perfil específico
   fastify.get<{ Params: { id: string } }>(
     '/profiles/:id',
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-      const profile = ENCODING_PROFILES.find(p => p.id === request.params.id);
+    async (request, reply) => {
+      const profile = await prisma.encodingProfile.findUnique({
+        where: { id: request.params.id }
+      });
       if (!profile) {
         return reply.status(404).send({
           error: 'NOT_FOUND',
@@ -165,6 +43,78 @@ export async function profilesRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
       return profile;
+    }
+  );
+
+  // POST /profiles — criar perfil
+  fastify.post<{ Body: z.infer<typeof profileSchema> }>(
+    '/profiles',
+    async (request, reply) => {
+      const parsed = profileSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'VALIDATION_ERROR', details: parsed.error.flatten() });
+      }
+
+      if (parsed.data.isDefault) {
+        await prisma.encodingProfile.updateMany({
+          where: { isDefault: true },
+          data: { isDefault: false }
+        });
+      }
+
+      const newProfile = await prisma.encodingProfile.create({
+        data: parsed.data
+      });
+      return reply.status(201).send(newProfile);
+    }
+  );
+
+  // PUT /profiles/:id — atualizar perfil
+  fastify.put<{ Params: { id: string }, Body: z.infer<typeof profileSchema> }>(
+    '/profiles/:id',
+    async (request, reply) => {
+      const parsed = profileSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'VALIDATION_ERROR', details: parsed.error.flatten() });
+      }
+
+      const existing = await prisma.encodingProfile.findUnique({ where: { id: request.params.id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'NOT_FOUND', message: 'Perfil não encontrado' });
+      }
+
+      if (parsed.data.isDefault) {
+        await prisma.encodingProfile.updateMany({
+          where: { isDefault: true, id: { not: request.params.id } },
+          data: { isDefault: false }
+        });
+      }
+
+      const updated = await prisma.encodingProfile.update({
+        where: { id: request.params.id },
+        data: parsed.data
+      });
+      return updated;
+    }
+  );
+
+  // DELETE /profiles/:id — remover perfil
+  fastify.delete<{ Params: { id: string } }>(
+    '/profiles/:id',
+    async (request, reply) => {
+      const existing = await prisma.encodingProfile.findUnique({ where: { id: request.params.id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'NOT_FOUND', message: 'Perfil não encontrado' });
+      }
+
+      if (existing.isDefault) {
+        return reply.status(400).send({ error: 'BAD_REQUEST', message: 'Não pode apagar o perfil por defeito' });
+      }
+
+      await prisma.encodingProfile.delete({
+        where: { id: request.params.id }
+      });
+      return reply.status(204).send();
     }
   );
 }

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/store/ui";
-import { LayoutDashboard, Film, UploadCloud, ListVideo, Settings, Menu } from "lucide-react";
+import { LayoutDashboard, Film, UploadCloud, ListVideo, Settings, Users, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
@@ -13,6 +13,7 @@ const navItems = [
   { href: "/assets/upload", label: "Upload", icon: UploadCloud },
   { href: "/queue", label: "Filas (Queue)", icon: ListVideo },
   { href: "/profiles", label: "Perfis de Encoding", icon: Settings },
+  { href: "/users", label: "Utilizadores", icon: Users },
 ];
 
 export function Sidebar() {

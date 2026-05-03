@@ -1,39 +1,49 @@
+"use client";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Check, Settings2, Video } from "lucide-react";
+import { Check, Settings2, Video, Loader2, AlertCircle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 
-const PROFILES = [
-  {
-    id: "nexora_broadcast_hd",
-    name: "Broadcast HD (XDCAM 50)",
-    description: "Perfil standard para emissão linear TV. MXF OP1a, XDCAM HD422 a 50Mbps, Áudio EBU R128.",
-    container: "MXF (OP1a)",
-    videoCodec: "MPEG-2 (xdcamhd422)",
-    bitrate: "50 Mbps",
-    isDefault: true,
-  },
-  {
-    id: "nexora_web_4k",
-    name: "Web 4K UHD",
-    description: "Alta qualidade para plataformas VOD. MP4, H.265 (HEVC), CRF 20.",
-    container: "MP4",
-    videoCodec: "H.265 / HEVC",
-    bitrate: "VBR (CRF 20)",
-    isDefault: false,
-  },
-  {
-    id: "nexora_social_vertical",
-    name: "Redes Sociais (Vertical)",
-    description: "Optimizado para Instagram Reels e TikTok. 1080x1920, H.264, 8Mbps.",
-    container: "MP4",
-    videoCodec: "H.264 / AVC",
-    bitrate: "8 Mbps",
-    isDefault: false,
-  }
-];
+interface Profile {
+  id: string;
+  name: string;
+  description: string | null;
+  container: string;
+  videoCodec: string;
+  audioCodec: string;
+  settings: Record<string, any>;
+  isDefault: boolean;
+}
 
 export default function ProfilesPage() {
+  const { data, isLoading, isError } = useQuery<{ profiles: Profile[], count: number }>({
+    queryKey: ['profiles'],
+    queryFn: () => api.get('/profiles'),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+        <Loader2 className="h-8 w-8 animate-spin mb-4" />
+        <p>A carregar perfis de encoding...</p>
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-red-500">
+        <AlertCircle className="h-8 w-8 mb-4" />
+        <p>Erro ao carregar perfis. Verifique a ligação ao servidor.</p>
+      </div>
+    );
+  }
+
+  const profiles = data.profiles;
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center gap-3 border-b pb-4">
@@ -47,7 +57,7 @@ export default function ProfilesPage() {
       </div>
 
       <div className="grid gap-6">
-        {PROFILES.map(profile => (
+        {profiles.map(profile => (
           <Card key={profile.id}>
             <CardHeader className="flex flex-row items-start justify-between bg-slate-50/50 dark:bg-slate-900/20 border-b">
               <div>
@@ -72,17 +82,24 @@ export default function ProfilesPage() {
                 <TableBody>
                   <TableRow>
                     <TableCell className="font-medium">Container</TableCell>
-                    <TableCell className="font-mono text-sm">{profile.container}</TableCell>
+                    <TableCell className="font-mono text-sm uppercase">{profile.container}</TableCell>
                     <TableCell className="text-center"><Check className="h-4 w-4 text-green-500 mx-auto" /></TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">Codec de Vídeo</TableCell>
-                    <TableCell className="font-mono text-sm">{profile.videoCodec}</TableCell>
+                    <TableCell className="font-mono text-sm uppercase">{profile.videoCodec}</TableCell>
                     <TableCell className="text-center"><Check className="h-4 w-4 text-green-500 mx-auto" /></TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">Video Bitrate</TableCell>
-                    <TableCell className="font-mono text-sm">{profile.bitrate}</TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {profile.settings?.bitrateKbps ? `${profile.settings.bitrateKbps} Kbps` : 'Auto'}
+                    </TableCell>
+                    <TableCell className="text-center"><Check className="h-4 w-4 text-green-500 mx-auto" /></TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Codec de Áudio</TableCell>
+                    <TableCell className="font-mono text-sm uppercase">{profile.audioCodec}</TableCell>
                     <TableCell className="text-center"><Check className="h-4 w-4 text-green-500 mx-auto" /></TableCell>
                   </TableRow>
                 </TableBody>

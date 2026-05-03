@@ -6,27 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, Clock, Film, AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api";
 
-// Mock data for initial rendering (Gráficos mantidos em mock até API de time-series)
-const vmafData = [
-  { name: "00:00", value: 92 },
-  { name: "04:00", value: 94 },
-  { name: "08:00", value: 91 },
-  { name: "12:00", value: 95 },
-  { name: "16:00", value: 96 },
-  { name: "20:00", value: 94 },
-  { name: "24:00", value: 95 },
-];
-
-const jobsData = [
-  { name: "Seg", success: 120, failed: 2 },
-  { name: "Ter", success: 132, failed: 5 },
-  { name: "Qua", success: 101, failed: 1 },
-  { name: "Qui", success: 145, failed: 8 },
-  { name: "Sex", success: 160, failed: 3 },
-  { name: "Sab", success: 85, failed: 0 },
-  { name: "Dom", success: 70, failed: 1 },
-];
-
 interface MetricsSummary {
   assets: {
     total: number;
@@ -46,22 +25,38 @@ interface MetricsSummary {
   };
 }
 
+interface DashboardData {
+  processingVolume: { name: string; gb: number }[];
+  qualityTrends: { time: string; vmaf: number; psnr: number }[];
+  systemStats: {
+    pendingJobs: number;
+    activeJobs: number;
+    failedJobsLast24h: number;
+    uptime: string;
+  };
+}
+
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
 
   useEffect(() => {
-    const fetchMetrics = async () => {
+    const fetchData = async () => {
       try {
-        const data = await api.get<MetricsSummary>('/metrics/summary');
-        setMetrics(data);
+        const [summaryRes, dashboardRes] = await Promise.all([
+          api.get<MetricsSummary>('/metrics/summary'),
+          api.get<DashboardData>('/metrics/dashboard-data')
+        ]);
+        setMetrics(summaryRes);
+        setDashboardData(dashboardRes);
       } catch (err) {
         console.error("Erro a obter métricas:", err);
       }
     };
-    void fetchMetrics();
+    void fetchData();
     
     // Atualizar a cada 30 segundos
-    const interval = setInterval(() => { void fetchMetrics(); }, 30000);
+    const interval = setInterval(() => { void fetchData(); }, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -91,12 +86,12 @@ export default function DashboardPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Jobs Activos (24h)</CardTitle>
+            <CardTitle className="text-sm font-medium">Jobs Activos / Pendentes</CardTitle>
             <Clock className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{(metrics?.jobs.last24h.completed ?? 0) + (metrics?.jobs.last24h.failed ?? 0)}</div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Total global: {metrics?.jobs.total ?? '--'}</p>
+            <div className="text-2xl font-bold">{dashboardData?.systemStats.activeJobs ?? '--'} / {dashboardData?.systemStats.pendingJobs ?? '--'}</div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Tempo online: {dashboardData?.systemStats.uptime ?? '--'}</p>
           </CardContent>
         </Card>
         <Card>
@@ -111,32 +106,34 @@ export default function DashboardPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Rejeições QC</CardTitle>
+            <CardTitle className="text-sm font-medium">Falhas (24h)</CardTitle>
             <AlertTriangle className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics?.assets.byStatus.qcRejected ?? '--'}</div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Total acumulado</p>
+            <div className="text-2xl font-bold">{dashboardData?.systemStats.failedJobsLast24h ?? '--'}</div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Jobs falhados recentemente</p>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <MetricsChart 
-          title="Qualidade Média (VMAF) [Demo]"
-          description="Evolução da pontuação VMAF nas últimas 24 horas"
-          data={vmafData}
+          title="Qualidade Média (VMAF e PSNR)"
+          description="Evolução da pontuação nas últimas 24 horas"
+          data={dashboardData?.qualityTrends || []}
           type="area"
-          dataKeys={[{ key: "value", color: "#3b82f6", name: "VMAF Score" }]}
+          dataKeys={[
+            { key: "vmaf", color: "#3b82f6", name: "VMAF Score" },
+            { key: "psnr", color: "#8b5cf6", name: "PSNR (dB)" }
+          ]}
         />
         <MetricsChart 
-          title="Volume de Processamento [Demo]"
-          description="Jobs concluídos vs falhados (Últimos 7 dias)"
-          data={jobsData}
+          title="Volume de Processamento"
+          description="Volume processado em GB (Últimos 7 dias)"
+          data={dashboardData?.processingVolume || []}
           type="bar"
           dataKeys={[
-            { key: "success", color: "#22c55e", name: "Sucesso" },
-            { key: "failed", color: "#ef4444", name: "Falhados" }
+            { key: "gb", color: "#22c55e", name: "Volume (GB)" }
           ]}
         />
       </div>

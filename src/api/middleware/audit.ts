@@ -140,7 +140,7 @@ export async function registerAuditHook(fastify: FastifyInstance): Promise<void>
               method:         request.method,
               url:            request.url,
               statusCode:     reply.statusCode,
-              responseTimeMs: reply.elapsedTime,
+              responseTimeMs: (reply as any).elapsedTime ?? 0,
               requestId:      request.headers['x-request-id'] ?? null,
             },
           },
