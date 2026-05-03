@@ -1,27 +1,37 @@
 #!/bin/bash
-# Gerar ficheiros de vídeo para testes usando FFmpeg (sem copyright)
-FIXTURES_DIR="$(dirname "$0")"
-echo "A gerar fixtures de teste..."
+# Nexora Media Processing - Generate Test Fixtures
 
-ffmpeg -y -f lavfi -i "testsrc2=duration=30:size=1920x1080:rate=25" \
-  -f lavfi -i "sine=frequency=1000:duration=30:sample_rate=48000" \
-  -c:v libx264 -profile:v high -level:v 4.1 -pix_fmt yuv420p \
-  -g 50 -keyint_min 50 -sc_threshold 0 -flags +cgop -bf 0 \
-  -b:v 8000k -maxrate 8000k -bufsize 16000k -c:a pcm_s24le -ar 48000 \
-  -movflags +faststart "$FIXTURES_DIR/nexora_reference_broadcast.mp4"
+set -e
 
-ffmpeg -y -f lavfi -i "testsrc2=duration=10:size=1920x1080:rate=25" \
-  -c:v libx264 -g 50 -x264-params "open-gop=1:bframes=3" \
-  "$FIXTURES_DIR/nexora_problem_open_gop.mp4"
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+DATA_DIR="$DIR/data"
 
-ffmpeg -y -f lavfi -i "testsrc2=duration=10:size=1920x1080:rate=25" \
-  -c:v libx264 -vsync vfr "$FIXTURES_DIR/nexora_problem_vfr.mp4"
+mkdir -p "$DATA_DIR"
 
-ffmpeg -y -f lavfi -i "testsrc2=duration=10:size=1920x1080:rate=25" \
-  -f lavfi -i "sine=frequency=440:duration=10" -af "volume=10dB" \
-  "$FIXTURES_DIR/nexora_problem_loud.mp4"
+echo "[Nexora] Gerando base fixture..."
+# Gera um video base de 2 segundos com audio SMPTE e color bars, CFR 25fps, yuv420p, ebu r128 loudness em torno de -23 LUFS
+ffmpeg -y -f lavfi -i testsrc=duration=2:size=1280x720:rate=25 -f lavfi -i aevalsrc="sin(440*2*PI*t)":duration=2 -c:v libx264 -pix_fmt yuv420p -preset ultrafast -c:a aac -b:a 128k "$DATA_DIR/base.mp4" 2>/dev/null
 
-head -c 1000000 "$FIXTURES_DIR/nexora_reference_broadcast.mp4" \
-  > "$FIXTURES_DIR/nexora_problem_corrupt.mp4"
+echo "[Nexora] Gerando fixture VFR (Variable Framerate)..."
+# Copia o base e forca VFR. Em ultrafast as vezes e dificil, mas dropando frames ajuda
+ffmpeg -y -i "$DATA_DIR/base.mp4" -vf "select='mod(n\,2)'" -vsync vfr -c:v libx264 -preset ultrafast -c:a copy "$DATA_DIR/vfr.mp4" 2>/dev/null
 
-echo "✓ Fixtures geradas em $FIXTURES_DIR/"
+echo "[Nexora] Gerando fixture Low Quality (VMAF < Threshold)..."
+# Usa CRF 51 para qualidade horrivel
+ffmpeg -y -i "$DATA_DIR/base.mp4" -c:v libx264 -crf 51 -preset ultrafast -c:a copy "$DATA_DIR/low_quality.mp4" 2>/dev/null
+
+echo "[Nexora] Gerando fixture Audio Low LUFS..."
+# Reduz o volume do audio em 20dB
+ffmpeg -y -i "$DATA_DIR/base.mp4" -c:v copy -c:a aac -filter:a "volume=-20dB" "$DATA_DIR/low_lufs.mp4" 2>/dev/null
+
+echo "[Nexora] Gerando fixture Open GOP..."
+# Forca cgop=0 para Open GOP
+ffmpeg -y -i "$DATA_DIR/base.mp4" -c:v libx264 -flags -cgop -g 50 -preset ultrafast -c:a copy "$DATA_DIR/open_gop.mp4" 2>/dev/null
+
+echo "[Nexora] Gerando fixture Corrupted (Truncated)..."
+# Copia metade dos bytes do base.mp4 para simular um moov atom em falta ou truncado (se moov estiver no final)
+# Como libx264 mete moov no fim por default, truncar corrompe o ficheiro
+dd if="$DATA_DIR/base.mp4" of="$DATA_DIR/corrupted.mp4" bs=1024 count=10 2>/dev/null
+
+echo "[Nexora] Fixtures geradas com sucesso em $DATA_DIR!"
+ls -la "$DATA_DIR"

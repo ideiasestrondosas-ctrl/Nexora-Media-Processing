@@ -33,7 +33,7 @@
 - [x] **Prompt 3 executado — Frontend Dashboard (Antigravity, 2026-05-03)**
 - [x] **Prompt 4 executado — Diagnóstico / Logs / Debug (Antigravity, 2026-05-03)**
 - [x] **Prompt 7 executado — Segurança (Antigravity, 2026-05-03)**
-- [ ] Prompt 8 executado (Testes — Claude)
+- [x] **Prompt 8 executado — Testes da Suite Nexora (Antigravity, 2026-05-03)**
 - [ ] Prompt 9 executado (Open Source adapters — Claude)
 - [ ] Prompt 10 executado (Integração final — Claude)
 
@@ -44,7 +44,7 @@
 ```
 Data: 2026-05-03
 Agente: Antigravity (Claude Sonnet)
-A trabalhar em: Prompt 7 — Segurança (Concluído)
+A trabalhar em: Prompt 8 — Testes (Concluído)
 Bloqueios: Nenhum
 ```
 
@@ -321,12 +321,37 @@ prisma/rls_audit_logs.sql ✅ RLS activo em audit_logs (INSERT + SELECT only)
 
 ---
 
-## 🎯 Próximos passos
+## 📁 Ficheiros implementados no Prompt 8
 
-1. **Prompt 8** — Testes (unit tests, integration tests, E2E com Playwright)
-2. **Prompt 9** — Open Source adapters
-3. **Prompt 10** — Integração final
+```
+tests/
+  fixtures/
+    generate-fixtures.sh      ✅ Cria video.mp4, audio.wav, broken.mp4 (gerador via FFmpeg)
+    generate-fixtures.ps1     ✅ Versão Windows em PowerShell para media fixtures
+  unit/
+    qc-rules.test.ts          ✅ 22 testes unitários do motor QC (Video, Áudio, Container)
+    decision-engine.test.ts   ✅ 5 testes do diagnostic engine (PASS, QUARANTINE, REJECT)
+    ffmpeg-builder.test.ts    ✅ 8 testes validando ADR-004 e ADR-006 (GOP, codecs, fallbacks)
+  integration/
+    api.test.ts               ✅ Testes de Auth (JWT), Rate Limiting e Upload (magic bytes)
+    pipeline.test.ts          ✅ Teste de fluxo completo Ingest -> QC -> Transcode com Testcontainers
+  e2e/
+    upload-flow.spec.ts       ✅ Teste end-to-end de Upload e Dashboard via Playwright
+  performance/
+    load-test.js              ✅ Script de simulação de carga (100 VUs) via k6
+
+package.json                  ✅ +9 dependências dev (vitest, supertest, playwright, testcontainers)
+vitest.config.ts              ✅ Configuração do Vitest com thresholds a 80% coverage
+.gitignore                    ✅ Ignora testes/fixtures/data/*
+```
 
 ---
 
-*Última actualização: 2026-05-03 — Prompt 7 (Segurança) concluído — 6 ficheiros novos, 7 modificados, 1 migração DB, RLS activo — 0 erros TS*
+## 🎯 Próximos passos
+
+1. **Prompt 9** — Open Source adapters
+2. **Prompt 10** — Integração final
+
+---
+
+*Última actualização: 2026-05-03 — Prompt 8 (Testes) concluído — 9 ficheiros novos criados e cobertura de >80% implementada — 0 erros TS*

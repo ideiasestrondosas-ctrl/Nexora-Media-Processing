@@ -26,6 +26,8 @@ tests/output/*
 tests/temp/*
 !tests/output/.gitkeep
 !tests/temp/.gitkeep
+tests/fixtures/data/*
+!tests/fixtures/data/.gitkeep
 
 .github/
 .logs/
