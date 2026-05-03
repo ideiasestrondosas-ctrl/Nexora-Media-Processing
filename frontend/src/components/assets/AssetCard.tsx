@@ -9,11 +9,11 @@ import { Film, Clock, HardDrive, CheckCircle2, AlertCircle, Loader2 } from "luci
 interface AssetCardProps {
   asset: {
     id: string;
-    originalName: string;
+    filename: string;
     status: string;
-    profile: string;
-    durationMs?: number;
-    resolution?: string;
+    profile: string | null;
+    size?: string | null;
+    mimeType?: string;
     createdAt: string;
     progress?: number;
   };
@@ -27,13 +27,7 @@ const statusConfig: Record<string, { color: string; icon: React.ElementType; lab
   QUARANTINE: { color: "bg-yellow-500", icon: AlertCircle, label: "Quarentena" },
 };
 
-function formatDuration(ms?: number) {
-  if (!ms) return "--:--";
-  const seconds = Math.floor(ms / 1000);
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
+// Remover formatDuration pois já não é utilizada
 
 export function AssetCard({ asset }: AssetCardProps) {
   const status = statusConfig[asset.status] || statusConfig.UPLOADED;
@@ -45,8 +39,8 @@ export function AssetCard({ asset }: AssetCardProps) {
         <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between gap-4 space-y-0">
           <div className="flex items-center gap-2 overflow-hidden">
             <Film className="h-5 w-5 shrink-0 text-slate-400 group-hover:text-blue-500 transition-colors" />
-            <h3 className="font-semibold text-sm truncate" title={asset.originalName}>
-              {asset.originalName}
+            <h3 className="font-semibold text-sm truncate" title={asset.filename}>
+              {asset.filename}
             </h3>
           </div>
           <Badge variant="outline" className={`${status.color} text-white border-transparent flex items-center gap-1`}>
@@ -59,18 +53,20 @@ export function AssetCard({ asset }: AssetCardProps) {
             <div className="flex justify-between items-center">
               <span>Perfil:</span>
               <Badge variant="secondary" className="font-mono text-xs">
-                {asset.profile.replace("nexora_", "")}
+                {asset.profile ? asset.profile.replace("nexora_", "") : "Auto"}
               </Badge>
             </div>
-            {asset.resolution && (
+            {asset.mimeType && (
               <div className="flex justify-between items-center">
-                <span>Resolução:</span>
-                <span className="font-mono">{asset.resolution}</span>
+                <span>Tipo:</span>
+                <span className="font-mono">{asset.mimeType.split('/')[1] || asset.mimeType}</span>
               </div>
             )}
             <div className="flex justify-between items-center">
-              <span>Duração:</span>
-              <span className="font-mono">{formatDuration(asset.durationMs)}</span>
+              <span>Tamanho:</span>
+              <span className="font-mono">
+                {asset.size ? `${(Number(asset.size) / (1024 * 1024)).toFixed(1)} MB` : "N/A"}
+              </span>
             </div>
           </div>
 

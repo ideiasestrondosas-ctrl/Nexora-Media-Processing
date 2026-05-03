@@ -2,53 +2,61 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Activity, ServerCrash, Clock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
-// Exemplo de estrutura de dados que viria do SSE
+import { api } from "@/lib/api";
+
+// Dados que vêm da API
 interface QueueStat {
-  queueName: string;
-  active: number;
+  name: string;
+  queueKey: string;
   waiting: number;
+  active: number;
   completed: number;
   failed: number;
-  isPaused: boolean;
+  delayed: number;
+  total: number;
+}
+
+interface QueueStatsResponse {
+  queues: QueueStat[];
+  totals: {
+    waiting: number;
+    active: number;
+    completed: number;
+    failed: number;
+  };
 }
 
 export function QueueDashboard() {
   const [queues, setQueues] = useState<QueueStat[]>([]);
+  const [totals, setTotals] = useState({ waiting: 0, active: 0 });
   const [connected, setConnected] = useState(false);
 
-  // Em produção, isto ligar-se-ia a um endpoint SSE (EventSource) real.
-  // Para efeitos de demonstração e UI testing imediato, usamos dados simulados caso a API não esteja pronta.
   useEffect(() => {
-    // Simulação de dados em tempo real (Mock SSE)
-    setConnected(true);
-    const mockData: QueueStat[] = [
-      { queueName: "Ingest", active: 2, waiting: 5, completed: 142, failed: 1, isPaused: false },
-      { queueName: "QC_Pre", active: 4, waiting: 10, completed: 130, failed: 5, isPaused: false },
-      { queueName: "Transcode_GPU", active: 2, waiting: 8, completed: 85, failed: 2, isPaused: false },
-      { queueName: "Transcode_CPU", active: 8, waiting: 45, completed: 450, failed: 0, isPaused: false },
-      { queueName: "Audio", active: 1, waiting: 0, completed: 120, failed: 0, isPaused: false },
-    ];
-    setQueues(mockData);
+    const fetchStats = async () => {
+      try {
+        const data = await api.get<QueueStatsResponse>('/queue/stats');
+        setQueues(data.queues);
+        setTotals({ waiting: data.totals.waiting, active: data.totals.active });
+        setConnected(true);
+      } catch (err) {
+        console.error("Erro a obter estatísticas das filas:", err);
+        setConnected(false);
+      }
+    };
 
-    const interval = setInterval(() => {
-      setQueues(prev => prev.map(q => ({
-        ...q,
-        active: Math.max(0, q.active + (Math.random() > 0.5 ? 1 : -1)),
-        waiting: Math.max(0, q.waiting + (Math.random() > 0.7 ? 2 : -1)),
-        completed: q.completed + (Math.random() > 0.8 ? 1 : 0)
-      })));
-    }, 2000);
-
+    void fetchStats();
+    
+    // Atualizar as filas a cada 5 segundos
+    const interval = setInterval(() => { void fetchStats(); }, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  const totalWaiting = queues.reduce((acc, q) => acc + q.waiting, 0);
-  const totalActive = queues.reduce((acc, q) => acc + q.active, 0);
+  const totalWaiting = totals.waiting;
+  const totalActive = totals.active;
 
   return (
     <div className="space-y-6">
@@ -105,11 +113,10 @@ export function QueueDashboard() {
             </TableHeader>
             <TableBody>
               {queues.map((queue) => (
-                <TableRow key={queue.queueName}>
+                <TableRow key={queue.name}>
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2">
-                      <span className={queue.isPaused ? "text-slate-400" : ""}>{queue.queueName}</span>
-                      {queue.isPaused && <Badge variant="secondary" className="text-[10px]">PAUSED</Badge>}
+                      <span>{queue.name}</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-right">

@@ -1,31 +1,69 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AssetCard } from "@/components/assets/AssetCard";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Filter, Plus } from "lucide-react";
 import Link from "next/link";
+import { api } from "@/lib/api";
 
-// Dados simulados para UI base
-const MOCK_ASSETS = [
-  { id: "ast_123", originalName: "interview_raw_cam1.mxf", status: "PROCESSING", progress: 45, profile: "nexora_broadcast_hd", durationMs: 1450000, createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString() },
-  { id: "ast_124", originalName: "promo_final_v2.mp4", status: "READY", profile: "nexora_web_4k", durationMs: 30000, resolution: "3840x2160", createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() },
-  { id: "ast_125", originalName: "news_broll_corrupted.mov", status: "ERROR", profile: "nexora_social_vertical", createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString() },
-  { id: "ast_126", originalName: "documentary_ep1_master.mxf", status: "QUARANTINE", profile: "nexora_broadcast_hd", durationMs: 3600000, resolution: "1920x1080", createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() },
-  { id: "ast_127", originalName: "podcast_ep45_video.mp4", status: "UPLOADED", profile: "nexora_web_1080p", durationMs: 5400000, createdAt: new Date().toISOString() },
-];
+interface Asset {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: string | null;
+  status: string;
+  profile: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PaginatedAssetsResponse {
+  data: Asset[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
 
 export default function AssetsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [assets, setAssets] = useState<Asset[]>([]);
 
-  const filteredAssets = MOCK_ASSETS.filter(asset => {
-    const matchesSearch = asset.originalName.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "ALL" || asset.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  useEffect(() => {
+    const fetchAssets = async () => {
+      try {
+        // Construir query string para os filtros e paginação
+        const params = new URLSearchParams({
+          page: "1",
+          limit: "50",
+        });
+        
+        if (statusFilter !== "ALL") {
+          params.append("status", statusFilter);
+        }
+        if (search) {
+          params.append("search", search);
+        }
+
+        const data = await api.get<PaginatedAssetsResponse>(`/assets?${params.toString()}`);
+        setAssets(data.data || []);
+      } catch (err) {
+        console.error("Erro ao obter assets:", err);
+      }
+    };
+
+    void fetchAssets();
+    
+    // Polling a cada 10 segundos
+    const interval = setInterval(() => { void fetchAssets(); }, 10000);
+    return () => clearInterval(interval);
+  }, [search, statusFilter]);
+
+  const filteredAssets = assets; // A filtragem agora é feita maioritariamente pelo backend
 
   return (
     <div className="space-y-6">

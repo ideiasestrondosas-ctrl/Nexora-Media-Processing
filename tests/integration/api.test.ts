@@ -44,9 +44,10 @@ vi.mock('../../src/common/redis', () => ({
 }));
 
 vi.mock('../../src/common/minio', () => ({
-  uploadBuffer: vi.fn().mockResolvedValue({ etag: 'test-etag', sizeBytes: 100 }),
-  getPresignedUrl: vi.fn().mockResolvedValue('http://localhost:9000/presigned'),
-  BUCKETS: { INPUT: 'nexora-input' }
+  uploadBuffer: vi.fn().mockResolvedValue({}),
+  uploadFile: vi.fn().mockResolvedValue({}),
+  getPresignedUrl: vi.fn().mockResolvedValue('http://localhost:9000/download/url'),
+  BUCKETS: { INPUT: 'nexora-input', OUTPUT: 'nexora-output' },
 }));
 
 vi.mock('../../src/workers/queues', () => ({

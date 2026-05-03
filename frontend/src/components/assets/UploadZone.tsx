@@ -1,12 +1,20 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { UploadCloud, FileVideo, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { api } from "@/lib/api";
+
+interface Profile {
+  id: string;
+  name: string;
+  description: string;
+}
 
 interface UploadZoneProps {
   onUploadStart?: (file: File) => void;
@@ -29,7 +37,28 @@ export function UploadZone({
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [selectedProfile, setSelectedProfile] = useState<string>("nexora_broadcast_hd");
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Fetch disponíveis perfis
+    const fetchProfiles = async () => {
+      try {
+        const data = await api.get<{ profiles: Profile[] }>('/profiles');
+        if (data && data.profiles) {
+          setProfiles(data.profiles);
+          // Auto-select first profile if currently selected is not in list
+          if (data.profiles.length > 0 && !data.profiles.find(p => p.id === selectedProfile)) {
+            setSelectedProfile(data.profiles[0].id);
+          }
+        }
+      } catch (err) {
+        console.error("Erro a obter perfis:", err);
+      }
+    };
+    void fetchProfiles();
+  }, [selectedProfile]);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -91,8 +120,7 @@ export function UploadZone({
 
     const formData = new FormData();
     formData.append("file", file);
-    // Adicionar perfil de teste ou seleção posterior. Por agora:
-    formData.append("profile", "nexora_broadcast_hd"); 
+    formData.append("profile", selectedProfile);
 
     try {
       const xhr = new XMLHttpRequest();
@@ -198,12 +226,27 @@ export function UploadZone({
             </div>
 
             {status === "idle" && (
-              <div className="flex justify-end gap-3 border-t pt-4">
-                <Button variant="outline" onClick={clearFile}>Cancelar</Button>
-                <Button onClick={uploadFile} className="gap-2">
-                  <UploadCloud className="h-4 w-4" />
-                  Iniciar Upload
-                </Button>
+              <div className="flex justify-between items-center gap-3 border-t pt-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-500">Perfil:</span>
+                  <Select value={selectedProfile} onValueChange={setSelectedProfile}>
+                    <SelectTrigger className="w-[200px] h-9">
+                      <SelectValue placeholder="Selecione o perfil" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {profiles.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex justify-end gap-3">
+                  <Button variant="outline" onClick={clearFile}>Cancelar</Button>
+                  <Button onClick={uploadFile} className="gap-2 bg-blue-600 hover:bg-blue-700">
+                    <UploadCloud className="h-4 w-4" />
+                    Iniciar Upload
+                  </Button>
+                </div>
               </div>
             )}
 

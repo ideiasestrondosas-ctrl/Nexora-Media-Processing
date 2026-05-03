@@ -14,6 +14,7 @@ import { prisma } from '../../db/prisma';
 import { logger } from '../../observability/logger';
 import {
   uploadBuffer,
+  uploadFile,
   getPresignedUrl,
   BUCKETS,
 } from '../../common/minio';
@@ -123,48 +124,65 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
       throw new InvalidFileTypeError(mimetype, fileValidator.getAllowedMimes());
     }
 
-    // 3. Ler o ficheiro para buffer (necessário para magic bytes + tamanho)
-    const chunks: Buffer[] = [];
-    for await (const chunk of file) {
-      chunks.push(chunk as Buffer);
-    }
-    const buffer = Buffer.concat(chunks);
-
-    // 4. Validar tamanho
-    if (buffer.length > MAX_UPLOAD_SIZE) {
-      throw new FileTooLargeError(buffer.length, MAX_UPLOAD_SIZE);
-    }
-
-    // 5. Validar magic bytes (tipo real do ficheiro)
-    const magicResult = fileValidator.validateMagicBytes(buffer, mimetype);
-    if (!magicResult.valid) {
-      await auditSecurityEvent('INVALID_FILE_REJECTED', filename, 'Asset', {
-        userId:    request.user?.sub,
-        ipAddress: request.ip,
-        userAgent: request.headers['user-agent'],
-        severity:  'warn',
-        metadata:  { reason: magicResult.reason, declaredType: mimetype, detectedType: magicResult.detectedType },
-      });
-      throw new InvalidFileTypeError(mimetype, fileValidator.getAllowedMimes());
-    }
-
-    // 6. Gerar ID do asset
+    // 3. Stream do ficheiro para disco temporário (previne OOM em ficheiros grandes)
     const assetId = uuidv4();
+    const tempDir = require('os').tmpdir();
+    const tempFilePath = require('path').join(tempDir, `nexora_upload_${assetId}.tmp`);
+    const fs = require('fs');
+    const { pipeline } = require('stream/promises');
 
-    // 7. Sanitizar a chave MinIO
-    const rawKey = `upload/${assetId}/${filename}`;
-    const keyResult = pathSanitizer.sanitizeMinioKey(rawKey);
-    if (keyResult.rejected) {
-      throw new ValidationError(`Chave MinIO inválida: ${keyResult.reason}`);
+    let fileSize = 0;
+    let minioKey = '';
+    try {
+      await pipeline(file, fs.createWriteStream(tempFilePath));
+      fileSize = fs.statSync(tempFilePath).size;
+
+      // 4. Validar tamanho
+      if (fileSize > MAX_UPLOAD_SIZE) {
+        throw new FileTooLargeError(fileSize, MAX_UPLOAD_SIZE);
+      }
+
+      // 5. Validar magic bytes (tipo real do ficheiro) lendo apenas o cabeçalho
+      const fd = fs.openSync(tempFilePath, 'r');
+      const magicBuffer = Buffer.alloc(4100);
+      const bytesRead = fs.readSync(fd, magicBuffer, 0, 4100, 0);
+      fs.closeSync(fd);
+      
+      const magicResult = fileValidator.validateMagicBytes(magicBuffer.subarray(0, bytesRead), mimetype);
+      if (!magicResult.valid) {
+        await auditSecurityEvent('INVALID_FILE_REJECTED', filename, 'Asset', {
+          userId:    request.user?.sub,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          severity:  'warn',
+          metadata:  { reason: magicResult.reason, declaredType: mimetype, detectedType: magicResult.detectedType },
+        });
+        throw new InvalidFileTypeError(mimetype, fileValidator.getAllowedMimes());
+      }
+
+      // 6. Sanitizar a chave MinIO
+      const rawKey = `upload/${assetId}/${filename}`;
+      const keyResult = pathSanitizer.sanitizeMinioKey(rawKey);
+      if (keyResult.rejected) {
+        throw new ValidationError(`Chave MinIO inválida: ${keyResult.reason}`);
+      }
+      minioKey = keyResult.sanitized;
+
+      // 7. Upload do ficheiro temporário para MinIO via stream
+      await uploadFile(BUCKETS.INPUT, minioKey, tempFilePath, {
+        contentType: mimetype,
+        metadata: { 'x-nexora-asset-id': assetId },
+      });
+
+    } catch (err) {
+      console.error("UPLOAD ERROR", err);
+      throw err;
+    } finally {
+      // Limpar o ficheiro temporário em qualquer caso
+      if (fs.existsSync(tempFilePath)) {
+        try { fs.unlinkSync(tempFilePath); } catch (e) {}
+      }
     }
-    const minioKey = keyResult.sanitized;
-
-    // 8. Upload directo para MinIO (sem guardar em disco)
-    await uploadBuffer(BUCKETS.INPUT, minioKey, buffer, {
-      contentType: mimetype,
-      metadata: { 'x-nexora-asset-id': assetId },
-    });
-
     // Determinar prioridade
     const profile = (request.query as Record<string, string>)['profile'] ?? 'broadcast-hd';
     const priorityParam = (request.query as Record<string, string>)['priority'];
@@ -180,7 +198,7 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
     }, assetId);
 
     logger.info(
-      { assetId, jobId, filename, sizeBytes: buffer.length, detectedType: magicResult.detectedType },
+      { assetId, jobId, filename, sizeBytes: fileSize },
       'Asset upload validado e enfileirado'
     );
 

@@ -115,7 +115,7 @@ export async function registerPlugins(fastify: FastifyInstance): Promise<void> {
   await registerAuditHook(fastify);
 
   // 8. Handler global de erros NexoraError
-  fastify.setErrorHandler((error, request, reply) => {
+  fastify.setErrorHandler((error: any, request, reply) => {
     if (isNexoraError(error)) {
       logger.warn(
         { error: error.toJSON(), url: request.url, method: request.method },
@@ -152,7 +152,7 @@ export async function registerPlugins(fastify: FastifyInstance): Promise<void> {
 
   // 9. Hook de métricas HTTP (Prompt 10) — mede latência por rota
   fastify.addHook('onSend', async (request, reply) => {
-    const route = request.routerPath ?? request.url.split('?')[0] ?? 'unknown';
+    const route = (request as any).routeOptions?.url ?? request.url.split('?')[0] ?? 'unknown';
     const method = request.method;
     const statusCode = String(reply.statusCode);
 
