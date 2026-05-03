@@ -31,6 +31,8 @@ import { publishTranscodeProgress } from '../common/redis';
 import { QUEUE_NAMES, addToDeadLetter } from './queues';
 import { TranscodeError } from '../common/errors';
 import type { TranscodeJobPayload } from './queues';
+import { diagnosticEngine } from '../observability/diagnostic-engine';
+import { fixSuggestionsApplied } from '../observability/metrics';
 
 // Pipeline modules
 import { ffmpegBuilder } from '../pipeline/ffmpeg/builder';
@@ -45,6 +47,8 @@ export class TranscodeWorker {
   public readonly name = 'TranscodeWorker';
   private worker: Worker | null = null;
   private scheduler: NexoraJobScheduler | null = null;
+  /** Guarda o stderr do FFmpeg por job para diagnóstico em on('failed') */
+  private lastStderr = new Map<string, string>();
 
   async start(): Promise<void> {
     const maxConcurrent = Number(process.env.MAX_CONCURRENT_TRANSCODE_JOBS ?? 4);
@@ -70,6 +74,21 @@ export class TranscodeWorker {
 
     this.worker.on('failed', async (job, err) => {
       if (!job) return;
+
+      // Diagnóstico automático — analisa stderr e padrões de erro
+      const diagnostic = diagnosticEngine.onJobFailed(
+        job.id ?? 'unknown',
+        job.data.assetId,
+        err,
+        this.lastStderr.get(job.id ?? '') ?? undefined,
+        job.attemptsMade
+      );
+
+      // Registar fixes aplicados nas métricas
+      for (const fix of diagnostic.fixes) {
+        fixSuggestionsApplied.inc({ fix_id: fix.id });
+      }
+
       if (job.attemptsMade >= (job.opts.attempts ?? 3)) {
         await addToDeadLetter(
           QUEUE_NAMES.TRANSCODE, job.id ?? '', job.name,
@@ -307,6 +326,9 @@ export class TranscodeWorker {
         const text = chunk.toString();
         stderrBuffer += text;
 
+        // Guardar stderr acumulado para o diagnostic engine (on 'failed')
+        this.lastStderr.set(jobId, stderrBuffer);
+
         // Extrair duração total na primeira leitura
         if (!totalDuration) {
           const durationMatch = text.match(/Duration:\s*(\d+):(\d+):(\d+\.?\d*)/);
@@ -350,6 +372,8 @@ export class TranscodeWorker {
 
         if (code === 0) {
           publishTranscodeProgress({ jobId, assetId, percent: 100 }).catch(() => {});
+          // Limpar stderr em sucesso (on('failed') não será chamado)
+          this.lastStderr.delete(jobId);
           resolve();
         } else {
           const errorLines = stderrBuffer.split('\n').slice(-10).join('\n');
@@ -357,6 +381,7 @@ export class TranscodeWorker {
             `FFmpeg terminou com código ${code}`,
             { jobId, assetId, exitCode: code, lastLines: errorLines }
           ));
+          // Não limpar — on('failed') vai precisar do stderr
         }
       });
 

@@ -116,6 +116,36 @@ export const schedulerSlotsUsed = new Gauge({
   registers: [nexoraRegistry],
 });
 
+// ── Métricas de Diagnóstico (Prompt 4) ───────────────────────────
+
+export const diagnosticPatternsDetected = new Counter({
+  name: 'nexora_diagnostic_patterns_total',
+  help: 'Total de padrões de erro detectados pelo motor de diagnóstico',
+  labelNames: ['pattern_id', 'severity'] as const,
+  registers: [nexoraRegistry],
+});
+
+export const diagnosticRetriesAdvised = new Counter({
+  name: 'nexora_diagnostic_retries_advised_total',
+  help: 'Total de retries aconselhados pelo NexoraRetryAdvisor',
+  labelNames: ['pattern_id'] as const,
+  registers: [nexoraRegistry],
+});
+
+export const anomaliesDetected = new Counter({
+  name: 'nexora_anomalies_detected_total',
+  help: 'Total de anomalias estatísticas detectadas pelo NexoraAnomalyDetector',
+  labelNames: ['metric', 'severity'] as const,
+  registers: [nexoraRegistry],
+});
+
+export const fixSuggestionsApplied = new Counter({
+  name: 'nexora_fix_suggestions_applied_total',
+  help: 'Total de sugestões de correcção aplicadas automaticamente',
+  labelNames: ['fix_id'] as const,
+  registers: [nexoraRegistry],
+});
+
 // ── Servidor de métricas (porta separada) ──────────────────────
 
 export const metricsServer = {

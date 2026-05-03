@@ -31,7 +31,7 @@
 - [x] **Prompt 2 executado — Temporal.io Workflows + API REST Completa (Antigravity, 2026-05-02)**
 - [x] **Prompt 6 executado — DevOps / Infrastructure (Antigravity, 2026-05-02)**
 - [x] **Prompt 3 executado — Frontend Dashboard (Antigravity, 2026-05-03)**
-- [ ] Prompt 4 executado (Logs/Debug — Claude)
+- [x] **Prompt 4 executado — Diagnóstico / Logs / Debug (Antigravity, 2026-05-03)**
 - [ ] Prompt 7 executado (Segurança — Claude)
 - [ ] Prompt 8 executado (Testes — Claude)
 - [ ] Prompt 9 executado (Open Source adapters — Claude)
@@ -43,8 +43,8 @@
 
 ```
 Data: 2026-05-03
-Agente: Antigravity (Gemini Flash)
-A trabalhar em: Nexora CLI v1.1 (Concluído) + Resolução de Portas (Concluído)
+Agente: Antigravity (Claude Sonnet)
+A trabalhar em: Prompt 4 — Motor de Diagnóstico (Concluído)
 Bloqueios: Nenhum
 ```
 
@@ -211,12 +211,62 @@ scripts/
 
 ---
 
-## 🎯 Próximos passos
+## 📁 Ficheiros implementados no Prompt 4
 
-1. **Prompt 3** — Frontend Next.js (dashboard de assets, monitorização em tempo real)
-2. **Prompt 4** — Logs/Debug (request tracing, alertas, dashboards Grafana)
-3. **Prompt 7** — Segurança (rate limiting avançado, autenticação OAuth2, secrets rotation)
+```
+src/observability/
+  log-parser.ts              ✅ NexoraLogParser — parser unificado 5 ferramentas
+                                FFmpeg stderr (progresso, erros, metadata)
+                                MediaInfo JSON (streams, VFR detection)
+                                MediaConch XML (regras pass/fail)
+                                BullMQ events (failed, stalled, retrying)
+                                BS1770GAIN XML (LUFS, True Peak, LRA + warnings)
+  pattern-matcher.ts         ✅ NexoraPatternMatcher — catálogo 16 padrões
+                                CRÍTICOS: MOOV_NOT_FOUND, INVALID_DATA, CONVERSION_FAILED, OUT_OF_MEMORY
+                                ALTO: DTS_OUT_OF_ORDER, PAST_DURATION_LARGE, NVENC_ERROR, PIPE_BROKEN
+                                ÁUDIO: TRUE_PEAK_EXCEEDED, LUFS_DEVIATION, BS1770_PARSE_ERROR
+                                MÉDIO: MEDIACONCH_FAIL, VFR_DETECTED, MEDIAINFO_NO_TRACKS
+                                QUEUE: BULLMQ_JOB_STALLED, BULLMQ_JOB_FAILED
+  fix-suggester.ts           ✅ NexoraFixSuggester — 9 correcções mapeadas
+                                FIX_IGNDTS, FIX_VBV_BUFFER, FIX_FORCE_CFR
+                                FIX_CPU_FALLBACK, FIX_REDUCE_THREADS, FIX_INCREASE_TIMEOUT
+                                FIX_TRUE_PEAK_AGGRESSIVE, FIX_LUFS_OFFSET, FIX_FFMPEG_LOUDNESS_FALLBACK
+  retry-advisor.ts           ✅ NexoraRetryAdvisor — limites por padrão, backoff progressivo
+                                Regras: crítico-terminal→DLQ, GPU→CPU fallback, DTS→igndts
+                                Timeout duplicado por tentativa (×1.5)
+  anomaly-detector.ts        ✅ NexoraAnomalyDetector — z-score com algoritmo Welford
+                                6 métricas: transcode_duration, vmaf_score, lufs, true_peak, error_rate, queue_depth
+                                Ring buffer 100 valores | warning z>2.5 | critical z>3.5
+  diagnostic-engine.ts       ✅ NexoraDiagnosticEngine — orquestrador central
+                                Hook onJobFailed() para TranscodeWorker
+                                Hook onAudioFailed() para AudioWorker
+                                Loga resultados via Pino + incrementa Prometheus
+  daily-digest.ts            ✅ NexoraDailyDigest — relatório agregado 24h
+                                Fontes: Prisma (jobs/assets/audit) + BullMQ + AnomalyDetector
+                                Recomendações automáticas + cron às 06:00 UTC
+
+src/observability/metrics.ts ✅ +4 contadores Prometheus:
+                                nexora_diagnostic_patterns_total (label: pattern_id, severity)
+                                nexora_diagnostic_retries_advised_total (label: pattern_id)
+                                nexora_anomalies_detected_total (label: metric, severity)
+                                nexora_fix_suggestions_applied_total (label: fix_id)
+
+src/workers/
+  transcode.worker.ts        ✅ Hook diagnosticEngine.onJobFailed() em on('failed')
+                                lastStderr Map<jobId, string> para captura de stderr
+                                fixSuggestionsApplied.inc() por fix detectado
+  audio.worker.ts            ✅ Hook diagnosticEngine.onAudioFailed() em on('failed')
+                                fixSuggestionsApplied.inc() por fix detectado
+```
 
 ---
 
-*Última actualização: 2026-05-02 — Prompt 6 (DevOps / Infrastructure) concluído — 0 erros TS, 0 erros lint*
+## 🎯 Próximos passos
+
+1. **Prompt 7** — Segurança (rate limiting avançado, autenticação OAuth2, secrets rotation)
+2. **Prompt 8** — Testes (unit tests, integration tests, E2E com Playwright)
+3. **Prompt 9** — Open Source adapters
+
+---
+
+*Última actualização: 2026-05-03 — Prompt 4 (Diagnóstico / Logs / Debug) concluído — 7 ficheiros novos, 3 modificados, 4 métricas Prometheus novas*

@@ -22,6 +22,8 @@ import {
 import { QUEUE_NAMES, addToDeadLetter } from './queues';
 import { AudioNormalizationError } from '../common/errors';
 import type { AudioJobPayload } from './queues';
+import { diagnosticEngine } from '../observability/diagnostic-engine';
+import { fixSuggestionsApplied } from '../observability/metrics';
 
 // Pipeline module — encapsula toda a lógica two-pass + BS1770GAIN
 import { loudnessNormalizer } from '../pipeline/ffmpeg/loudness';
@@ -50,6 +52,23 @@ export class AudioWorker {
 
     this.worker.on('failed', async (job, err) => {
       if (!job) return;
+
+      // Diagnóstico automático — analisa padrões de falha de áudio
+      const diagnostic = diagnosticEngine.onAudioFailed(
+        job.id ?? 'unknown',
+        job.data.assetId,
+        err,
+        undefined,                   // bs1770gainXml (não capturado aqui)
+        job.data.targetLufs,
+        job.data.truePeakLimit,
+        job.attemptsMade
+      );
+
+      // Registar fixes aplicados nas métricas
+      for (const fix of diagnostic.fixes) {
+        fixSuggestionsApplied.inc({ fix_id: fix.id });
+      }
+
       if (job.attemptsMade >= (job.opts.attempts ?? 3)) {
         await addToDeadLetter(
           QUEUE_NAMES.AUDIO, job.id ?? '', job.name,
