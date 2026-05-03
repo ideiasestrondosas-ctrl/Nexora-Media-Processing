@@ -1,12 +1,13 @@
-# Nexora Media Processing — Environment Manager (CLI)
-# Ficheiro: nexora.ps1
+# Nexora Media Processing - Environment Manager v1.2
+# Fix: UTF-8 Encoding for Windows Terminal
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::InputEncoding  = [System.Text.Encoding]::UTF8
 
-$PROJECT_ROOT = Get-Location
+$PROJECT_ROOT = $PSScriptRoot
 $LOG_DIR = Join-Path $PROJECT_ROOT ".logs"
 $PID_DIR = Join-Path $PROJECT_ROOT ".nexora/pids"
 
-# Garantir directorias base
-if (-not (Test-Path $LOG_DIR)) { New-Item -ItemType Directory -Path $LOG_DIR | Out-Null }
+if (-not (Test-Path $LOG_DIR)) { New-Item -ItemType Directory -Path $LOG_DIR -Force | Out-Null }
 if (-not (Test-Path $PID_DIR)) { New-Item -ItemType Directory -Path $PID_DIR -Force | Out-Null }
 
 $SERVICES = @{
@@ -45,7 +46,7 @@ function Stop-NexoraService([string]$name) {
 function Start-NexoraService([string]$name) {
     $svc = $SERVICES[$name]
     if (Get-ServicePID $name) {
-        Write-Nexora "$name já está a correr. Reiniciando..." "Yellow"
+        Write-Nexora "$name ja esta a correr. Reiniciando..." "Yellow"
         Stop-NexoraService $name
     }
 
@@ -56,7 +57,7 @@ function Start-NexoraService([string]$name) {
             $owner = if ($process) { $process.Name } else { "Desconhecido" }
             Write-Nexora "ERRO: Porta $($svc.port) ocupada por '$owner'!" "Red"
             if ($owner -like "*docker*") {
-                Write-Nexora "DICA: Um contentor Docker está a usar esta porta. Verifica 'docker ps'." "Yellow"
+                Write-Nexora "DICA: Um contentor Docker esta a usar esta porta. Verifica 'docker ps'." "Yellow"
             }
             return $false
         }
@@ -80,7 +81,7 @@ function Start-NexoraService([string]$name) {
 function Show-Status {
     Write-Nexora "--- Processos de Desenvolvimento (Node.js) ---" "Magenta"
     $format = "{0,-12} | {1,-8} | {2,-10} | {3,-15}"
-    Write-Host ($format -f "Serviço", "Porta", "Estado", "PID") -ForegroundColor Gray
+    Write-Host ($format -f "Servico", "Porta", "Estado", "PID") -ForegroundColor Gray
     Write-Host ("-" * 50) -ForegroundColor Gray
 
     foreach ($name in $SERVICES.Keys) {
@@ -109,7 +110,7 @@ function Show-Status {
 
 function Show-Logs([string]$name) {
     if (-not $SERVICES.ContainsKey($name)) {
-        Write-Nexora "Serviço desconhecido." "Red"
+        Write-Nexora "Servico desconhecido." "Red"
         return
     }
     $logFile = Join-Path $LOG_DIR $SERVICES[$name].log
@@ -117,17 +118,36 @@ function Show-Logs([string]$name) {
         Write-Nexora "A mostrar logs de $name (Ctrl+C para sair):" "Yellow"
         Get-Content $logFile -Wait -Tail 20
     } else {
-        Write-Nexora "Ficheiro de log ainda não criado." "Red"
+        Write-Nexora "Ficheiro de log ainda nao criado." "Red"
     }
 }
 
+function Show-AllLogs {
+    Write-Nexora "--- Modo Stream de Logs (Backend + Frontend + Worker) ---" "Yellow"
+    Write-Nexora "Pressiona Ctrl+C para voltar ao menu." "Gray"
+    
+    $activeLogs = @()
+    foreach ($svc in $SERVICES.Values) {
+        $logPath = Join-Path $LOG_DIR $svc.log
+        if (Test-Path $logPath) { $activeLogs += $logPath }
+    }
+
+    if ($activeLogs.Count -eq 0) {
+        Write-Nexora "Nenhum servico a gerar logs no momento." "Red"
+        Start-Sleep -s 2
+        return
+    }
+
+    Get-Content -Path $activeLogs -Wait -Tail 10
+}
+
 function Show-SystemDetails {
-    Write-Nexora "--- Detalhes de Memória (Nexora) ---" "Magenta"
+    Write-Nexora "--- Detalhes de Memoria (Nexora) ---" "Magenta"
     $processes = @()
     foreach ($name in $SERVICES.Keys) {
-        $pid = Get-ServicePID $name
-        if ($pid) {
-            $p = Get-Process -Id $pid -ErrorAction SilentlyContinue
+        $svcPid = Get-ServicePID $name
+        if ($svcPid) {
+            $p = Get-Process -Id $svcPid -ErrorAction SilentlyContinue
             if ($p) {
                 $mem = [Math]::Round($p.WorkingSet64 / 1MB, 2)
                 $processes += New-Object PSObject -Property @{
@@ -161,7 +181,7 @@ function Reset-Nexora {
 
     npm run db:generate
     npm run db:migrate:dev -- --name reset_cli
-    Write-Nexora "Reset concluído!" "Green"
+    Write-Nexora "Reset concluido!" "Green"
 }
 
 $action = $args[0]
@@ -181,21 +201,22 @@ switch ($action) {
         else { foreach ($name in $SERVICES.Keys) { Stop-NexoraService $name; Start-NexoraService $name } }
     }
     "status" { Show-Status }
-    "logs" { Show-Logs $target }
+    "logs" { if ($target) { Show-Logs $target } else { Show-AllLogs } }
     "reset" { Reset-Nexora }
     "details" { Show-SystemDetails }
     Default {
         do {
             Clear-Host
             Write-Host "========================================" -ForegroundColor Blue
-            Write-Host "   NEXORA MANAGER v1.1 (Multi-Port)     " -ForegroundColor White -BackgroundColor Blue
+            Write-Host "   NEXORA MANAGER v1.2 (Clean)          " -ForegroundColor White -BackgroundColor Blue
             Write-Host "========================================" -ForegroundColor Blue
             Show-Status
-            Write-Host "1. Iniciar Tudo"
+            Write-Host "1. Iniciar Tudo (Background)"
             Write-Host "2. Parar Tudo"
             Write-Host "3. Ver Logs Backend" | Write-Host "4. Ver Logs Frontend" -NoNewline; Write-Host " | 5. Ver Logs Worker"
             Write-Host "6. Ver Detalhes RAM"
             Write-Host "7. Reset Total"
+            Write-Host "8. Modo Stream (Todos os Logs)" -ForegroundColor Yellow
             Write-Host "0. Sair"
             Write-Host ""
             $input = Read-Host "Escolha"
@@ -208,6 +229,7 @@ switch ($action) {
                 "5" { Show-Logs "worker" }
                 "6" { Show-SystemDetails; Read-Host "Enter..." }
                 "7" { Reset-Nexora; Read-Host "Enter..." }
+                "8" { Show-AllLogs }
                 "0" { break }
             }
         } while ($input -ne "0")
