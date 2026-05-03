@@ -12,6 +12,7 @@ import { queueStatsRoutes } from './queue-stats';
 import { webhooksRoutes } from './webhooks';
 import { statusSseRoutes } from './status-sse';
 import { reviewRoutes } from './review';
+import { authRoutes } from './auth-routes';
 
 /**
  * Regista todas as rotas da API no Fastify.
@@ -20,6 +21,9 @@ import { reviewRoutes } from './review';
  */
 export async function registerRoutes(fastify: FastifyInstance): Promise<void> {
   const prefix = `/api/${process.env.API_VERSION ?? 'v1'}`;
+
+  // ── Prompt 7 — Auth (login, refresh, logout) ─────────────────────
+  await fastify.register(authRoutes, { prefix });
 
   // ── Prompt 1 — Rotas base ────────────────────────────────────────
   await fastify.register(assetsRoutes,  { prefix });

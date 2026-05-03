@@ -175,7 +175,7 @@ model AssetDeliveryTarget {
 
 /// Log de auditoria append-only para todas as operações relevantes.
 /// ADR-007: UPDATE e DELETE são proibidos nesta tabela.
-/// Implementar Row Level Security no PostgreSQL para reforçar.
+/// Row Level Security activo em PostgreSQL (migration security_prompt7).
 model AuditLog {
   id         String   @id @default(uuid())
   action     String                          // ex: ASSET_INGESTED, QC_REJECTED, JOB_CANCELLED
@@ -183,6 +183,8 @@ model AuditLog {
   entityId   String
   userId     String?                         // quem executou a acção (null se sistema)
   ipAddress  String?
+  userAgent  String?                         // browser/device do cliente
+  severity   String   @default("info")       // info | warn | critical
   metadata   Json?                           // dados adicionais da acção
   createdAt  DateTime @default(now())
 
@@ -194,6 +196,8 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([action])
   @@index([assetId])
+  @@index([userId])
+  @@index([severity])
   @@index([createdAt])
 }
 
@@ -250,4 +254,23 @@ model WebhookRegistration {
 
   @@map("webhook_registrations")
   @@index([isActive])
+}
+
+/// Refresh tokens para JWT de longa duração (7 dias).
+/// userId é string opaca (sub do JWT) — sem FK para User (compatível com IdP externo).
+/// ADR-008: rotação automática — cada refresh consome o token anterior.
+model RefreshToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique              // SHA-256 do refresh token raw
+  userId    String                          // sub do JWT (sem FK para User)
+  userAgent String?                         // browser/device no momento de emissão
+  ipAddress String?                         // IP de emissão
+  expiresAt DateTime                        // timestamp de expiração (7d)
+  revokedAt DateTime?                       // null = activo | timestamp = revogado
+  createdAt DateTime  @default(now())
+
+  @@map("refresh_tokens")
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt])
 }

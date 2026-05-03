@@ -9,6 +9,9 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { WebhookEvent, Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma';
+import { ssrfGuard } from '../../security/ssrf-guard';
+import { auditSecurityEvent } from '../middleware/audit';
+import { logger } from '../../observability/logger';
 
 // ── Schemas de validação ─────────────────────────────────────────
 
@@ -49,6 +52,22 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
     async (request: FastifyRequest<{ Body: CreateWebhookBody }>, reply: FastifyReply) => {
       const { url, events, secret, metadata } = request.body;
 
+      // Validar URL contra SSRF antes de registar
+      const ssrfCheck = await ssrfGuard.validateWebhookUrl(url);
+      if (!ssrfCheck.safe) {
+        await auditSecurityEvent('SSRF_BLOCKED', url, 'WebhookRegistration', {
+          userId:    request.user?.sub,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          severity:  'warn',
+          metadata:  { reason: ssrfCheck.reason, url },
+        });
+        return reply.status(400).send({
+          error:   'SSRF_BLOCKED',
+          message: `URL de webhook rejeitado por razões de segurança: ${ssrfCheck.reason}`,
+        });
+      }
+
       const webhook = await prisma.webhookRegistration.create({
         data: {
           url,
@@ -64,6 +83,7 @@ export async function webhooksRoutes(fastify: FastifyInstance): Promise<void> {
           action: 'WEBHOOK_CREATED',
           entityType: 'WebhookRegistration',
           entityId: webhook.id,
+          userId: request.user?.sub ?? null,
           metadata: { url, events } as object,
         },
       });
@@ -188,18 +208,11 @@ export async function notifyWebhooks(
         headers['X-Nexora-Signature'] = `sha256=${sig}`;
       }
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-
       try {
-        await fetch(wh.url, {
-          method: 'POST',
-          headers,
-          body,
-          signal: controller.signal,
-        });
-      } finally {
-        clearTimeout(timeoutId);
+        // safeFetch valida SSRF antes de enviar (previne DNS rebinding em tempo de envio)
+        await ssrfGuard.safeFetch(wh.url, { method: 'POST', headers, body });
+      } catch (err) {
+        logger.warn({ webhookId: wh.id, url: wh.url, err: String(err) }, 'Notificação webhook falhada');
       }
     })
   );

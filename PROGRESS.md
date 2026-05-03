@@ -32,7 +32,7 @@
 - [x] **Prompt 6 executado — DevOps / Infrastructure (Antigravity, 2026-05-02)**
 - [x] **Prompt 3 executado — Frontend Dashboard (Antigravity, 2026-05-03)**
 - [x] **Prompt 4 executado — Diagnóstico / Logs / Debug (Antigravity, 2026-05-03)**
-- [ ] Prompt 7 executado (Segurança — Claude)
+- [x] **Prompt 7 executado — Segurança (Antigravity, 2026-05-03)**
 - [ ] Prompt 8 executado (Testes — Claude)
 - [ ] Prompt 9 executado (Open Source adapters — Claude)
 - [ ] Prompt 10 executado (Integração final — Claude)
@@ -44,7 +44,7 @@
 ```
 Data: 2026-05-03
 Agente: Antigravity (Claude Sonnet)
-A trabalhar em: Prompt 4 — Motor de Diagnóstico (Concluído)
+A trabalhar em: Prompt 7 — Segurança (Concluído)
 Bloqueios: Nenhum
 ```
 
@@ -261,12 +261,72 @@ src/workers/
 
 ---
 
-## 🎯 Próximos passos
+## 📁 Ficheiros implementados no Prompt 7
 
-1. **Prompt 7** — Segurança (rate limiting avançado, autenticação OAuth2, secrets rotation)
-2. **Prompt 8** — Testes (unit tests, integration tests, E2E com Playwright)
-3. **Prompt 9** — Open Source adapters
+```
+src/security/                           [NOVO DIRECTORIO]
+  path-sanitizer.ts      ✅ NexoraPathSanitizer — anti path traversal
+                            sanitizeFilename() | sanitizeMinioKey() | isWithinBase() | safePath()
+                            Bloqueia: ../  ..\ %2e%2e %00 null bytes caracteres perigosos
+  file-validator.ts      ✅ NexoraFileValidator — validação de magic bytes
+                            10 formatos: MP4/MOV, MKV/WebM, AVI, MPEG-TS, MXF, WAV, AIFF, MP3, AAC
+                            validateMagicBytes() | isMimeAllowed() | getAllowedMimes()
+  ssrf-guard.ts          ✅ NexoraSSRFGuard — protecção SSRF para webhooks
+                            Blocklists: RFC 1918, loopback, cloud metadata (169.254.169.254)
+                            Resolução DNS anti-rebinding | safeFetch() | HTTPS obrigatório em prod
+
+src/api/middleware/
+  auth.ts                ✅ JWT Refactored — access 15min + refresh 7 dias
+                            generateTokenPair() | rotateRefreshToken() (rotação)
+                            revokeRefreshToken() | revokeAllRefreshTokens()
+                            Detecção de replay attack (revoga todos os tokens)
+                            purgeExpiredRefreshTokens() para cron
+  audit.ts               ✅ Audit v2 — severity + userAgent + security events
+                            buildActionName(): AUTH_LOGIN_*, AUTH_REFRESH, AUTH_LOGOUT_ALL
+                            RATE_LIMIT_EXCEEDED, AUTH_FAILED, AUTH_FORBIDDEN
+                            SSRF_BLOCKED, INVALID_FILE_REJECTED
+                            auditSecurityEvent() helper para eventos directos
+  rateLimiter.ts         ✅ Rate Limiter v2 — per-user key
+                            userId autenticado > X-Forwarded-For > IP directo
+  rate-limit-config.ts   ✅ Limites granulares por rota:
+                            POST /auth/login: 10/min | POST /assets/upload: 5/min
+                            POST /auth/refresh: 20/min | GET /assets: 200/min
+                            POST /webhooks: 10/min | GET /status-sse: 5/min (SSE)
+
+src/api/routes/
+  auth-routes.ts         ✅ Endpoints de auth:
+                            POST /auth/login   — emite token pair
+                            POST /auth/refresh — rotação de refresh token
+                            POST /auth/logout  — revoga token actual
+                            POST /auth/logout-all — revoga todos (requer access token)
+  index.ts               ✅ Registar authRoutes (Prompt 7)
+  assets.ts              ✅ Upload integrado com magic bytes + path sanitization
+                            9 passos de validação: filename → MIME → tamanho → magic bytes → MinIO key
+  webhooks.ts            ✅ SSRF guard integrado em registo + notificação
+                            ssrfGuard.validateWebhookUrl() em POST /webhooks
+                            ssrfGuard.safeFetch() em notifyWebhooks()
+
+src/api/plugins.ts       ✅ Security headers (helmet) + CORS configurável
+                            CSP: default-src 'self' | HSTS em produção
+                            X-Frame-Options: DENY | X-Content-Type-Options
+                            CORS_ORIGINS env var (whitelist explícita em prod)
+
+prisma/schema.prisma     ✅ +RefreshToken model (tokenHash SHA-256, userId, expiresAt, revokedAt)
+                          ✅ +AuditLog.userAgent + AuditLog.severity
+prisma/migrations/20260503142733_security_prompt7/
+                          ✅ Migração aplicada com sucesso
+prisma/rls_audit_logs.sql ✅ RLS activo em audit_logs (INSERT + SELECT only)
+                            UPDATE e DELETE bloqueados por PostgreSQL RLS (ADR-007)
+```
 
 ---
 
-*Última actualização: 2026-05-03 — Prompt 4 (Diagnóstico / Logs / Debug) concluído — 7 ficheiros novos, 3 modificados, 4 métricas Prometheus novas*
+## 🎯 Próximos passos
+
+1. **Prompt 8** — Testes (unit tests, integration tests, E2E com Playwright)
+2. **Prompt 9** — Open Source adapters
+3. **Prompt 10** — Integração final
+
+---
+
+*Última actualização: 2026-05-03 — Prompt 7 (Segurança) concluído — 6 ficheiros novos, 7 modificados, 1 migração DB, RLS activo — 0 erros TS*

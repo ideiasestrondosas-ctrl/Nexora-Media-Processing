@@ -24,6 +24,9 @@ import {
   FileTooLargeError,
   InvalidFileTypeError,
 } from '../../common/errors';
+import { fileValidator } from '../../security/file-validator';
+import { pathSanitizer } from '../../security/path-sanitizer';
+import { auditSecurityEvent } from '../middleware/audit';
 
 // ── Schemas de validação ─────────────────────────────────────────
 
@@ -99,50 +102,87 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
       throw new ValidationError('Nenhum ficheiro enviado na request');
     }
 
-    const { filename, mimetype, file } = data;
+    const { filename: rawFilename, mimetype, file } = data;
 
-    // Validar tipo de ficheiro
-    if (!ALLOWED_MIME_TYPES.includes(mimetype)) {
-      throw new InvalidFileTypeError(mimetype, ALLOWED_MIME_TYPES);
+    // 1. Sanitizar o nome de ficheiro (prevenir path traversal)
+    const filenameResult = pathSanitizer.sanitizeFilename(rawFilename);
+    if (filenameResult.rejected) {
+      await auditSecurityEvent('INVALID_FILE_REJECTED', rawFilename, 'Asset', {
+        userId:    request.user?.sub,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        severity:  'warn',
+        metadata:  { reason: filenameResult.reason, rawFilename },
+      });
+      throw new ValidationError(`Nome de ficheiro rejeitado: ${filenameResult.reason}`);
+    }
+    const filename = filenameResult.sanitized;
+
+    // 2. Validar tipo de ficheiro por MIME declarado
+    if (!fileValidator.isMimeAllowed(mimetype)) {
+      throw new InvalidFileTypeError(mimetype, fileValidator.getAllowedMimes());
     }
 
-    // Ler o ficheiro para buffer (necessário para calcular tamanho)
+    // 3. Ler o ficheiro para buffer (necessário para magic bytes + tamanho)
     const chunks: Buffer[] = [];
     for await (const chunk of file) {
       chunks.push(chunk as Buffer);
     }
     const buffer = Buffer.concat(chunks);
 
-    // Validar tamanho
+    // 4. Validar tamanho
     if (buffer.length > MAX_UPLOAD_SIZE) {
       throw new FileTooLargeError(buffer.length, MAX_UPLOAD_SIZE);
     }
 
-    // Gerar ID do asset
+    // 5. Validar magic bytes (tipo real do ficheiro)
+    const magicResult = fileValidator.validateMagicBytes(buffer, mimetype);
+    if (!magicResult.valid) {
+      await auditSecurityEvent('INVALID_FILE_REJECTED', filename, 'Asset', {
+        userId:    request.user?.sub,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        severity:  'warn',
+        metadata:  { reason: magicResult.reason, declaredType: mimetype, detectedType: magicResult.detectedType },
+      });
+      throw new InvalidFileTypeError(mimetype, fileValidator.getAllowedMimes());
+    }
+
+    // 6. Gerar ID do asset
     const assetId = uuidv4();
 
-    // Upload directo para MinIO (sem guardar em disco)
-    const minioKey = `upload/${assetId}/${filename}`;
+    // 7. Sanitizar a chave MinIO
+    const rawKey = `upload/${assetId}/${filename}`;
+    const keyResult = pathSanitizer.sanitizeMinioKey(rawKey);
+    if (keyResult.rejected) {
+      throw new ValidationError(`Chave MinIO inválida: ${keyResult.reason}`);
+    }
+    const minioKey = keyResult.sanitized;
+
+    // 8. Upload directo para MinIO (sem guardar em disco)
     await uploadBuffer(BUCKETS.INPUT, minioKey, buffer, {
       contentType: mimetype,
       metadata: { 'x-nexora-asset-id': assetId },
     });
 
-    // Determinar prioridade (pode vir como query param ou header)
+    // Determinar prioridade
     const profile = (request.query as Record<string, string>)['profile'] ?? 'broadcast-hd';
     const priorityParam = (request.query as Record<string, string>)['priority'];
     const priority = priorityParam ? Number(priorityParam) : 5;
 
-    // Enfileirar job de ingest
+    // 9. Enfileirar job de ingest
     const jobId = await enqueueIngest({
-      filePath: minioKey,  // Worker vai usar MinIO key como path
+      filePath: minioKey,
       filename,
       mimeType: mimetype,
       profile,
       priority,
     }, assetId);
 
-    logger.info({ assetId, jobId, filename, sizeBytes: buffer.length }, 'Asset upload enfileirado');
+    logger.info(
+      { assetId, jobId, filename, sizeBytes: buffer.length, detectedType: magicResult.detectedType },
+      'Asset upload validado e enfileirado'
+    );
 
     return reply.status(201).send({
       assetId,
