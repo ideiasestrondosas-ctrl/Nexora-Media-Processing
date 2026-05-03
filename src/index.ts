@@ -44,21 +44,62 @@ async function start(): Promise<void> {
     await registerRoutes(app);
 
     // 6. Rotas de sistema (health checks — sem prefixo /api/v1)
-    app.get('/health', async () => ({
-      status: 'ok',
-      version: process.env.npm_package_version ?? '0.1.0',
-      timestamp: new Date().toISOString(),
-    }));
+    app.get('/health', async () => {
+      const { toolRegistry } = await import('./pipeline/tools/availability-checker');
+      const report = toolRegistry.getReport();
+      return {
+        status: 'ok',
+        service: 'nexora-media-processing',
+        version: process.env.npm_package_version ?? '0.1.0',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        tools: {
+          available: report.tools.filter(t => t.available).map(t => t.name),
+          missing: report.optionalMissing,
+          criticalMissing: report.criticalMissing,
+        },
+      };
+    });
 
-    app.get('/health/live', async () => ({ status: 'ok' }));
+    app.get('/health/live', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
 
-    app.get('/health/ready', async () => {
-      // Verificar que serviços críticos estão disponíveis
-      const { prisma } = await import('./db/prisma');
-      await prisma.$queryRaw`SELECT 1`.catch(() => {
-        throw new Error('PostgreSQL não disponível');
-      });
-      return { status: 'ok', timestamp: new Date().toISOString() };
+    app.get('/health/ready', async (_, reply) => {
+      const checks: Record<string, { ok: boolean; latencyMs?: number; error?: string }> = {};
+
+      // 1. PostgreSQL
+      const pgStart = Date.now();
+      try {
+        const { prisma } = await import('./db/prisma');
+        await prisma.$queryRaw`SELECT 1`;
+        checks['postgresql'] = { ok: true, latencyMs: Date.now() - pgStart };
+      } catch (err) {
+        checks['postgresql'] = { ok: false, error: String(err) };
+      }
+
+      // 2. Redis
+      const redisStart = Date.now();
+      try {
+        const { getRedisClient } = await import('./common/redis');
+        const pong = await getRedisClient().ping();
+        checks['redis'] = { ok: pong === 'PONG', latencyMs: Date.now() - redisStart };
+      } catch (err) {
+        checks['redis'] = { ok: false, error: String(err) };
+      }
+
+      // 3. MinIO
+      const minioStart = Date.now();
+      try {
+        const { getMinioClient } = await import('./common/minio');
+        await getMinioClient().listBuckets();
+        checks['minio'] = { ok: true, latencyMs: Date.now() - minioStart };
+      } catch (err) {
+        checks['minio'] = { ok: false, error: String(err) };
+      }
+
+      const allOk = Object.values(checks).every(c => c.ok);
+      return reply
+        .status(allOk ? 200 : 503)
+        .send({ status: allOk ? 'ok' : 'degraded', timestamp: new Date().toISOString(), checks });
     });
 
     // 7. Inicializar filas BullMQ

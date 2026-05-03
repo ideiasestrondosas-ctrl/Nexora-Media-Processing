@@ -189,6 +189,24 @@ export const subtitlesProcessed = new Counter({
   registers: [nexoraRegistry],
 });
 
+// ── Métricas HTTP da API (Prompt 10) ─────────────────────────────
+
+export const httpRequestDuration = new Histogram({
+  name: 'nexora_http_request_duration_seconds',
+  help: 'Duração das requests HTTP à API Nexora',
+  labelNames: ['method', 'route', 'status_code'] as const,
+  buckets: [0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 5],
+  registers: [nexoraRegistry],
+});
+
+export const httpRequestsTotal = new Counter({
+  name: 'nexora_http_requests_total',
+  help: 'Total de requests HTTP recebidas pela API Nexora',
+  labelNames: ['method', 'route', 'status_code'] as const,
+  registers: [nexoraRegistry],
+});
+
+
 // ── Servidor de métricas (porta separada) ──────────────────────
 
 export const metricsServer = {

@@ -35,7 +35,7 @@
 - [x] **Prompt 7 executado — Segurança (Antigravity, 2026-05-03)**
 - [x] **Prompt 8 executado — Testes da Suite Nexora (Antigravity, 2026-05-03)**
 - [x] **Prompt 9 executado — Open Source Adapters (Antigravity, 2026-05-03)**
-- [ ] Prompt 10 executado (Integração final — Claude)
+- [x] **Prompt 10 executado — Integração Final (Antigravity, 2026-05-03)**
 
 ---
 
@@ -44,7 +44,7 @@
 ```
 Data: 2026-05-03
 Agente: Antigravity (Claude Sonnet)
-A trabalhar em: Prompt 10 — Integração final
+Estado: ✅ PROJECTO CONCLUÍDO — 10/10 Prompts executados
 Bloqueios: Nenhum
 ```
 
@@ -375,10 +375,34 @@ src/observability/metrics.ts ✅ +6 novas métricas Prometheus (tool_available, 
 
 ---
 
-## 🎯 Próximos passos
+## 📁 Ficheiros implementados no Prompt 10
 
-1. **Prompt 10** — Integração final
+```
+src/index.ts
+  /health          ✅ Expandido: uptime + tool registry summary
+  /health/live     ✅ Timestamp incluido
+  /health/ready    ✅ Verifica PostgreSQL + Redis + MinIO (503 em falha)
+
+src/api/plugins.ts
+  onRequest hook   ✅ Regista timestamp de início por request
+  onSend hook      ✅ Mede latência HTTP por rota e incrementa contadores
+
+src/observability/metrics.ts
+  nexora_http_request_duration_seconds  ✅ Histogram (8 buckets, labels: method/route/status)
+  nexora_http_requests_total            ✅ Counter (labels: method/route/status)
+
+README.md         ✅ Reescrito — arquitectura, state machine, API ref, ADRs, deployment
+PROGRESS.md       ✅ 10/10 Prompts marcados como concluídos
+```
 
 ---
 
-*Última actualização: 2026-05-03 — Prompt 9 (Open Source Adapters) concluído — 13 ficheiros criados/modificados — 0 erros TS*
+## 🎯 Estado Final
+
+**Projecto 100% concluído — 10/10 Prompts executados**
+
+Não existem mais passos pendentes. O Nexora Media Processing está pronto para deployment.
+
+---
+
+*Última actualização: 2026-05-03 — Prompt 10 (Integração Final) concluído — 0 erros TS — build OK — 10/10 Prompts*

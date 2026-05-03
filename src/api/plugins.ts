@@ -15,6 +15,7 @@ import { registerAuthHook } from './middleware/auth';
 import { registerAuditHook } from './middleware/audit';
 import { logger } from '../observability/logger';
 import { isNexoraError } from '../common/errors';
+import { httpRequestDuration, httpRequestsTotal } from '../observability/metrics';
 
 const MAX_UPLOAD_SIZE = Number(process.env.MAX_UPLOAD_SIZE_BYTES ?? 53687091200); // 50 GB
 
@@ -147,6 +148,28 @@ export async function registerPlugins(fastify: FastifyInstance): Promise<void> {
         ? 'Erro interno do servidor'
         : error.message,
     });
+  });
+
+  // 9. Hook de métricas HTTP (Prompt 10) — mede latência por rota
+  fastify.addHook('onSend', async (request, reply) => {
+    const route = request.routerPath ?? request.url.split('?')[0] ?? 'unknown';
+    const method = request.method;
+    const statusCode = String(reply.statusCode);
+
+    // Excluir rotas de sistema para não poluir métricas
+    if (route.startsWith('/health') || route === '/metrics') return;
+
+    // Calcular duração desde o início da request
+    const startTime = (request as unknown as { _startTime?: number })._startTime;
+    if (typeof startTime === 'number') {
+      const duration = (Date.now() - startTime) / 1000;
+      httpRequestDuration.observe({ method, route, status_code: statusCode }, duration);
+    }
+    httpRequestsTotal.inc({ method, route, status_code: statusCode });
+  });
+
+  fastify.addHook('onRequest', async (request) => {
+    (request as unknown as { _startTime: number })._startTime = Date.now();
   });
 
   logger.info('Todos os plugins Fastify registados (v2 — helmet + CORS configurável)');
