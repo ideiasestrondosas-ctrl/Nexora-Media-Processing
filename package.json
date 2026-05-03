@@ -23,7 +23,8 @@
     "queue:flush": "tsx scripts/flush-queues.ts",
     "fixtures:generate": "bash tests/fixtures/generate-fixtures.sh",
     "keys:generate": "npx tsx scripts/nexora-generate-keys.ts",
-    "setup": "node arquitetura/nexora-scaffold.js"
+    "setup": "node arquitetura/nexora-scaffold.js",
+    "nexora": "pwsh nexora.ps1"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.0",

@@ -54,7 +54,27 @@ npm run worker
 
 ---
 
-## Interfaces e Acessos
+---
+19: 
+20: ## 🛠️ Gestão do Ambiente (CLI)
+21: 
+22: O Nexora inclui um gestor de ambiente em PowerShell para facilitar o desenvolvimento local sem necessidade de múltiplos terminais abertos.
+23: 
+24: ### Comandos Rápidos
+25: ```powershell
+26: .\nexora.ps1          # Abre o menu interactivo
+27: .\nexora.ps1 start    # Inicia tudo em background
+28: .\nexora.ps1 stop     # Pára tudo
+29: .\nexora.ps1 status   # Verifica o estado dos serviços
+30: .\nexora.ps1 logs backend  # Segue os logs do backend
+31: .\nexora.ps1 reset    # Limpa tudo (Docker, DB, Logs) e reinicia
+32: ```
+33: 
+34: Os logs de execução em background são guardados na pasta `.logs/`.
+35: 
+36: ---
+37: 
+38: ## Interfaces e Acessos
 
 | Interface | URL | Credenciais (Padrão) |
 |---|---|---|
