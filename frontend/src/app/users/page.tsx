@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Users, KeyRound, Loader2, Plus, Trash2, X, ShieldCheck } from "lucide-react";
-import { Users, KeyRound, Loader2, Plus, Trash2, X, ShieldCheck, FolderOpen, Save } from "lucide-react";
+import { Users, KeyRound, Loader2, Plus, Trash2, X, ShieldCheck, Pencil, FolderOpen, Save } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -20,8 +19,6 @@ interface User {
   createdAt: string;
 }
 
-export default function UsersPage() {
-  const queryClient = useQueryClient();
 export default function UsersPage() {
   const queryClient = useQueryClient();
   const authUser = useAuthStore((state) => state.user);
@@ -42,13 +39,18 @@ export default function UsersPage() {
   const [newUserRole, setNewUserRole] = useState("USER");
   const [createError, setCreateError] = useState("");
 
+  // ── Edit user state ───────────────────────────────────────────
+  const [editTarget, setEditTarget] = useState<User | null>(null);
+  const [editUsername, setEditUsername] = useState("");
+  const [editRole, setEditRole] = useState("USER");
+
   // ── Delete confirmation state ────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
 
+  // ── Local path state ─────────────────────────────────────────────
+  const [localPath, setLocalPath] = useState("");
+
   // ── Queries ──────────────────────────────────────────────────────
-  const { data: usersData, isLoading } = useQuery<{ users: User[] }>({
-    queryKey: ["users"],
-    queryFn: () => api.get("/users"),
   const { data: usersData, isLoading } = useQuery<{ users: User[] }>({
     queryKey: ["users"],
     queryFn: () => api.get("/users"),
@@ -60,10 +62,7 @@ export default function UsersPage() {
     enabled: isAdmin,
   });
 
-  const [localPath, setLocalPath] = useState("");
-
   // Sync initial settings data to state
-  import { useEffect } from "react";
   useEffect(() => {
     if (settingsData) {
       setLocalPath(settingsData.localStoragePath || "");
@@ -81,6 +80,7 @@ export default function UsersPage() {
       setNewUserPassword("");
       setNewUserRole("USER");
       setCreateError("");
+      toast({ title: "Utilizador criado com sucesso" });
     },
     onError: (error: any) => {
       setCreateError(
@@ -94,6 +94,32 @@ export default function UsersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setDeleteTarget(null);
+      toast({ title: "Utilizador removido" });
+    },
+  });
+
+  const updateUserMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => api.put(`/users/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setEditTarget(null);
+      toast({ title: "Utilizador actualizado" });
+    },
+  });
+
+  const updatePasswordMutation = useMutation({
+    mutationFn: (data: any) => api.put("/users/password", data),
+    onSuccess: () => {
+      setPasswordSuccess("Password alterada com sucesso.");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordError("");
+    },
+    onError: (error: any) => {
+      setPasswordError(
+        error.data?.message || "Erro ao alterar password. Verifique a password actual."
+      );
     },
   });
 
@@ -109,22 +135,6 @@ export default function UsersPage() {
         description: error.data?.error || "Caminho inválido ou sem permissões.",
         variant: "destructive",
       });
-    },
-  });
-
-  const handlePasswordChange = (e: React.FormEvent) => {
-    mutationFn: (data: any) => api.put("/users/password", data),
-    onSuccess: () => {
-      setPasswordSuccess("Password alterada com sucesso.");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      setPasswordError("");
-    },
-    onError: (error: any) => {
-      setPasswordError(
-        error.data?.message || "Erro ao alterar password. Verifique a password actual."
-      );
     },
   });
 
@@ -155,6 +165,15 @@ export default function UsersPage() {
     });
   };
 
+  const handleUpdateUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTarget) return;
+    updateUserMutation.mutate({
+      id: editTarget.id,
+      data: { username: editUsername, role: editRole },
+    });
+  };
+
   return (
     <>
       {/* Modal: Criar Utilizador */}
@@ -174,6 +193,7 @@ export default function UsersPage() {
               <div className="space-y-1">
                 <Label>Username *</Label>
                 <Input
+                  id="create-username"
                   value={newUsername}
                   onChange={(e) => setNewUsername(e.target.value)}
                   placeholder="ex: operador-1"
@@ -219,6 +239,57 @@ export default function UsersPage() {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
                   Criar Utilizador
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Editar Utilizador */}
+      {editTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-sm mx-4 border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between p-6 border-b dark:border-slate-700">
+              <h2 className="text-lg font-semibold">Editar Utilizador</h2>
+              <button
+                onClick={() => setEditTarget(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateUser} className="p-6 space-y-4">
+              <div className="space-y-1">
+                <Label>Username</Label>
+                <Input
+                  id="edit-username"
+                  value={editUsername}
+                  onChange={(e) => setEditUsername(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Função</Label>
+                <select
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value)}
+                  className="w-full h-10 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="USER">Utilizador</option>
+                  <option value="OPERATOR">Operador</option>
+                  <option value="ADMIN">Administrador</option>
+                </select>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <Button type="button" variant="outline" onClick={() => setEditTarget(null)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={updateUserMutation.isPending}>
+                  {updateUserMutation.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Guardar Alterações
                 </Button>
               </div>
             </form>
@@ -325,20 +396,35 @@ export default function UsersPage() {
                             {new Date(user.createdAt).toLocaleDateString("pt-PT")}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-                              disabled={user.username === authUser?.sub}
-                              title={
-                                user.username === authUser?.sub
-                                  ? "Não pode apagar a sua própria conta"
-                                  : "Apagar utilizador"
-                              }
-                              onClick={() => setDeleteTarget(user)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-slate-400 hover:text-blue-600"
+                                onClick={() => {
+                                  setEditTarget(user);
+                                  setEditUsername(user.username);
+                                  setEditRole(user.role);
+                                }}
+                                title="Editar utilizador"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                                disabled={user.username === authUser?.sub}
+                                title={
+                                  user.username === authUser?.sub
+                                    ? "Não pode apagar a sua própria conta"
+                                    : "Apagar utilizador"
+                                }
+                                onClick={() => setDeleteTarget(user)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}

@@ -32,9 +32,13 @@ async function fetchClient<T>(endpoint: string, options: RequestOptions = {}): P
   }
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(customHeaders as Record<string, string> || {}),
   };
+
+  // Só adicionar Content-Type se houver corpo e não for FormData
+  if (options.body && !(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;

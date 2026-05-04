@@ -5,9 +5,10 @@ import { JobTimeline, JobEvent } from "@/components/assets/JobTimeline";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Download, PlayCircle, RefreshCw } from "lucide-react";
+import { ArrowLeft, Download, PlayCircle, RefreshCw, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 
 // Mocks
 const mockIssues: QCIssue[] = [
@@ -25,7 +26,19 @@ const mockTimeline: JobEvent[] = [
 
 export default function AssetDetailsPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
+
+  const handleDelete = async () => {
+    if (confirm("Tem a certeza que deseja apagar este asset?")) {
+      try {
+        await api.delete(`/assets/${id}`);
+        router.push("/assets");
+      } catch (err) {
+        alert("Erro ao apagar asset.");
+      }
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -41,7 +54,8 @@ export default function AssetDetailsPage() {
           <p className="text-sm text-slate-500 font-mono mt-1">ID: {id}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2"><RefreshCw className="h-4 w-4" /> Recarregar</Button>
+          <Button variant="outline" className="gap-2" onClick={() => window.location.reload()}><RefreshCw className="h-4 w-4" /> Recarregar</Button>
+          <Button variant="destructive" className="gap-2" onClick={handleDelete}><Trash2 className="h-4 w-4" /> Apagar Asset</Button>
           <Button className="gap-2" disabled><Download className="h-4 w-4" /> Download Proxy</Button>
         </div>
       </div>

@@ -61,6 +61,31 @@ export async function usersRoutes(fastify: FastifyInstance): Promise<void> {
     }
   );
 
+  // PUT /users/:id — editar utilizador (username/role)
+  fastify.put<{ Params: { id: string }, Body: { username?: string, role?: string } }>(
+    '/users/:id',
+    async (request, reply) => {
+      const { id } = request.params;
+      const { username, role } = request.body;
+
+      const existing = await prisma.user.findUnique({ where: { id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'NOT_FOUND', message: 'Utilizador não encontrado' });
+      }
+
+      const updated = await prisma.user.update({
+        where: { id },
+        data: {
+          ...(username ? { username } : {}),
+          ...(role ? { role } : {}),
+        },
+        select: { id: true, username: true, role: true, updatedAt: true }
+      });
+
+      return reply.status(200).send(updated);
+    }
+  );
+
   // PUT /users/password — alterar a própria password
   fastify.put<{ Body: z.infer<typeof updatePasswordSchema> }>(
     '/users/password',
