@@ -20,13 +20,17 @@ async function flushAllQueues() {
     await Promise.all(promises);
     logger.info('Todas as filas foram limpas com sucesso!');
     
-  } catch (error) {
-    logger.error({ error }, 'Erro ao limpar filas');
-    process.exit(1);
   } finally {
     await closeQueues();
-    process.exit(0);
   }
 }
 
-flushAllQueues();
+// Executar
+flushAllQueues()
+  .then(() => {
+    logger.info('Processo de limpeza concluído');
+  })
+  .catch((err) => {
+    console.error('Erro fatal no script de limpeza:', err);
+    process.exit(1);
+  });

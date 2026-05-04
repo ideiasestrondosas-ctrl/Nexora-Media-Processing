@@ -15,6 +15,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { prisma } from '../../db/prisma';
 import { readConfig } from './settings';
+import { initQueues, getNexoraQueues, closeQueues } from '../../workers/queues';
 
 // Verifica se o utilizador é administrador
 function isAdmin(request: FastifyRequest): boolean {
@@ -139,6 +140,22 @@ export async function resetRoutes(fastify: FastifyInstance): Promise<void> {
           await prisma.encodingProfile.create({ data: p });
         }
         results.push('Perfis de encoding por defeito restaurados');
+
+        // ── 4b. Limpar Filas BullMQ ──────────────────────────────
+        try {
+          await initQueues();
+          const queues = getNexoraQueues();
+          const queuePromises = Object.entries(queues).map(async ([name, queue]) => {
+            await queue.obliterate({ force: true });
+            return name;
+          });
+          const clearedNames = await Promise.all(queuePromises);
+          results.push(`Filas BullMQ limpas: ${clearedNames.join(', ')}`);
+        } catch (queueErr: any) {
+          results.push(`Aviso: erro ao limpar filas BullMQ: ${queueErr.message}`);
+        } finally {
+          await closeQueues();
+        }
 
         // ── 5. Limpar ficheiros (opcional) ───────────────────────
         if (includeFiles) {
