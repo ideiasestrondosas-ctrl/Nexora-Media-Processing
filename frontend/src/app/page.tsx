@@ -1,17 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { MetricsChart } from "@/components/dashboard/MetricsChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Clock, Film, AlertTriangle } from "lucide-react";
+import { Activity, Clock, Film, AlertTriangle, RefreshCw, UploadCloud } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import Link from "next/link";
 
 interface MetricsSummary {
   assets: {
     total: number;
     byStatus: {
       completed: number;
-      qcRejected: number;
+      transcoding: number;
+      pending: number;
+      ingesting: number;
+      qcRunning: number;
+      failed: number;
       [key: string]: number;
     };
   };
@@ -39,104 +45,171 @@ interface DashboardData {
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [summaryRes, dashboardRes] = await Promise.all([
-          api.get<MetricsSummary>('/metrics/summary'),
-          api.get<DashboardData>('/metrics/dashboard-data')
-        ]);
-        setMetrics(summaryRes);
-        setDashboardData(dashboardRes);
-      } catch (err) {
-        console.error("Erro a obter métricas:", err);
-      }
-    };
-    void fetchData();
-    
-    // Atualizar a cada 30 segundos
-    const interval = setInterval(() => { void fetchData(); }, 30000);
-    return () => clearInterval(interval);
+  const fetchData = useCallback(async () => {
+    try {
+      const [summaryRes, dashboardRes] = await Promise.all([
+        api.get<MetricsSummary>('/metrics/summary'),
+        api.get<DashboardData>('/metrics/dashboard-data'),
+      ]);
+      setMetrics(summaryRes);
+      setDashboardData(dashboardRes);
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error("Erro a obter métricas:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    void fetchData();
+    const interval = setInterval(() => { void fetchData(); }, 30000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  const totalAssets = metrics?.assets.total ?? 0;
+  const completedAssets = metrics?.assets.byStatus.completed ?? 0;
+  const activeJobs = dashboardData?.systemStats.activeJobs ?? 0;
+  const pendingJobs = dashboardData?.systemStats.pendingJobs ?? 0;
+  const successRate = metrics?.jobs.last24h.successRate ?? null;
+  const failedJobs = dashboardData?.systemStats.failedJobsLast24h ?? 0;
+  const uptime = dashboardData?.systemStats.uptime ?? "--";
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-10">
+      {/* Header */}
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard Overview</h1>
-        <div className="flex items-center gap-2 text-sm text-slate-500">
-          <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-          </span>
-          Live Data
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Estatísticas do Sistema</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {lastUpdated
+              ? `Última atualização: ${lastUpdated.toLocaleTimeString("pt-PT")}`
+              : "A carregar dados..."}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchData}
+            className="gap-2"
+          >
+            <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+            Actualizar
+          </Button>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+            </span>
+            Live
+          </div>
         </div>
       </div>
 
+      {/* Cartões de métricas originais */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Assets Processados</CardTitle>
-            <Film className="h-4 w-4 text-blue-500" />
+            <CardTitle className="text-sm font-medium">Total de Assets</CardTitle>
+            <Film className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics?.assets.byStatus.completed ?? '--'}</div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Total no sistema: {metrics?.assets.total ?? '--'}</p>
+            <div className="text-2xl font-bold">
+              {loading ? "…" : totalAssets}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {loading ? "" : `${completedAssets} concluídos`}
+            </p>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Jobs Activos / Pendentes</CardTitle>
+            <CardTitle className="text-sm font-medium">Jobs em Curso</CardTitle>
             <Clock className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{dashboardData?.systemStats.activeJobs ?? '--'} / {dashboardData?.systemStats.pendingJobs ?? '--'}</div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Tempo online: {dashboardData?.systemStats.uptime ?? '--'}</p>
+            <div className="text-2xl font-bold">
+              {loading ? "…" : `${activeJobs} / ${pendingJobs}`}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Tempo de atividade: {uptime}</p>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium">Taxa de Sucesso</CardTitle>
             <Activity className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics?.jobs.last24h.successRate ?? '--'}%</div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Últimas 24 horas</p>
+            <div className="text-2xl font-bold">
+              {loading ? "…" : successRate !== null ? `${successRate}%` : "—"}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Últimas 24 horas
+            </p>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Falhas (24h)</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-red-500" />
+            <CardTitle className="text-sm font-medium text-destructive">Falhas Críticas</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{dashboardData?.systemStats.failedJobsLast24h ?? '--'}</div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Jobs falhados recentemente</p>
+            <div className={`text-2xl font-bold ${failedJobs > 0 ? "text-destructive" : ""}`}>
+              {loading ? "…" : failedJobs}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Detetadas nas últimas 24h</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <MetricsChart 
-          title="Qualidade Média (VMAF e PSNR)"
-          description="Evolução da pontuação nas últimas 24 horas"
-          data={dashboardData?.qualityTrends?.map((item: any) => ({ ...item, name: item.time })) || []}
-          type="area"
-          dataKeys={[
-            { key: "vmaf", color: "#3b82f6", name: "VMAF Score" },
-            { key: "psnr", color: "#8b5cf6", name: "PSNR (dB)" }
-          ]}
-        />
-        <MetricsChart 
-          title="Volume de Processamento"
-          description="Volume processado em GB (Últimos 7 dias)"
-          data={dashboardData?.processingVolume?.map((item: any) => ({ ...item, name: item.date })) || []}
-          type="bar"
-          dataKeys={[
-            { key: "gb", color: "#22c55e", name: "Volume (GB)" }
-          ]}
-        />
-      </div>
+      {/* Estado vazio — sem assets */}
+      {!loading && totalAssets === 0 && (
+        <div className="bg-muted/30 border-2 border-dashed rounded-xl p-12 text-center">
+          <UploadCloud className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Nenhum asset processado</h3>
+          <p className="text-sm text-muted-foreground mb-6 max-w-xs mx-auto">
+            A sua biblioteca está vazia. Comece por carregar um ficheiro para análise.
+          </p>
+          <Button asChild gap-2>
+            <Link href="/assets/upload">
+              <UploadCloud className="h-4 w-4" />
+              Fazer Upload
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      {/* Gráficos originais */}
+      {!loading && totalAssets > 0 && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <MetricsChart
+            title="Métricas de Qualidade"
+            description="Evolução de VMAF e PSNR (24h)"
+            data={dashboardData?.qualityTrends?.map((item: any) => ({ ...item, name: item.time })) || []}
+            type="area"
+            dataKeys={[
+              { key: "vmaf", color: "hsl(var(--primary))", name: "VMAF" },
+              { key: "psnr", color: "hsl(var(--chart-2))", name: "PSNR (dB)" },
+            ]}
+          />
+          <MetricsChart
+            title="Carga de Processamento"
+            description="Volume total processado em GB"
+            data={dashboardData?.processingVolume?.map((item: any) => ({ ...item, name: item.name ?? item.date })) || []}
+            type="bar"
+            dataKeys={[
+              { key: "gb", color: "hsl(var(--chart-3))", name: "Volume (GB)" },
+            ]}
+          />
+        </div>
+      )}
     </div>
   );
 }

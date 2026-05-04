@@ -1,11 +1,34 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { UploadCloud, FileVideo, X, HardDrive, Cloud, FolderOpen, ToggleLeft, ToggleRight, Info } from "lucide-react";
+import {
+  UploadCloud,
+  FileVideo,
+  X,
+  HardDrive,
+  Cloud,
+  FolderOpen,
+  ToggleLeft,
+  ToggleRight,
+  Info,
+  ChevronDown,
+  ChevronUp,
+  Settings,
+  CheckCircle2,
+  Loader2,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
@@ -15,6 +38,7 @@ interface Profile {
   id: string;
   name: string;
   description: string;
+  isDefault?: boolean;
 }
 
 interface SystemSettings {
@@ -22,66 +46,63 @@ interface SystemSettings {
   defaultStorageStrategy: "MINIO" | "LOCAL";
 }
 
-interface UploadZoneProps {
-  onUploadStart?: (file: File) => void;
-  onUploadProgress?: (progress: number) => void;
-  onUploadSuccess?: (assetId: string) => void;
-  onUploadError?: (error: Error) => void;
-  uploadUrl: string;
-  token?: string | null;
+interface UploadItem {
+  id: string;
+  file: File;
+  progress: number;
+  status: "idle" | "uploading" | "success" | "error";
+  error?: string;
+  // Overrides
+  profileId: string;
+  storageStrategy: "MINIO" | "LOCAL";
+  keepOriginal: boolean;
 }
 
-export function UploadZone({
-  onUploadStart,
-  onUploadProgress,
-  onUploadSuccess,
-  onUploadError,
-  uploadUrl,
-  token: tokenProp,
-}: UploadZoneProps) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
-  const [errorMessage, setErrorMessage] = useState<string>("");
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [selectedProfile, setSelectedProfile] = useState<string>("");
-  const [storageStrategy, setStorageStrategy] = useState<"MINIO" | "LOCAL">("MINIO");
-  const [keepOriginal, setKeepOriginal] = useState(false);
-  const [settings, setSettings] = useState<SystemSettings | null>(null);
-  const { toast } = useToast();
+interface UploadZoneProps {
+  onAllComplete?: () => void;
+  uploadUrl: string;
+}
 
-  // Ler token da store (tem prioridade sobre a prop)
-  const storeToken = useAuthStore((state) => state.token);
+export function UploadZone({ onAllComplete, uploadUrl }: UploadZoneProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [files, setFiles] = useState<UploadItem[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [settings, setSettings] = useState<SystemSettings | null>(null);
+  
+  // Global defaults
+  const [globalProfile, setGlobalProfile] = useState<string>("");
+  const [globalStorage, setGlobalStorage] = useState<"MINIO" | "LOCAL">("MINIO");
+  const [globalKeep, setGlobalKeep] = useState(false);
+  const [showGlobalSettings, setShowGlobalSettings] = useState(true);
+
+  const { toast } = useToast();
+  const token = useAuthStore((state) => state.token);
   const authUser = useAuthStore((state) => state.user);
-  const token = storeToken ?? tokenProp;
   const isAdmin = authUser?.roles?.includes("ADMIN") || authUser?.sub === "user-123";
 
   useEffect(() => {
-    // Buscar perfis disponíveis
     const fetchProfiles = async () => {
       try {
         const data = await api.get<{ profiles: Profile[] }>("/profiles");
         if (data?.profiles?.length > 0) {
           setProfiles(data.profiles);
-          const defaultProfile = data.profiles.find((p: any) => p.isDefault) ?? data.profiles[0];
-          setSelectedProfile(defaultProfile.id);
+          const defaultP = data.profiles.find((p) => p.isDefault) ?? data.profiles[0];
+          setGlobalProfile(defaultP.id);
         }
       } catch (err) {
-        console.error("Erro a obter perfis:", err);
+        console.error("Erro ao obter perfis:", err);
       }
     };
 
-    // Buscar configurações do sistema
     const fetchSettings = async () => {
       try {
         const data = await api.get<SystemSettings>("/settings");
         if (data) {
           setSettings(data);
-          setStorageStrategy(data.defaultStorageStrategy ?? "MINIO");
+          setGlobalStorage(data.defaultStorageStrategy ?? "MINIO");
         }
       } catch (err) {
-        console.error("Erro a obter configurações:", err);
+        console.error("Erro ao obter configurações:", err);
       }
     };
 
@@ -89,21 +110,12 @@ export function UploadZone({
     void fetchSettings();
   }, []);
 
-  const handleDrag = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setIsDragging(true);
-    } else if (e.type === "dragleave") {
-      setIsDragging(false);
-    }
-  }, []);
-
   const validateFile = (f: File) => {
-    if (!f.type.startsWith("video/") && !f.name.endsWith(".mxf")) {
+    const isVideo = f.type.startsWith("video/") || f.name.endsWith(".mxf") || f.name.endsWith(".mov") || f.name.endsWith(".mp4");
+    if (!isVideo) {
       toast({
         title: "Tipo de ficheiro não suportado",
-        description: "Apenas são permitidos ficheiros de vídeo (MP4, MXF, MOV, etc).",
+        description: `${f.name} não parece ser um vídeo válido.`,
         variant: "destructive",
       });
       return false;
@@ -111,52 +123,68 @@ export function UploadZone({
     return true;
   };
 
+  const addFiles = (newFiles: FileList | null) => {
+    if (!newFiles) return;
+    
+    const validFiles: UploadItem[] = [];
+    for (let i = 0; i < newFiles.length; i++) {
+      const f = newFiles[i];
+      if (validateFile(f)) {
+        validFiles.push({
+          id: Math.random().toString(36).substring(7),
+          file: f,
+          progress: 0,
+          status: "idle",
+          profileId: globalProfile,
+          storageStrategy: globalStorage,
+          keepOriginal: globalKeep,
+        });
+      }
+    }
+    
+    setFiles((prev) => [...prev, ...validFiles]);
+  };
+
+  const handleDrag = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(e.type === "dragenter" || e.type === "dragover");
+  }, []);
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    if (e.dataTransfer.files?.[0]) {
-      const dropped = e.dataTransfer.files[0];
-      if (validateFile(dropped)) setFile(dropped);
-    }
-  }, []);
+    addFiles(e.dataTransfer.files);
+  }, [globalProfile, globalStorage, globalKeep]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      const selected = e.target.files[0];
-      if (validateFile(selected)) setFile(selected);
-    }
+  const removeFile = (id: string) => {
+    setFiles((prev) => prev.filter((f) => f.id !== id));
   };
 
-  const clearFile = () => {
-    if (status === "uploading") return;
-    setFile(null);
-    setProgress(0);
-    setStatus("idle");
-    setErrorMessage("");
+  const updateFileConfig = (id: string, updates: Partial<UploadItem>) => {
+    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...updates } : f)));
   };
 
-  const uploadFile = async () => {
-    if (!file) return;
+  const uploadSingleFile = async (item: UploadItem) => {
+    if (item.status === "uploading" || item.status === "success") return;
 
-    setStatus("uploading");
-    setErrorMessage("");
-    onUploadStart?.(file);
+    setFiles((prev) =>
+      prev.map((f) => (f.id === item.id ? { ...f, status: "uploading", error: undefined } : f))
+    );
 
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", item.file);
 
-    // Construir URL com parâmetros de estratégia
     const url = new URL(uploadUrl);
-    url.searchParams.set("profile", selectedProfile);
-    url.searchParams.set("storageStrategy", storageStrategy);
-    url.searchParams.set("keepOriginal", String(keepOriginal));
+    url.searchParams.set("profile", item.profileId);
+    url.searchParams.set("storageStrategy", item.storageStrategy);
+    url.searchParams.set("keepOriginal", String(item.keepOriginal));
 
-    try {
+    return new Promise<void>((resolve) => {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", url.toString());
-      xhr.timeout = 2 * 60 * 60 * 1000; // 2 horas
-
+      
       if (token) {
         xhr.setRequestHeader("Authorization", `Bearer ${token}`);
       }
@@ -164,248 +192,313 @@ export function UploadZone({
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) {
           const pct = Math.round((e.loaded / e.total) * 100);
-          setProgress(pct);
-          onUploadProgress?.(pct);
+          setFiles((prev) =>
+            prev.map((f) => (f.id === item.id ? { ...f, progress: pct } : f))
+          );
         }
       };
 
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          setStatus("success");
-          try {
-            const response = JSON.parse(xhr.responseText);
-            const where = response.strategy === "LOCAL"
-              ? `Disco Local (${settings?.localStoragePath ?? "caminho configurado"})`
-              : "Nexora Cloud (MinIO)";
-            onUploadSuccess?.(response.assetId ?? response.id);
-            toast({
-              title: "Upload concluído",
-              description: `Ficheiro guardado em: ${where}`,
-            });
-          } catch {
-            onUploadSuccess?.("unknown-id");
-          }
+          setFiles((prev) =>
+            prev.map((f) => (f.id === item.id ? { ...f, status: "success", progress: 100 } : f))
+          );
         } else {
-          setStatus("error");
-          let msg = "Erro desconhecido";
-          try {
-            msg = JSON.parse(xhr.responseText)?.message ?? xhr.statusText;
-          } catch {
-            msg = xhr.statusText;
-          }
-          setErrorMessage(msg);
-          onUploadError?.(new Error(msg));
+          let msg = "Erro no upload";
+          try { msg = JSON.parse(xhr.responseText)?.message || xhr.statusText; } catch { msg = xhr.statusText; }
+          setFiles((prev) =>
+            prev.map((f) => (f.id === item.id ? { ...f, status: "error", error: msg } : f))
+          );
         }
+        resolve();
       };
 
       xhr.onerror = () => {
-        setStatus("error");
-        const msg = "Erro de rede ou ligação recusada. Verifique se o backend está a correr.";
-        setErrorMessage(msg);
-        onUploadError?.(new Error(msg));
-      };
-
-      xhr.ontimeout = () => {
-        setStatus("error");
-        const msg = "Tempo limite de upload excedido.";
-        setErrorMessage(msg);
-        onUploadError?.(new Error(msg));
+        setFiles((prev) =>
+          prev.map((f) => (f.id === item.id ? { ...f, status: "error", error: "Erro de rede" } : f))
+        );
+        resolve();
       };
 
       xhr.send(formData);
-    } catch (err) {
-      setStatus("error");
-      onUploadError?.(err as Error);
+    });
+  };
+
+  const startAllUploads = async () => {
+    const idleFiles = files.filter((f) => f.status === "idle" || f.status === "error");
+    if (idleFiles.length === 0) return;
+
+    // Parallel upload of all idle files
+    await Promise.all(idleFiles.map((f) => uploadSingleFile(f)));
+    
+    const allDone = files.every(f => f.status === "success");
+    if (allDone) {
+      toast({ title: "Todos os uploads concluídos com sucesso!" });
+      onAllComplete?.();
     }
   };
 
+  const applyGlobalToIdle = () => {
+    setFiles(prev => prev.map(f => {
+      if (f.status === "idle" || f.status === "error") {
+        return {
+          ...f,
+          profileId: globalProfile,
+          storageStrategy: globalStorage,
+          keepOriginal: globalKeep
+        };
+      }
+      return f;
+    }));
+    toast({ title: "Configurações aplicadas à fila" });
+  };
+
   return (
-    <Card className="w-full max-w-2xl mx-auto overflow-hidden">
-      <CardContent className="p-0">
-        {!file ? (
-          <div
-            className={cn(
-              "flex flex-col items-center justify-center p-12 text-center border-2 border-dashed transition-colors",
-              isDragging
-                ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                : "border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900",
-              "hover:border-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-            )}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-            onClick={() => document.getElementById("file-upload")?.click()}
-          >
-            <input
-              id="file-upload"
-              type="file"
-              className="hidden"
-              accept="video/*,.mxf"
-              onChange={handleFileChange}
-            />
-            <div className="p-4 bg-white dark:bg-slate-800 rounded-full shadow-sm mb-4">
-              <UploadCloud className="h-8 w-8 text-blue-500" />
-            </div>
-            <h3 className="text-lg font-semibold mb-1">Arrasta e Larga o teu media aqui</h3>
-            <p className="text-sm text-slate-500 max-w-sm">
-              Suporta MP4, MOV, MXF (ProRes, XDCAM, DNxHD) até 50GB.
-            </p>
-            <Button variant="secondary" className="mt-6">Procurar ficheiro</Button>
+    <div className="space-y-6 max-w-4xl mx-auto pb-20">
+      {/* Zona de Drop Principal */}
+      <div
+        className={cn(
+          "relative group overflow-hidden rounded-2xl border-2 border-dashed transition-all cursor-pointer",
+          isDragging
+            ? "border-primary bg-primary/5 scale-[1.01]"
+            : "border-muted-foreground/20 bg-card hover:border-primary/50 hover:bg-accent/50"
+        )}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+        onClick={() => document.getElementById("multi-upload")?.click()}
+      >
+        <input
+          id="multi-upload"
+          type="file"
+          multiple
+          className="hidden"
+          accept="video/*,.mxf,.mov,.mp4"
+          onChange={(e) => addFiles(e.target.files)}
+        />
+        <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+          <div className="p-4 bg-primary/10 rounded-full mb-4 group-hover:scale-110 transition-transform">
+            <UploadCloud className="h-10 w-10 text-primary" />
           </div>
-        ) : (
-          <div className="p-6 space-y-5">
-            {/* Cabeçalho do ficheiro */}
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400 shrink-0">
-                <FileVideo className="h-6 w-6" />
+          <h2 className="text-xl font-bold mb-2">Carregamento Múltiplo Paralelo</h2>
+          <p className="text-muted-foreground max-w-sm mx-auto text-sm">
+            Arraste vários ficheiros de vídeo para aqui ou clique para selecionar.
+            Formatos suportados: MP4, MOV, MXF (ProRes, DNxHD, etc).
+          </p>
+        </div>
+      </div>
+
+      {files.length > 0 && (
+        <>
+          {/* Configurações Globais */}
+          <Card className="border-primary/20 shadow-lg overflow-hidden">
+            <div 
+              className="bg-primary/5 px-4 py-3 flex items-center justify-between cursor-pointer border-b"
+              onClick={() => setShowGlobalSettings(!showGlobalSettings)}
+            >
+              <div className="flex items-center gap-2">
+                <Settings className="h-4 w-4 text-primary" />
+                <span className="font-semibold text-sm uppercase tracking-wider">Configuração Global da Fila</span>
               </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="font-semibold truncate" title={file.name}>{file.name}</h4>
-                <p className="text-sm text-slate-500">{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
-              </div>
-              {status !== "uploading" && status !== "success" && (
-                <Button variant="ghost" size="icon" onClick={clearFile} className="text-slate-400 hover:text-red-500 shrink-0">
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
+              {showGlobalSettings ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </div>
-
-            {/* Opções de upload (só quando idle) */}
-            {status === "idle" && (
-              <div className="space-y-4 border-t pt-4">
-                {/* Perfil de Encoding */}
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-slate-500 w-36 shrink-0">Perfil de Encoding:</span>
-                  <Select value={selectedProfile} onValueChange={setSelectedProfile}>
-                    <SelectTrigger className="flex-1 h-9">
-                      <SelectValue placeholder="Selecione o perfil" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {profiles.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Destino de Armazenamento */}
-                <div className="space-y-2">
-                  <span className="text-sm text-slate-500">Destino de Armazenamento:</span>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setStorageStrategy("MINIO")}
-                      className={cn(
-                        "flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-left",
-                        storageStrategy === "MINIO"
-                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                          : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
-                      )}
-                    >
-                      <Cloud className={cn("h-5 w-5 shrink-0", storageStrategy === "MINIO" ? "text-blue-500" : "text-slate-400")} />
-                      <div>
-                        <p className="text-sm font-semibold">Nexora Cloud</p>
-                        <p className="text-xs text-slate-500">MinIO — Escalável e distribuído</p>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setStorageStrategy("LOCAL")}
-                      className={cn(
-                        "flex items-center gap-3 p-3 rounded-lg border-2 transition-all text-left",
-                        storageStrategy === "LOCAL"
-                          ? "border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300"
-                          : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
-                      )}
-                    >
-                      <HardDrive className={cn("h-5 w-5 shrink-0", storageStrategy === "LOCAL" ? "text-green-500" : "text-slate-400")} />
-                      <div>
-                        <p className="text-sm font-semibold">Disco Local</p>
-                        <p className="text-xs text-slate-500 truncate" title={settings?.localStoragePath}>
-                          {settings?.localStoragePath ?? "Caminho configurado"}
-                        </p>
-                      </div>
-                    </button>
+            {showGlobalSettings && (
+              <CardContent className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-xs uppercase text-muted-foreground font-bold">Perfil Padrão</Label>
+                    <Select value={globalProfile} onValueChange={setGlobalProfile}>
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="Selecione o perfil" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {profiles.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  {/* Info do caminho local para admins */}
-                  {storageStrategy === "LOCAL" && isAdmin && (
-                    <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 dark:bg-slate-800 rounded-md p-2">
-                      <FolderOpen className="h-3.5 w-3.5 shrink-0" />
-                      <span>Caminho: <code className="font-mono">{settings?.localStoragePath}/{"<assetId>"}/<em>{file.name}</em></code></span>
+                  <div className="space-y-2">
+                    <Label className="text-xs uppercase text-muted-foreground font-bold">Armazenamento</Label>
+                    <div className="flex bg-muted p-1 rounded-md h-10">
+                      <button
+                        onClick={() => setGlobalStorage("MINIO")}
+                        className={cn(
+                          "flex-1 flex items-center justify-center gap-2 rounded text-xs font-medium transition-all",
+                          globalStorage === "MINIO" ? "bg-background shadow-sm text-primary" : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <Cloud className="h-3.5 w-3.5" /> Cloud
+                      </button>
+                      <button
+                        onClick={() => setGlobalStorage("LOCAL")}
+                        className={cn(
+                          "flex-1 flex items-center justify-center gap-2 rounded text-xs font-medium transition-all",
+                          globalStorage === "LOCAL" ? "bg-background shadow-sm text-green-600" : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <HardDrive className="h-3.5 w-3.5" /> Local
+                      </button>
                     </div>
-                  )}
-                </div>
-
-                {/* Manter Original */}
-                <div className="flex items-center justify-between border-t pt-3">
-                  <div className="flex items-center gap-2">
-                    <Info className="h-4 w-4 text-slate-400" />
-                    <span className="text-sm text-slate-600 dark:text-slate-400">
-                      Manter ficheiro original após processamento
-                    </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setKeepOriginal(!keepOriginal)}
-                    className={cn(
-                      "flex items-center gap-1 text-sm font-medium transition-colors",
-                      keepOriginal ? "text-blue-600" : "text-slate-400"
-                    )}
-                  >
-                    {keepOriginal
-                      ? <ToggleRight className="h-6 w-6" />
-                      : <ToggleLeft className="h-6 w-6" />
-                    }
-                    {keepOriginal ? "Sim" : "Não"}
-                  </button>
-                </div>
 
-                {/* Botões de acção */}
-                <div className="flex justify-end gap-3 pt-1">
-                  <Button variant="outline" onClick={clearFile}>Cancelar</Button>
-                  <Button onClick={uploadFile} className="gap-2 bg-blue-600 hover:bg-blue-700">
-                    <UploadCloud className="h-4 w-4" />
-                    Iniciar Upload
+                  <div className="space-y-2">
+                    <Label className="text-xs uppercase text-muted-foreground font-bold">Retenção</Label>
+                    <div className="flex items-center justify-between h-10 px-3 bg-muted rounded-md">
+                      <span className="text-xs">Manter original</span>
+                      <button onClick={() => setGlobalKeep(!globalKeep)}>
+                        {globalKeep ? <ToggleRight className="h-6 w-6 text-primary" /> : <ToggleLeft className="h-6 w-6 text-muted-foreground" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end pt-2">
+                  <Button variant="outline" size="sm" onClick={applyGlobalToIdle} className="gap-2 border-primary/30 text-primary hover:bg-primary/5">
+                    Aplicar configurações a todos os pendentes
                   </Button>
                 </div>
-              </div>
+              </CardContent>
             )}
+          </Card>
 
-            {/* Barra de progresso */}
-            {(status === "uploading" || status === "success") && (
-              <div className="space-y-2 border-t pt-4">
-                <div className="flex justify-between text-sm font-medium">
-                  <span className="text-slate-600 dark:text-slate-400">
-                    {status === "success"
-                      ? `Concluído! → ${storageStrategy === "LOCAL" ? "Disco Local" : "Nexora Cloud"}`
-                      : "A enviar..."}
-                  </span>
-                  <span className={status === "success" ? "text-green-500" : "text-blue-600"}>
-                    {progress}%
-                  </span>
-                </div>
-                <Progress value={progress} className="h-2" />
+          {/* Lista de Ficheiros */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between px-2">
+              <h3 className="font-bold flex items-center gap-2">
+                Fila de Upload 
+                <Badge variant="secondary" className="rounded-full px-2 py-0">{files.length}</Badge>
+              </h3>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setFiles([])} 
+                  disabled={files.some(f => f.status === "uploading")}
+                >
+                  Limpar Tudo
+                </Button>
+                <Button 
+                  size="sm" 
+                  onClick={startAllUploads} 
+                  disabled={files.some(f => f.status === "uploading") || files.every(f => f.status === "success")}
+                  className="gap-2"
+                >
+                  <UploadCloud className="h-4 w-4" />
+                  Iniciar Todos
+                </Button>
               </div>
-            )}
+            </div>
 
-            {/* Erro */}
-            {status === "error" && (
-              <>
-                <div className="p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-md text-sm">
-                  {errorMessage || "Falha no upload. O ficheiro pode ser demasiado grande ou ocorreu um erro de rede."}
-                </div>
-                <div className="flex justify-end gap-3">
-                  <Button variant="outline" onClick={clearFile}>Voltar</Button>
-                  <Button onClick={uploadFile} variant="default">Tentar Novamente</Button>
-                </div>
-              </>
-            )}
+            {files.map((item) => (
+              <Card key={item.id} className={cn(
+                "transition-all border-l-4",
+                item.status === "success" ? "border-l-green-500" : 
+                item.status === "error" ? "border-l-red-500" : 
+                item.status === "uploading" ? "border-l-primary" : "border-l-muted"
+              )}>
+                <CardContent className="p-4">
+                  <div className="flex flex-col md:flex-row gap-4">
+                    {/* Info Ficheiro */}
+                    <div className="flex gap-3 min-w-0 flex-1">
+                      <div className={cn(
+                        "p-3 rounded-lg shrink-0 h-12 w-12 flex items-center justify-center",
+                        item.status === "success" ? "bg-green-100 text-green-600" : "bg-primary/10 text-primary"
+                      )}>
+                        {item.status === "uploading" ? <Loader2 className="h-6 w-6 animate-spin" /> : <FileVideo className="h-6 w-6" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold truncate text-sm" title={item.file.name}>{item.file.name}</span>
+                          {item.status === "success" && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">
+                          {(item.file.size / (1024 * 1024)).toFixed(2)} MB • {item.file.type || "video/mxf"}
+                        </p>
+                        
+                        {/* Barra de Progresso */}
+                        {(item.status === "uploading" || item.status === "success" || item.status === "error") && (
+                          <div className="mt-2 space-y-1">
+                            <Progress value={item.progress} className="h-1.5" />
+                            {item.error && <p className="text-[10px] text-red-500 font-medium">{item.error}</p>}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Config Individual (só se idle/error) */}
+                    {(item.status === "idle" || item.status === "error") ? (
+                      <div className="flex flex-wrap items-center gap-3 md:border-l md:pl-4">
+                        <Select 
+                          value={item.profileId} 
+                          onValueChange={(v) => updateFileConfig(item.id, { profileId: v })}
+                        >
+                          <SelectTrigger className="h-8 w-32 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {profiles.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+
+                        <div className="flex bg-muted rounded h-8 p-0.5">
+                          <button 
+                            onClick={() => updateFileConfig(item.id, { storageStrategy: "MINIO" })}
+                            className={cn("px-2 rounded text-[10px] font-bold", item.storageStrategy === "MINIO" ? "bg-background shadow-sm" : "text-muted-foreground")}
+                          >
+                            CLOUD
+                          </button>
+                          <button 
+                            onClick={() => updateFileConfig(item.id, { storageStrategy: "LOCAL" })}
+                            className={cn("px-2 rounded text-[10px] font-bold", item.storageStrategy === "LOCAL" ? "bg-background shadow-sm text-green-600" : "text-muted-foreground")}
+                          >
+                            LOCAL
+                          </button>
+                        </div>
+
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => removeFile(item.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-4 text-xs font-medium md:border-l md:pl-4 min-w-[200px]">
+                        <div className="flex flex-col">
+                          <span className="text-muted-foreground uppercase text-[9px]">Configuração</span>
+                          <span>{profiles.find(p => p.id === item.profileId)?.name}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-muted-foreground uppercase text-[9px]">Destino</span>
+                          <span className={item.storageStrategy === "LOCAL" ? "text-green-600" : "text-blue-500"}>
+                            {item.storageStrategy}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Badge({ children, variant, className }: { children: React.ReactNode, variant?: string, className?: string }) {
+  return (
+    <span className={cn(
+      "text-[10px] font-bold px-1.5 py-0.5 rounded",
+      variant === "secondary" ? "bg-secondary text-secondary-foreground" : "bg-primary text-primary-foreground",
+      className
+    )}>
+      {children}
+    </span>
   );
 }

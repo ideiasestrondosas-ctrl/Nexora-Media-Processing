@@ -1,96 +1,296 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { QCReportViewer, QCIssue } from "@/components/assets/QCReportViewer";
 import { JobTimeline, JobEvent } from "@/components/assets/JobTimeline";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Download, PlayCircle, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, PlayCircle, RefreshCw, Trash2, Loader2, AlertCircle, FileText } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
-// Mocks
-const mockIssues: QCIssue[] = [
-  { category: "VIDEO", severity: "WARNING", ruleId: "V_BITRATE_FLUCTUATION", message: "Bitrate drops below 5Mbps at 00:12:34", details: { time: 12.5, currentBitrate: 4.8 } },
-  { category: "AUDIO", severity: "ERROR", ruleId: "A_LOUDNESS_EBU_R128", message: "Integrated loudness is -21 LUFS (target -23 LUFS)" }
-];
+interface AssetDetail {
+  id: string;
+  filename: string;
+  status: string;
+  mimeType: string | null;
+  size: string | null;
+  sha256: string | null;
+  profile: string | null;
+  metadata: Record<string, any> | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
-const mockTimeline: JobEvent[] = [
-  { status: "COMPLETED", name: "Upload via Web", timestamp: new Date(Date.now() - 3600000).toISOString(), durationMs: 120000 },
-  { status: "COMPLETED", name: "Análise de Metadados", timestamp: new Date(Date.now() - 3400000).toISOString(), durationMs: 4500 },
-  { status: "COMPLETED", name: "Quality Control (Pré)", timestamp: new Date(Date.now() - 3300000).toISOString(), durationMs: 45000 },
-  { status: "FAILED", name: "Transcode Video (GPU)", timestamp: new Date(Date.now() - 3200000).toISOString(), durationMs: 15000, error: "NVIDIA NVENC Error: Out of memory" },
-  { status: "RUNNING", name: "Transcode Video (CPU Fallback)", timestamp: new Date(Date.now() - 3100000).toISOString() }
-];
+interface AssetJob {
+  id: string;
+  type: string;
+  status: string;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  error: string | null;
+}
+
+interface AssetQC {
+  id: string;
+  decision: string;
+  summary: string;
+  results: any[];
+  createdAt: string;
+}
+
+const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
+  PENDING:          { color: "bg-muted text-muted-foreground", label: "Pendente" },
+  INGESTING:        { color: "bg-blue-500/20 text-blue-600 dark:text-blue-400", label: "A ingerir" },
+  QC_RUNNING:       { color: "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400", label: "QC em curso" },
+  QC_PASSED:        { color: "bg-green-500/20 text-green-600 dark:text-green-400", label: "QC aprovado" },
+  QC_QUARANTINED:   { color: "bg-orange-500/20 text-orange-600 dark:text-orange-400", label: "Em quarentena" },
+  QC_REJECTED:      { color: "bg-red-500/20 text-red-600 dark:text-red-400", label: "QC rejeitado" },
+  TRANSCODING:      { color: "bg-blue-500/20 text-blue-600 dark:text-blue-400", label: "A transcodificar" },
+  AUDIO_PROCESSING: { color: "bg-purple-500/20 text-purple-600 dark:text-purple-400", label: "Processar áudio" },
+  DELIVERING:       { color: "bg-teal-500/20 text-teal-600 dark:text-teal-400", label: "A entregar" },
+  COMPLETED:        { color: "bg-green-600 text-white", label: "Concluído" },
+  FAILED:           { color: "bg-destructive text-destructive-foreground", label: "Falhado" },
+  DELETED:          { color: "bg-muted text-muted-foreground", label: "Apagado" },
+};
+
+function jobsToTimeline(jobs: AssetJob[]): JobEvent[] {
+  const typeLabel: Record<string, string> = {
+    INGEST:   "Análise de Metadados",
+    QC:       "Controlo de Qualidade",
+    TRANSCODE:"Transcodificação de Vídeo",
+    AUDIO:    "Processamento de Áudio",
+    PROXY:    "Geração de Proxy",
+    DELIVERY: "Entrega",
+  };
+  return jobs.map(j => ({
+    status: j.status === "COMPLETED" ? "COMPLETED"
+           : j.status === "FAILED"    ? "FAILED"
+           : "RUNNING",
+    name: typeLabel[j.type] ?? j.type,
+    timestamp: j.startedAt ?? j.createdAt,
+    durationMs: j.completedAt && j.startedAt
+      ? new Date(j.completedAt).getTime() - new Date(j.startedAt).getTime()
+      : undefined,
+    error: j.error ?? undefined,
+  }));
+}
+
+function qcToIssues(qc: AssetQC): QCIssue[] {
+  if (!Array.isArray(qc.results)) return [];
+  return qc.results
+    .filter((r: any) => r.passed === false)
+    .map((r: any) => ({
+      category: r.category ?? "GENERAL",
+      severity: r.severity ?? "WARNING",
+      ruleId: r.ruleId ?? r.rule ?? "UNKNOWN",
+      message: r.message ?? r.description ?? "Falha sem descrição",
+      details: r.details ?? undefined,
+    }));
+}
 
 export default function AssetDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
 
+  const [asset, setAsset] = useState<AssetDetail | null>(null);
+  const [jobs, setJobs] = useState<AssetJob[]>([]);
+  const [qcReport, setQcReport] = useState<AssetQC | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const assetData = await api.get<AssetDetail>(`/assets/${id}`);
+      setAsset(assetData);
+
+      try {
+        const jobsData = await api.get<{ jobs: AssetJob[] } | AssetJob[]>(`/assets/${id}/jobs`);
+        setJobs(Array.isArray(jobsData) ? jobsData : (jobsData as any)?.jobs ?? []);
+      } catch {
+        setJobs([]);
+      }
+
+      try {
+        const qcData = await api.get<{ reports: AssetQC[] } | AssetQC>(`/assets/${id}/qc`);
+        const report = Array.isArray((qcData as any)?.reports)
+          ? (qcData as any).reports[0]
+          : qcData;
+        setQcReport(report ?? null);
+      } catch {
+        setQcReport(null);
+      }
+    } catch (err: any) {
+      setError(err?.message ?? "Erro ao carregar asset.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void fetchData(); }, [id]);
+
   const handleDelete = async () => {
     if (confirm("Tem a certeza que deseja apagar este asset?")) {
       try {
         await api.delete(`/assets/${id}`);
         router.push("/assets");
-      } catch (err) {
+      } catch {
         alert("Erro ao apagar asset.");
       }
     }
   };
 
-  return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" asChild>
-          <Link href="/assets"><ArrowLeft className="h-4 w-4" /></Link>
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 text-muted-foreground">
+        <Loader2 className="h-10 w-10 animate-spin mb-4" />
+        <p>A processar informações do asset...</p>
+      </div>
+    );
+  }
+
+  if (error || !asset) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 text-destructive">
+        <AlertCircle className="h-10 w-10 mb-4" />
+        <p className="font-bold">{error ?? "Asset não encontrado."}</p>
+        <Button variant="outline" className="mt-4" asChild>
+          <Link href="/assets">Voltar à Biblioteca</Link>
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight">promo_final_v2.mp4</h1>
-            <Badge className="bg-blue-500">A PROCESSAR</Badge>
+      </div>
+    );
+  }
+
+  const statusConfig = STATUS_CONFIG[asset.status] ?? STATUS_CONFIG.PENDING;
+  const timeline = jobsToTimeline(jobs);
+  const qcIssues = qcReport ? qcToIssues(qcReport) : [];
+  
+  // Garantir que mostramos o relatório se existir, independentemente da decisão
+  const qcStatus = qcReport ? (
+    qcReport.decision === "PASS" ? "PASS" : 
+    qcReport.decision === "REJECT" ? "REJECT" : "QUARANTINE"
+  ) : null;
+
+  const meta = asset.metadata ?? {};
+  const videoStream = meta.streams?.find((s: any) => s.codec_type === "video") ?? {};
+  const audioStream = meta.streams?.find((s: any) => s.codec_type === "audio") ?? {};
+  const formatInfo = meta.format ?? {};
+
+  const sizeGB = asset.size ? (Number(asset.size) / (1024 * 1024 * 1024)).toFixed(2) : null;
+  const sizeMB = asset.size ? (Number(asset.size) / (1024 * 1024)).toFixed(1) : null;
+
+  return (
+    <div className="space-y-6 max-w-6xl mx-auto pb-10">
+      {/* Cabeçalho */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="icon" asChild>
+            <Link href="/assets"><ArrowLeft className="h-4 w-4" /></Link>
+          </Button>
+          <div className="min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold tracking-tight truncate">{asset.filename}</h1>
+              <Badge className={cn("font-bold", statusConfig.color)}>{statusConfig.label}</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground font-mono mt-1">ID: {asset.id}</p>
           </div>
-          <p className="text-sm text-slate-500 font-mono mt-1">ID: {id}</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => window.location.reload()}><RefreshCw className="h-4 w-4" /> Recarregar</Button>
-          <Button variant="destructive" className="gap-2" onClick={handleDelete}><Trash2 className="h-4 w-4" /> Apagar Asset</Button>
-          <Button className="gap-2" disabled><Download className="h-4 w-4" /> Download Proxy</Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" className="gap-2" onClick={fetchData}>
+            <RefreshCw className="h-3.5 w-3.5" /> Recarregar
+          </Button>
+          <Button variant="outline" size="sm" className="gap-2 text-destructive hover:bg-destructive/10" onClick={handleDelete}>
+            <Trash2 className="h-3.5 w-3.5" /> Apagar
+          </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Coluna principal */}
         <div className="lg:col-span-2 space-y-6">
-          <Card className="bg-slate-900 text-slate-100 overflow-hidden border-slate-800">
-            <div className="aspect-video bg-black flex flex-col items-center justify-center text-slate-500 relative">
-              <PlayCircle className="h-16 w-16 mb-4 opacity-50" />
-              <p>O proxy de vídeo ainda não está disponível.</p>
-              <div className="absolute top-4 left-4">
-                <Badge variant="outline" className="bg-black/50 text-white border-white/20">Sem Preview</Badge>
+          {/* Player placeholder */}
+          <Card className="bg-black text-white overflow-hidden border-border/50 shadow-2xl">
+            <div className="aspect-video flex flex-col items-center justify-center text-muted-foreground/40 relative">
+              <PlayCircle className="h-20 w-20 mb-4 opacity-20" />
+              <p className="text-sm font-medium tracking-wide uppercase">Preview indisponível</p>
+              <div className="absolute bottom-4 right-4">
+                <Badge variant="outline" className="bg-white/5 text-white/50 border-white/10 backdrop-blur-sm">
+                  {asset.mimeType ?? "Video"}
+                </Badge>
               </div>
             </div>
           </Card>
-          
-          <QCReportViewer issues={mockIssues} overallStatus="QUARANTINE" />
+
+          {/* QC Report Section */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 px-2">
+              <FileText className="h-5 w-5 text-primary" />
+              <h2 className="font-bold text-lg">Relatório de Qualidade (QC)</h2>
+            </div>
+            
+            {qcReport ? (
+              <QCReportViewer issues={qcIssues} overallStatus={qcStatus as any} />
+            ) : (
+              <Card className="border-dashed">
+                <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <div className="p-3 bg-muted rounded-full mb-3">
+                    <Loader2 className="h-6 w-6 animate-spin opacity-30" />
+                  </div>
+                  <p className="text-sm">A aguardar conclusão do processo de QC...</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
 
+        {/* Coluna lateral */}
         <div className="space-y-6">
+          {/* Metadados */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-md">Metadados Originais</CardTitle>
+            <CardHeader className="pb-3 border-b">
+              <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Metadados Técnicos</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="flex justify-between border-b pb-2"><span className="text-slate-500">Formato</span><span className="font-mono">QuickTime / MOV</span></div>
-              <div className="flex justify-between border-b pb-2"><span className="text-slate-500">Codec de Vídeo</span><span className="font-mono">Apple ProRes 422</span></div>
-              <div className="flex justify-between border-b pb-2"><span className="text-slate-500">Resolução</span><span className="font-mono">1920x1080</span></div>
-              <div className="flex justify-between border-b pb-2"><span className="text-slate-500">Framerate</span><span className="font-mono">25.000 fps</span></div>
-              <div className="flex justify-between border-b pb-2"><span className="text-slate-500">Canais de Áudio</span><span className="font-mono">2 (Stereo)</span></div>
-              <div className="flex justify-between pb-1"><span className="text-slate-500">Tamanho</span><span className="font-mono">4.2 GB</span></div>
+            <CardContent className="pt-4 space-y-3 text-sm">
+              {[
+                { label: "Ficheiro", value: asset.filename },
+                { label: "Formato", value: formatInfo.format_long_name ?? formatInfo.format_name ?? asset.mimeType ?? "—" },
+                { label: "Codec Vídeo", value: videoStream.codec_name?.toUpperCase() ?? "—" },
+                { label: "Resolução", value: videoStream.width ? `${videoStream.width}×${videoStream.height}` : "—" },
+                { label: "Framerate", value: videoStream.avg_frame_rate ? `${videoStream.avg_frame_rate} fps` : "—" },
+                { label: "Codec Áudio", value: audioStream.codec_name?.toUpperCase() ?? "—" },
+                { label: "Duração", value: formatInfo.duration ? `${Math.round(Number(formatInfo.duration))}s` : "—" },
+                { label: "Tamanho", value: sizeGB ? `${sizeGB} GB` : sizeMB ? `${sizeMB} MB` : "—" },
+                { label: "Perfil", value: asset.profile ?? "Padrão" },
+              ].map(row => (
+                <div key={row.label} className="flex justify-between gap-4 pb-2 border-b last:border-0 last:pb-0 border-border/50">
+                  <span className="text-muted-foreground font-medium">{row.label}</span>
+                  <span className="font-mono text-right truncate max-w-[180px]" title={row.value}>
+                    {row.value}
+                  </span>
+                </div>
+              ))}
             </CardContent>
           </Card>
 
-          <JobTimeline events={mockTimeline} />
+          {/* Timeline de jobs */}
+          <div className="space-y-4">
+            <div className="px-2">
+              <h2 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">Histórico de Processamento</h2>
+            </div>
+            {timeline.length > 0 ? (
+              <JobTimeline events={timeline} />
+            ) : (
+              <p className="text-xs text-muted-foreground px-2 italic">Nenhuma atividade registada.</p>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/store/ui";
-import { LayoutDashboard, Film, UploadCloud, ListVideo, Settings, Users, Menu } from "lucide-react";
+import { LayoutDashboard, Film, UploadCloud, ListVideo, Settings, Users, Menu, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
@@ -14,6 +14,7 @@ const navItems = [
   { href: "/queue", label: "Filas (Queue)", icon: ListVideo },
   { href: "/profiles", label: "Perfis de Encoding", icon: Settings },
   { href: "/users", label: "Utilizadores", icon: Users },
+  { href: "/settings", label: "Definições", icon: Wrench },
 ];
 
 export function Sidebar() {
@@ -23,17 +24,17 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 flex flex-col",
+        "bg-card border-r transition-all duration-300 flex flex-col",
         sidebarOpen ? "w-64" : "w-16"
       )}
     >
-      <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 dark:border-slate-800">
+      <div className="h-16 flex items-center justify-between px-4 border-b">
         {sidebarOpen && (
-          <span className="font-bold text-xl text-blue-600 dark:text-blue-400 truncate">
+          <span className="font-bold text-xl text-primary truncate">
             Nexora
           </span>
         )}
-        <Button variant="ghost" size="icon" onClick={toggleSidebar} className="shrink-0">
+        <Button variant="ghost" size="icon" onClick={toggleSidebar} className="shrink-0 text-muted-foreground hover:text-foreground">
           <Menu className="h-5 w-5" />
         </Button>
       </div>
@@ -49,13 +50,13 @@ export function Sidebar() {
                   className={cn(
                     "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
                     isActive
-                      ? "bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
-                      : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800/50",
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     !sidebarOpen && "justify-center px-0"
                   )}
                   title={!sidebarOpen ? item.label : undefined}
                 >
-                  <item.icon className={cn("h-5 w-5 shrink-0", isActive ? "text-blue-600 dark:text-blue-400" : "")} />
+                  <item.icon className={cn("h-5 w-5 shrink-0", isActive ? "text-primary" : "")} />
                   {sidebarOpen && <span className="truncate">{item.label}</span>}
                 </Link>
               </li>

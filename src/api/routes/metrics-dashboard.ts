@@ -51,11 +51,10 @@ export async function metricsDashboardRoutes(fastify: FastifyInstance): Promise<
     const qcReports = await prisma.qCReport.findMany({
       where: {
         createdAt: { gte: twentyFourHoursAgo },
-        metrics: { not: undefined }
       },
       select: {
         createdAt: true,
-        metrics: true
+        results: true,
       }
     });
 
@@ -76,15 +75,16 @@ export async function metricsDashboardRoutes(fastify: FastifyInstance): Promise<
       const bucketHour = Math.floor(reportHour / 4) * 4;
       const label = `${bucketHour.toString().padStart(2, '0')}:00`;
       
-      const metrics = report.metrics as any;
-      if (metrics && metrics.vmaf) {
-        if (hourlyQualityMap.has(label)) {
-          const current = hourlyQualityMap.get(label)!;
-          hourlyQualityMap.set(label, {
-            totalVmaf: current.totalVmaf + metrics.vmaf,
-            count: current.count + 1
-          });
-        }
+      // results é um array de QCResult; procurar vmaf score se existir
+      const results = report.results as any[];
+      const vmafResult = Array.isArray(results) ? results.find((r: any) => r.vmaf ?? r.vmafScore) : null;
+      const vmafValue = vmafResult ? (vmafResult.vmaf ?? vmafResult.vmafScore) : null;
+      if (vmafValue && hourlyQualityMap.has(label)) {
+        const current = hourlyQualityMap.get(label)!;
+        hourlyQualityMap.set(label, {
+          totalVmaf: current.totalVmaf + Number(vmafValue),
+          count: current.count + 1
+        });
       }
     });
 
@@ -99,7 +99,7 @@ export async function metricsDashboardRoutes(fastify: FastifyInstance): Promise<
 
     // 3. System Stats Rápidas (Agregadas)
     const pendingJobs = await prisma.job.count({ where: { status: 'PENDING' } });
-    const activeJobs = await prisma.job.count({ where: { status: 'PROCESSING' } });
+    const activeJobs = await prisma.job.count({ where: { status: 'ACTIVE' } });
     const failedJobsLast24h = await prisma.job.count({
       where: {
         status: 'FAILED',

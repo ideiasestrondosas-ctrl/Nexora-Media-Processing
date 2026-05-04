@@ -16,6 +16,7 @@ import { authRoutes } from './auth-routes';
 import { usersRoutes } from './users';
 import { metricsDashboardRoutes } from './metrics-dashboard';
 import { settingsRoutes } from './settings';
+import { resetRoutes } from './reset';
 
 /**
  * Regista todas as rotas da API no Fastify.
@@ -42,4 +43,5 @@ export async function registerRoutes(fastify: FastifyInstance): Promise<void> {
   await fastify.register(usersRoutes,         { prefix });
   await fastify.register(metricsDashboardRoutes, { prefix });
   await fastify.register(settingsRoutes,          { prefix });
+  await fastify.register(resetRoutes,            { prefix });
 }

@@ -8,9 +8,51 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Check, Settings2, Video, Loader2, AlertCircle, Plus, Pencil, Trash2, X } from "lucide-react";
-import { useQuery as useQueryRQ } from "@tanstack/react-query";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Check, Settings2, Video, Loader2, AlertCircle, Plus, Pencil, Trash2, X, AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api";
+
+// ── Opções válidas ────────────────────────────────────────────────
+
+const CONTAINERS = ["mp4", "mov", "mkv", "mxf", "ts", "avi"];
+
+const VIDEO_CODECS = ["h264", "h265", "hevc", "prores", "prores_hq", "dnxhd", "vp9", "av1"];
+
+const AUDIO_CODECS = ["aac", "ac3", "eac3", "pcm_s16le", "pcm_s24le", "opus", "flac", "mp3"];
+
+// Compatibilidade container → codecs permitidos
+const CONTAINER_VIDEO_COMPAT: Record<string, string[]> = {
+  mp4: ["h264", "h265", "hevc"],
+  mov: ["h264", "h265", "hevc", "prores", "prores_hq"],
+  mkv: ["h264", "h265", "hevc", "vp9", "av1", "dnxhd"],
+  mxf: ["prores", "prores_hq", "dnxhd"],
+  ts:  ["h264", "h265", "hevc"],
+  avi: ["h264"],
+};
+
+const CONTAINER_AUDIO_COMPAT: Record<string, string[]> = {
+  mp4: ["aac", "ac3", "eac3", "mp3"],
+  mov: ["aac", "pcm_s16le", "pcm_s24le", "ac3"],
+  mkv: ["aac", "ac3", "eac3", "flac", "opus", "mp3"],
+  mxf: ["pcm_s16le", "pcm_s24le"],
+  ts:  ["aac", "ac3", "eac3"],
+  avi: ["aac", "mp3", "ac3"],
+};
+
+function getCompatWarning(container: string, videoCodec: string, audioCodec: string): string | null {
+  const validVideo = CONTAINER_VIDEO_COMPAT[container] ?? [];
+  const validAudio = CONTAINER_AUDIO_COMPAT[container] ?? [];
+  const issues: string[] = [];
+  if (videoCodec && !validVideo.includes(videoCodec)) {
+    issues.push(`Codec de vídeo "${videoCodec}" não é compatível com container "${container}"`);
+  }
+  if (audioCodec && !validAudio.includes(audioCodec)) {
+    issues.push(`Codec de áudio "${audioCodec}" não é compatível com container "${container}"`);
+  }
+  return issues.length > 0 ? issues.join(". ") : null;
+}
+
+// ── Tipos ─────────────────────────────────────────────────────────
 
 interface Profile {
   id: string;
@@ -43,6 +85,8 @@ const emptyForm: ProfileFormData = {
   isDefault: false,
 };
 
+// ── Modal de criação/edição ───────────────────────────────────────
+
 function ProfileModal({
   profile,
   onClose,
@@ -68,8 +112,22 @@ function ProfileModal({
       : emptyForm
   );
 
+  const warning = getCompatWarning(form.container, form.videoCodec, form.audioCodec);
+
+  const handleContainerChange = (container: string) => {
+    const validVideo = CONTAINER_VIDEO_COMPAT[container] ?? [];
+    const validAudio = CONTAINER_AUDIO_COMPAT[container] ?? [];
+    setForm(prev => ({
+      ...prev,
+      container,
+      videoCodec: validVideo.includes(prev.videoCodec) ? prev.videoCodec : (validVideo[0] ?? "h264"),
+      audioCodec: validAudio.includes(prev.audioCodec) ? prev.audioCodec : (validAudio[0] ?? "aac"),
+    }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (warning) return;
     onSave({
       name: form.name,
       description: form.description || undefined,
@@ -81,20 +139,24 @@ function ProfileModal({
     });
   };
 
+  const validVideoCodecs = CONTAINER_VIDEO_COMPAT[form.container] ?? VIDEO_CODECS;
+  const validAudioCodecs = CONTAINER_AUDIO_COMPAT[form.container] ?? AUDIO_CODECS;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg mx-4 border border-slate-200 dark:border-slate-700">
-        <div className="flex items-center justify-between p-6 border-b dark:border-slate-700">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-card rounded-xl shadow-2xl w-full max-w-lg border border-border">
+        <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-lg font-semibold">
             {profile ? "Editar Perfil" : "Novo Perfil de Encoding"}
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
             <X className="h-5 w-5" />
           </button>
         </div>
+
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 space-y-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2 space-y-1.5">
               <Label>Nome do Perfil *</Label>
               <Input
                 value={form.name}
@@ -103,7 +165,8 @@ function ProfileModal({
                 required
               />
             </div>
-            <div className="col-span-2 space-y-1">
+
+            <div className="sm:col-span-2 space-y-1.5">
               <Label>Descrição</Label>
               <Input
                 value={form.description}
@@ -111,34 +174,24 @@ function ProfileModal({
                 placeholder="Descrição do perfil"
               />
             </div>
-            <div className="space-y-1">
+
+            <div className="space-y-1.5">
               <Label>Container *</Label>
-              <Input
-                value={form.container}
-                onChange={(e) => setForm({ ...form, container: e.target.value })}
-                placeholder="mp4"
-                required
-              />
+              <Select value={form.container} onValueChange={handleContainerChange}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CONTAINERS.map(c => (
+                    <SelectItem key={c} value={c}>
+                      <span className="font-mono uppercase">{c}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="space-y-1">
-              <Label>Codec de Vídeo *</Label>
-              <Input
-                value={form.videoCodec}
-                onChange={(e) => setForm({ ...form, videoCodec: e.target.value })}
-                placeholder="h264"
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Codec de Áudio *</Label>
-              <Input
-                value={form.audioCodec}
-                onChange={(e) => setForm({ ...form, audioCodec: e.target.value })}
-                placeholder="aac"
-                required
-              />
-            </div>
-            <div className="space-y-1">
+
+            <div className="space-y-1.5">
               <Label>Bitrate de Vídeo (Kbps) *</Label>
               <Input
                 type="number"
@@ -149,13 +202,56 @@ function ProfileModal({
                 required
               />
             </div>
-            <div className="col-span-2 flex items-center gap-2">
+
+            <div className="space-y-1.5">
+              <Label>Codec de Vídeo *</Label>
+              <Select value={form.videoCodec} onValueChange={(v) => setForm({ ...form, videoCodec: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {validVideoCodecs.map(c => (
+                    <SelectItem key={c} value={c}>
+                      <span className="font-mono">{c}</span>
+                    </SelectItem>
+                  ))}
+                  {VIDEO_CODECS.filter(c => !validVideoCodecs.includes(c)).map(c => (
+                    <SelectItem key={c} value={c} disabled>
+                      <span className="font-mono text-muted-foreground">{c} ✗</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Codec de Áudio *</Label>
+              <Select value={form.audioCodec} onValueChange={(v) => setForm({ ...form, audioCodec: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {validAudioCodecs.map(c => (
+                    <SelectItem key={c} value={c}>
+                      <span className="font-mono">{c}</span>
+                    </SelectItem>
+                  ))}
+                  {AUDIO_CODECS.filter(c => !validAudioCodecs.includes(c)).map(c => (
+                    <SelectItem key={c} value={c} disabled>
+                      <span className="font-mono text-muted-foreground">{c} ✗</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="sm:col-span-2 flex items-center gap-2 pt-1">
               <input
                 id="isDefault"
                 type="checkbox"
                 checked={form.isDefault}
                 onChange={(e) => setForm({ ...form, isDefault: e.target.checked })}
-                className="h-4 w-4 rounded border-slate-300"
+                className="h-4 w-4 rounded border-input accent-primary"
               />
               <Label htmlFor="isDefault" className="cursor-pointer">
                 Perfil por defeito
@@ -163,13 +259,20 @@ function ProfileModal({
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
+          {warning && (
+            <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <p className="text-sm">{warning}</p>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4 border-t mt-4">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading || !!warning}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {profile ? "Guardar Alterações" : "Criar Perfil"}
+              {warning ? "Corrija a incompatibilidade" : profile ? "Guardar Alterações" : "Criar Perfil"}
             </Button>
           </div>
         </form>
@@ -177,6 +280,8 @@ function ProfileModal({
     </div>
   );
 }
+
+// ── Página principal ──────────────────────────────────────────────
 
 export default function ProfilesPage() {
   const queryClient = useQueryClient();
@@ -190,26 +295,17 @@ export default function ProfilesPage() {
 
   const createMutation = useMutation({
     mutationFn: (body: any) => api.post("/profiles", body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["profiles"] });
-      setModalProfile(null);
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["profiles"] }); setModalProfile(null); },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, body }: { id: string; body: any }) => api.put(`/profiles/${id}`, body),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["profiles"] });
-      setModalProfile(null);
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["profiles"] }); setModalProfile(null); },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/profiles/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["profiles"] });
-      setDeleteConfirm(null);
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["profiles"] }); setDeleteConfirm(null); },
   });
 
   const handleSave = (formData: any) => {
@@ -220,11 +316,9 @@ export default function ProfilesPage() {
     }
   };
 
-  const isMutating = createMutation.isPending || updateMutation.isPending;
-
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+      <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
         <Loader2 className="h-8 w-8 animate-spin mb-4" />
         <p>A carregar perfis de encoding...</p>
       </div>
@@ -233,9 +327,9 @@ export default function ProfilesPage() {
 
   if (isError || !data) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-red-500">
+      <div className="flex flex-col items-center justify-center h-64 text-destructive">
         <AlertCircle className="h-8 w-8 mb-4" />
-        <p>Erro ao carregar perfis. Verifique a ligação ao servidor.</p>
+        <p>Erro ao carregar perfis.</p>
       </div>
     );
   }
@@ -244,33 +338,27 @@ export default function ProfilesPage() {
 
   return (
     <>
-      {/* Modal criar/editar */}
       {modalProfile !== null && (
         <ProfileModal
           profile={modalProfile === "new" ? null : modalProfile}
           onClose={() => setModalProfile(null)}
           onSave={handleSave}
-          isLoading={isMutating}
+          isLoading={createMutation.isPending || updateMutation.isPending}
         />
       )}
 
-      {/* Modal confirmação apagar */}
       {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-sm mx-4 border border-slate-200 dark:border-slate-700 p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-card rounded-xl shadow-2xl w-full max-w-sm border border-border p-6 space-y-4">
             <h3 className="text-lg font-semibold">Apagar Perfil</h3>
-            <p className="text-slate-500 text-sm">
-              Tem a certeza que quer apagar <strong>{deleteConfirm.name}</strong>? Esta acção é irreversível.
+            <p className="text-muted-foreground text-sm">
+              Tem a certeza que quer apagar <strong>{deleteConfirm.name}</strong>?
             </p>
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
                 Cancelar
               </Button>
-              <Button
-                variant="destructive"
-                disabled={deleteMutation.isPending}
-                onClick={() => deleteMutation.mutate(deleteConfirm.id)}
-              >
+              <Button variant="destructive" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(deleteConfirm.id)}>
                 {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Apagar
               </Button>
@@ -279,17 +367,15 @@ export default function ProfilesPage() {
         </div>
       )}
 
-      <div className="space-y-6 max-w-5xl mx-auto">
+      <div className="space-y-6 max-w-5xl mx-auto pb-10">
         <div className="flex items-center justify-between border-b pb-4">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400">
+            <div className="p-3 bg-primary/10 rounded-lg text-primary">
               <Settings2 className="h-6 w-6" />
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Perfis de Encoding</h1>
-              <p className="text-slate-500 text-sm">
-                Configure os parâmetros técnicos para transcodificação de ficheiros.
-              </p>
+              <p className="text-muted-foreground text-sm">Configure os parâmetros técnicos de transcodificação.</p>
             </div>
           </div>
           <Button onClick={() => setModalProfile("new")} className="gap-2">
@@ -300,45 +386,27 @@ export default function ProfilesPage() {
 
         <div className="grid gap-6">
           {profiles.length === 0 && (
-            <div className="text-center py-16 text-slate-400">
-              <Settings2 className="h-10 w-10 mx-auto mb-3 opacity-40" />
-              <p>Nenhum perfil de encoding configurado.</p>
-              <Button variant="outline" className="mt-4" onClick={() => setModalProfile("new")}>
-                Criar primeiro perfil
-              </Button>
+            <div className="text-center py-16 text-muted-foreground border-2 border-dashed rounded-xl">
+              <Settings2 className="h-10 w-10 mx-auto mb-3 opacity-20" />
+              <p>Nenhum perfil configurado.</p>
             </div>
           )}
           {profiles.map((profile) => (
             <Card key={profile.id}>
-              <CardHeader className="flex flex-row items-start justify-between bg-slate-50/50 dark:bg-slate-900/20 border-b">
+              <CardHeader className="flex flex-row items-start justify-between border-b bg-muted/20 rounded-t-xl">
                 <div>
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <Video className="h-5 w-5 text-slate-400" />
+                    <Video className="h-5 w-5 text-muted-foreground" />
                     {profile.name}
-                    {profile.isDefault && (
-                      <Badge className="ml-2 bg-blue-500">Por Defeito</Badge>
-                    )}
+                    {profile.isDefault && <Badge className="ml-2">Padrão</Badge>}
                   </CardTitle>
                   <CardDescription className="mt-1">{profile.description}</CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setModalProfile(profile)}
-                    className="text-slate-500 hover:text-blue-600"
-                    title="Editar perfil"
-                  >
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => setModalProfile(profile)} title="Editar">
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setDeleteConfirm(profile)}
-                    className="text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-                    title="Apagar perfil"
-                    disabled={profile.isDefault}
-                  >
+                  <Button variant="ghost" size="icon" onClick={() => setDeleteConfirm(profile)} disabled={profile.isDefault} className="text-destructive hover:bg-destructive/10">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -349,42 +417,24 @@ export default function ProfilesPage() {
                     <TableRow>
                       <TableHead className="w-[200px]">Parâmetro</TableHead>
                       <TableHead>Valor</TableHead>
-                      <TableHead className="w-[100px] text-center">Activo</TableHead>
+                      <TableHead className="w-[100px] text-center">Estado</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    <TableRow>
-                      <TableCell className="font-medium">Container</TableCell>
-                      <TableCell className="font-mono text-sm uppercase">{profile.container}</TableCell>
-                      <TableCell className="text-center">
-                        <Check className="h-4 w-4 text-green-500 mx-auto" />
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="font-medium">Codec de Vídeo</TableCell>
-                      <TableCell className="font-mono text-sm uppercase">{profile.videoCodec}</TableCell>
-                      <TableCell className="text-center">
-                        <Check className="h-4 w-4 text-green-500 mx-auto" />
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="font-medium">Video Bitrate</TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {profile.settings?.bitrateKbps
-                          ? `${profile.settings.bitrateKbps} Kbps`
-                          : "Auto"}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Check className="h-4 w-4 text-green-500 mx-auto" />
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="font-medium">Codec de Áudio</TableCell>
-                      <TableCell className="font-mono text-sm uppercase">{profile.audioCodec}</TableCell>
-                      <TableCell className="text-center">
-                        <Check className="h-4 w-4 text-green-500 mx-auto" />
-                      </TableCell>
-                    </TableRow>
+                    {[
+                      { label: "Container", value: profile.container.toUpperCase() },
+                      { label: "Codec de Vídeo", value: profile.videoCodec.toUpperCase() },
+                      { label: "Bitrate", value: profile.settings?.bitrateKbps ? `${profile.settings.bitrateKbps} Kbps` : "Auto" },
+                      { label: "Codec de Áudio", value: profile.audioCodec.toUpperCase() },
+                    ].map(row => (
+                      <TableRow key={row.label}>
+                        <TableCell className="font-medium">{row.label}</TableCell>
+                        <TableCell className="font-mono text-sm">{row.value}</TableCell>
+                        <TableCell className="text-center">
+                          <Check className="h-4 w-4 text-green-500 mx-auto" />
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </CardContent>

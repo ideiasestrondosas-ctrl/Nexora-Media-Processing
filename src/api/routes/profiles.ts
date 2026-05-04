@@ -13,7 +13,7 @@ const profileSchema = z.object({
   container: z.string().min(1),
   videoCodec: z.string().min(1),
   audioCodec: z.string().min(1),
-  settings: z.any(),
+  settings: z.record(z.any()).default({}),
   isDefault: z.boolean().default(false)
 });
 
