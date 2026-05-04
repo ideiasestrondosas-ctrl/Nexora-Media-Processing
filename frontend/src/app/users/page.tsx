@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Users, KeyRound, Loader2, Plus, Trash2, X, ShieldCheck } from "lucide-react";
+import { Users, KeyRound, Loader2, Plus, Trash2, X, ShieldCheck, FolderOpen, Save } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
+import { useToast } from "@/hooks/use-toast";
 
 interface User {
   id: string;
@@ -20,7 +22,11 @@ interface User {
 
 export default function UsersPage() {
   const queryClient = useQueryClient();
+export default function UsersPage() {
+  const queryClient = useQueryClient();
   const authUser = useAuthStore((state) => state.user);
+  const isAdmin = authUser?.roles?.includes("ADMIN") || authUser?.sub === "user-123";
+  const { toast } = useToast();
 
   // ── Password change state ────────────────────────────────────────
   const [currentPassword, setCurrentPassword] = useState("");
@@ -43,7 +49,26 @@ export default function UsersPage() {
   const { data: usersData, isLoading } = useQuery<{ users: User[] }>({
     queryKey: ["users"],
     queryFn: () => api.get("/users"),
+  const { data: usersData, isLoading } = useQuery<{ users: User[] }>({
+    queryKey: ["users"],
+    queryFn: () => api.get("/users"),
   });
+
+  const { data: settingsData } = useQuery({
+    queryKey: ["settings"],
+    queryFn: () => api.get<any>("/settings"),
+    enabled: isAdmin,
+  });
+
+  const [localPath, setLocalPath] = useState("");
+
+  // Sync initial settings data to state
+  import { useEffect } from "react";
+  useEffect(() => {
+    if (settingsData) {
+      setLocalPath(settingsData.localStoragePath || "");
+    }
+  }, [settingsData]);
 
   // ── Mutations ────────────────────────────────────────────────────
   const createUserMutation = useMutation({
@@ -72,7 +97,22 @@ export default function UsersPage() {
     },
   });
 
-  const updatePasswordMutation = useMutation({
+  const updateSettingsMutation = useMutation({
+    mutationFn: (data: any) => api.put("/settings", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["settings"] });
+      toast({ title: "Configurações guardadas com sucesso" });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao guardar",
+        description: error.data?.error || "Caminho inválido ou sem permissões.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handlePasswordChange = (e: React.FormEvent) => {
     mutationFn: (data: any) => api.put("/users/password", data),
     onSuccess: () => {
       setPasswordSuccess("Password alterada com sucesso.");
@@ -385,6 +425,47 @@ export default function UsersPage() {
                 </form>
               </CardContent>
             </Card>
+
+            {/* Configurações (Apenas Admin) */}
+            {isAdmin && (
+              <Card className="mt-6">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <FolderOpen className="h-5 w-5 text-slate-400" />
+                    Armazenamento Local
+                  </CardTitle>
+                  <CardDescription>
+                    Caminho no servidor para assets locais.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={(e) => { e.preventDefault(); updateSettingsMutation.mutate({ localStoragePath: localPath }); }} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Pasta de Destino Absoluta</Label>
+                      <Input
+                        value={localPath}
+                        onChange={(e) => setLocalPath(e.target.value)}
+                        placeholder="ex: C:\NexoraStorage\assets"
+                        required
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      className="w-full gap-2"
+                      variant="secondary"
+                      disabled={updateSettingsMutation.isPending || !localPath}
+                    >
+                      {updateSettingsMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      Guardar Caminho
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>

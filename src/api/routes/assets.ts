@@ -1,7 +1,7 @@
 // Nexora Media Processing — API Routes: Assets
 // Ficheiro: src/api/routes/assets.ts
 //
-// CRUD completo de assets com upload multipart para MinIO.
+// CRUD completo de assets com upload multipart para MinIO ou armazenamento local.
 // Todos os inputs validados com Zod.
 // Soft delete (campo deletedAt) — ADR-007.
 
@@ -28,6 +28,7 @@ import {
 import { fileValidator } from '../../security/file-validator';
 import { pathSanitizer } from '../../security/path-sanitizer';
 import { auditSecurityEvent } from '../middleware/audit';
+import { readConfig } from './settings';
 
 // ── Schemas de validação ─────────────────────────────────────────
 
@@ -97,6 +98,11 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
     },
   }, async (request: FastifyRequest, reply: FastifyReply) => {
 
+    // ── Parâmetros de estratégia de armazenamento ────────────────
+    const query = request.query as Record<string, string>;
+    const strategy = (query['storageStrategy'] === 'LOCAL') ? 'LOCAL' : 'MINIO';
+    const keepOriginal = query['keepOriginal'] === 'true';
+
     // Obter parte multipart
     const data = await request.file();
     if (!data) {
@@ -126,13 +132,16 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
 
     // 3. Stream do ficheiro para disco temporário (previne OOM em ficheiros grandes)
     const assetId = uuidv4();
+    const nodePath = require('path');
     const tempDir = require('os').tmpdir();
-    const tempFilePath = require('path').join(tempDir, `nexora_upload_${assetId}.tmp`);
+    const tempFilePath = nodePath.join(tempDir, `nexora_upload_${assetId}.tmp`);
     const fs = require('fs');
     const { pipeline } = require('stream/promises');
 
     let fileSize = 0;
     let minioKey = '';
+    let localPath = '';
+
     try {
       await pipeline(file, fs.createWriteStream(tempFilePath));
       fileSize = fs.statSync(tempFilePath).size;
@@ -147,7 +156,7 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
       const magicBuffer = Buffer.alloc(4100);
       const bytesRead = fs.readSync(fd, magicBuffer, 0, 4100, 0);
       fs.closeSync(fd);
-      
+
       const magicResult = fileValidator.validateMagicBytes(magicBuffer.subarray(0, bytesRead), mimetype);
       if (!magicResult.valid) {
         await auditSecurityEvent('INVALID_FILE_REJECTED', filename, 'Asset', {
@@ -160,22 +169,50 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
         throw new InvalidFileTypeError(mimetype, fileValidator.getAllowedMimes());
       }
 
-      // 6. Sanitizar a chave MinIO
-      const rawKey = `upload/${assetId}/${filename}`;
-      const keyResult = pathSanitizer.sanitizeMinioKey(rawKey);
-      if (keyResult.rejected) {
-        throw new ValidationError(`Chave MinIO inválida: ${keyResult.reason}`);
-      }
-      minioKey = keyResult.sanitized;
+      if (strategy === 'LOCAL') {
+        // ── 6a. Armazenamento Local ──────────────────────────────
+        const config = readConfig();
+        const storagePath = nodePath.resolve(config.localStoragePath);
 
-      // 7. Upload do ficheiro temporário para MinIO via stream
-      await uploadFile(BUCKETS.INPUT, minioKey, tempFilePath, {
-        contentType: mimetype,
-        metadata: { 'x-nexora-asset-id': assetId },
-      });
+        // Garantir que a pasta existe
+        if (!fs.existsSync(storagePath)) {
+          fs.mkdirSync(storagePath, { recursive: true });
+        }
+
+        // Pasta por asset: {storagePath}/{assetId}/original_{filename}
+        const assetDir = nodePath.join(storagePath, assetId);
+        fs.mkdirSync(assetDir, { recursive: true });
+        localPath = nodePath.join(assetDir, filename);
+
+        fs.copyFileSync(tempFilePath, localPath);
+
+        logger.info(
+          { assetId, localPath, sizeBytes: fileSize },
+          'Asset guardado localmente'
+        );
+
+      } else {
+        // ── 6b. Armazenamento MinIO (comportamento por defeito) ──
+        const rawKey = `upload/${assetId}/${filename}`;
+        const keyResult = pathSanitizer.sanitizeMinioKey(rawKey);
+        if (keyResult.rejected) {
+          throw new ValidationError(`Chave MinIO inválida: ${keyResult.reason}`);
+        }
+        minioKey = keyResult.sanitized;
+
+        await uploadFile(BUCKETS.INPUT, minioKey, tempFilePath, {
+          contentType: mimetype,
+          metadata: { 'x-nexora-asset-id': assetId },
+        });
+
+        logger.info(
+          { assetId, minioKey, sizeBytes: fileSize },
+          'Asset enviado para MinIO'
+        );
+      }
 
     } catch (err) {
-      console.error("UPLOAD ERROR", err);
+      console.error('UPLOAD ERROR', err);
       throw err;
     } finally {
       // Limpar o ficheiro temporário em qualquer caso
@@ -183,28 +220,48 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
         try { fs.unlinkSync(tempFilePath); } catch (e) {}
       }
     }
-    // Determinar prioridade
-    const profile = (request.query as Record<string, string>)['profile'] ?? 'broadcast-hd';
-    const priorityParam = (request.query as Record<string, string>)['priority'];
+
+    // 7. Registar o asset na base de dados
+    await prisma.asset.create({
+      data: {
+        id:           assetId,
+        filename,
+        mimeType:     mimetype,
+        size:         BigInt(fileSize),
+        minioKey:     minioKey || null,
+        originalPath: localPath || null,
+        status:       'INGESTING',
+        metadata: {
+          storageStrategy: strategy,
+          keepOriginal,
+        },
+      },
+    });
+
+    // 8. Determinar prioridade e perfil
+    const profile = query['profile'] ?? 'broadcast-hd';
+    const priorityParam = query['priority'];
     const priority = priorityParam ? Number(priorityParam) : 5;
 
     // 9. Enfileirar job de ingest
     const jobId = await enqueueIngest({
-      filePath: minioKey,
+      filePath:    strategy === 'LOCAL' ? localPath : minioKey,
       filename,
-      mimeType: mimetype,
+      mimeType:    mimetype,
       profile,
       priority,
     }, assetId);
 
     logger.info(
-      { assetId, jobId, filename, sizeBytes: fileSize },
+      { assetId, jobId, filename, sizeBytes: fileSize, strategy, keepOriginal },
       'Asset upload validado e enfileirado'
     );
 
     return reply.status(201).send({
       assetId,
       jobId,
+      strategy,
+      keepOriginal,
       message: `Ficheiro '${filename}' recebido e enfileirado para processamento`,
     });
   });
