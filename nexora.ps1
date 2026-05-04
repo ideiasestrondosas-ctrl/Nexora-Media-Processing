@@ -126,10 +126,18 @@ function Show-Status {
 
     Write-Nexora "--- Infraestrutura Docker (Nexora) ---" "Magenta"
     $dockerOut = docker ps --filter "name=nexora" --format "table {{.Names}}\t{{.Status}}" 2>$null
-    if ($dockerOut) {
+    if ($dockerOut -and $dockerOut.Count -gt 1) {
         $dockerOut | ForEach-Object { Write-Host $_ }
     } else {
         Write-Nexora "Nenhum contentor Nexora activo." "Yellow"
+    }
+    
+    # Identificar serviços MCP (Antigravity Support)
+    $mcpOut = docker ps --filter "ancestor=ghcr.io/github/github-mcp-server" --format "{{.Names}} ({{.Status}})" 2>$null
+    if ($mcpOut) {
+        Write-Host ""
+        Write-Nexora "--- Suporte IA (Antigravity MCP) ---" "Cyan"
+        $mcpOut | ForEach-Object { Write-Host "  [IA] $_" -ForegroundColor DarkGray }
     }
     Write-Host ""
 }
@@ -200,6 +208,17 @@ function Reset-Nexora {
     foreach ($name in $SERVICES.Keys) { Stop-NexoraService $name }
     docker-compose down -v --remove-orphans
 
+    # Limpeza opcional de ferramentas de IA
+    $mcpIds = docker ps -a --filter "ancestor=ghcr.io/github/github-mcp-server" --format "{{.ID}}"
+    if ($mcpIds) {
+        Write-Nexora "Limpar ferramentas de suporte IA (MCP)? (S/N)" "Yellow"
+        $mcpChoice = Read-Host
+        if ($mcpChoice -eq "S" -or $mcpChoice -eq "s") {
+            Write-Nexora "A remover contentores MCP..."
+            $mcpIds | ForEach-Object { docker rm -f $_ | Out-Null }
+        }
+    }
+
     Write-Nexora "A reiniciar infraestrutura..."
     docker-compose up -d
     Write-Nexora "A aguardar 5s..."
@@ -207,6 +226,12 @@ function Reset-Nexora {
 
     npm run db:generate
     npm run db:migrate:dev -- --name reset_cli
+
+    # Limpar filas BullMQ (remove jobs falhados, concluidos e pendentes)
+    Write-Nexora "A limpar filas BullMQ..."
+    npm run queue:flush
+    Write-Nexora "Filas BullMQ limpas." "Green"
+
     Write-Nexora "Reset concluido!" "Green"
 }
 
