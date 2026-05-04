@@ -11,10 +11,7 @@ async function flushAllQueues() {
     
     const promises = Object.entries(queues).map(async ([name, queue]) => {
       logger.info(`A limpar fila: ${name}...`);
-      await queue.drain(true); // Limpar jobs em espera
-      await queue.clean(0, 100000, 'failed'); // Limpar todos os falhados
-      await queue.clean(0, 100000, 'completed'); // Limpar todos os concluídos
-      await queue.clean(0, 100000, 'active'); // Tentar limpar activos (pode falhar se estiverem a correr)
+      await queue.obliterate({ force: true }); // Destrói completamente a fila e todos os seus dados no Redis
       
       const counts = await queue.getJobCounts();
       logger.info({ queue: name, ...counts }, 'Fila limpa');
