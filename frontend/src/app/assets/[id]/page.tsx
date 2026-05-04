@@ -180,9 +180,26 @@ export default function AssetDetailsPage() {
   ) : null;
 
   const meta = asset.metadata ?? {};
-  const videoStream = meta.streams?.find((s: any) => s.codec_type === "video") ?? {};
-  const audioStream = meta.streams?.find((s: any) => s.codec_type === "audio") ?? {};
-  const formatInfo = meta.format ?? {};
+  
+  // Suporte a ambos os formatos: FFprobe (streams) e MediaInfo (media.track)
+  const tracks = (meta as any).media?.track ?? [];
+  const miVideo = tracks.find((t: any) => t["@type"] === "Video") ?? {};
+  const miAudio = tracks.find((t: any) => t["@type"] === "Audio") ?? {};
+  const miGeneral = tracks.find((t: any) => t["@type"] === "General") ?? {};
+
+  const videoStream = miVideo.Format ? miVideo : (meta.streams?.find((s: any) => s.codec_type === "video") ?? {});
+  const audioStream = miAudio.Format ? miAudio : (meta.streams?.find((s: any) => s.codec_type === "audio") ?? {});
+  const formatInfo = miGeneral.Format ? miGeneral : (meta.format ?? {});
+
+  // Mapeamento de campos técnicos (Normalização entre MediaInfo e FFprobe)
+  const technicalData = {
+    format: formatInfo.Format ?? formatInfo.format_long_name ?? formatInfo.format_name ?? asset.mimeType ?? "—",
+    videoCodec: videoStream.Format ?? videoStream.codec_name ?? "—",
+    resolution: videoStream.Width ? `${videoStream.Width}×${videoStream.Height}` : (videoStream.width ? `${videoStream.width}×${videoStream.height}` : "—"),
+    frameRate: videoStream.FrameRate ? `${videoStream.FrameRate} fps` : (videoStream.avg_frame_rate ? `${videoStream.avg_frame_rate} fps` : "—"),
+    audioCodec: audioStream.Format ?? audioStream.codec_name ?? "—",
+    duration: formatInfo.Duration ? `${Math.round(Number(formatInfo.Duration))}s` : (formatInfo.duration ? `${Math.round(Number(formatInfo.duration))}s` : "—"),
+  };
 
   const sizeGB = asset.size ? (Number(asset.size) / (1024 * 1024 * 1024)).toFixed(2) : null;
   const sizeMB = asset.size ? (Number(asset.size) / (1024 * 1024)).toFixed(1) : null;
@@ -216,17 +233,28 @@ export default function AssetDetailsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Coluna principal */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Player placeholder */}
+          {/* Player de Vídeo ou Placeholder */}
           <Card className="bg-black text-white overflow-hidden border-border/50 shadow-2xl">
-            <div className="aspect-video flex flex-col items-center justify-center text-muted-foreground/40 relative">
-              <PlayCircle className="h-20 w-20 mb-4 opacity-20" />
-              <p className="text-sm font-medium tracking-wide uppercase">Preview indisponível</p>
-              <div className="absolute bottom-4 right-4">
-                <Badge variant="outline" className="bg-white/5 text-white/50 border-white/10 backdrop-blur-sm">
-                  {asset.mimeType ?? "Video"}
-                </Badge>
+            {(asset as any).downloadUrl ? (
+              <video 
+                controls 
+                className="w-full aspect-video bg-black" 
+                poster="/api/placeholder/video" // Idealmente seria um thumbnail real
+              >
+                <source src={(asset as any).downloadUrl} type={asset.mimeType ?? "video/mp4"} />
+                O seu browser não suporta o elemento de vídeo.
+              </video>
+            ) : (
+              <div className="aspect-video flex flex-col items-center justify-center text-muted-foreground/40 relative">
+                <PlayCircle className="h-20 w-20 mb-4 opacity-20" />
+                <p className="text-sm font-medium tracking-wide uppercase">Preview indisponível</p>
+                <div className="absolute bottom-4 right-4">
+                  <Badge variant="outline" className="bg-white/5 text-white/50 border-white/10 backdrop-blur-sm">
+                    {asset.mimeType ?? "Video"}
+                  </Badge>
+                </div>
               </div>
-            </div>
+            )}
           </Card>
 
           {/* QC Report Section */}
@@ -261,12 +289,12 @@ export default function AssetDetailsPage() {
             <CardContent className="pt-4 space-y-3 text-sm">
               {[
                 { label: "Ficheiro", value: asset.filename },
-                { label: "Formato", value: formatInfo.format_long_name ?? formatInfo.format_name ?? asset.mimeType ?? "—" },
-                { label: "Codec Vídeo", value: videoStream.codec_name?.toUpperCase() ?? "—" },
-                { label: "Resolução", value: videoStream.width ? `${videoStream.width}×${videoStream.height}` : "—" },
-                { label: "Framerate", value: videoStream.avg_frame_rate ? `${videoStream.avg_frame_rate} fps` : "—" },
-                { label: "Codec Áudio", value: audioStream.codec_name?.toUpperCase() ?? "—" },
-                { label: "Duração", value: formatInfo.duration ? `${Math.round(Number(formatInfo.duration))}s` : "—" },
+                { label: "Formato", value: technicalData.format },
+                { label: "Codec Vídeo", value: technicalData.videoCodec.toUpperCase() },
+                { label: "Resolução", value: technicalData.resolution },
+                { label: "Framerate", value: technicalData.frameRate },
+                { label: "Codec Áudio", value: technicalData.audioCodec.toUpperCase() },
+                { label: "Duração", value: technicalData.duration },
                 { label: "Tamanho", value: sizeGB ? `${sizeGB} GB` : sizeMB ? `${sizeMB} MB` : "—" },
                 { label: "Perfil", value: asset.profile ?? "Padrão" },
               ].map(row => (

@@ -81,8 +81,8 @@ export class IngestWorker {
 
   /** Processa um job de ingest */
   private async process(job: BullJob<IngestJobPayload>): Promise<void> {
-    const { filePath, filename, mimeType, profile } = job.data;
-    const assetId = uuidv4();
+    const { assetId: jobAssetId, filePath, filename, mimeType, profile } = job.data;
+    const assetId = jobAssetId ?? uuidv4();
     const log = jobLogger(job.id ?? 'unknown', assetId);
 
     log.info({ filename, filePath }, 'A iniciar ingest');
@@ -134,10 +134,21 @@ export class IngestWorker {
       );
     }
 
-    // 6. Criar registo Asset no PostgreSQL
-    log.info('A criar registo Asset no PostgreSQL...');
-    await prisma.asset.create({
-      data: {
+    // 6. Criar ou Atualizar registo Asset no PostgreSQL
+    log.info('A atualizar registo Asset no PostgreSQL...');
+    await prisma.asset.upsert({
+      where: { id: assetId },
+      update: {
+        originalPath: filePath,
+        minioKey: `${BUCKETS.INPUT}/${minioKey}`,
+        mimeType: mimeType ?? this.inferMimeType(filename),
+        size: fileSizeBytes,
+        sha256,
+        metadata: metadata as object,
+        profile: profile ?? 'broadcast-hd',
+        status: AssetStatus.QC_RUNNING,
+      },
+      create: {
         id: assetId,
         filename,
         originalPath: filePath,

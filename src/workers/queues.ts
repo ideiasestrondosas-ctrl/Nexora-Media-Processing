@@ -213,6 +213,7 @@ export async function closeQueues(): Promise<void> {
 // ── Helpers para adicionar jobs ───────────────────────────────────
 
 export interface IngestJobPayload {
+  assetId?: string;
   filePath: string;
   filename: string;
   mimeType?: string;

@@ -72,8 +72,11 @@ interface ProfileFormData {
   videoCodec: string;
   audioCodec: string;
   bitrateKbps: string;
+  resolution: string;
   isDefault: boolean;
 }
+
+const RESOLUTIONS = ["Original", "1920x1080", "1280x720", "3840x2160", "640x360"];
 
 const emptyForm: ProfileFormData = {
   name: "",
@@ -82,6 +85,7 @@ const emptyForm: ProfileFormData = {
   videoCodec: "h264",
   audioCodec: "aac",
   bitrateKbps: "4000",
+  resolution: "Original",
   isDefault: false,
 };
 
@@ -107,6 +111,7 @@ function ProfileModal({
           videoCodec: profile.videoCodec,
           audioCodec: profile.audioCodec,
           bitrateKbps: String(profile.settings?.bitrateKbps ?? 4000),
+          resolution: profile.settings?.resolution ?? "Original",
           isDefault: profile.isDefault,
         }
       : emptyForm
@@ -134,7 +139,10 @@ function ProfileModal({
       container: form.container,
       videoCodec: form.videoCodec,
       audioCodec: form.audioCodec,
-      settings: { bitrateKbps: Number(form.bitrateKbps) },
+      settings: { 
+        bitrateKbps: Number(form.bitrateKbps),
+        resolution: form.resolution,
+      },
       isDefault: form.isDefault,
     });
   };
@@ -201,6 +209,22 @@ function ProfileModal({
                 min={100}
                 required
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Resolução *</Label>
+              <Select value={form.resolution} onValueChange={(v) => setForm({ ...form, resolution: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {RESOLUTIONS.map(r => (
+                    <SelectItem key={r} value={r}>
+                      {r}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">
@@ -424,6 +448,7 @@ export default function ProfilesPage() {
                     {[
                       { label: "Container", value: profile.container.toUpperCase() },
                       { label: "Codec de Vídeo", value: profile.videoCodec.toUpperCase() },
+                      { label: "Resolução", value: profile.settings?.resolution ?? "Original" },
                       { label: "Bitrate", value: profile.settings?.bitrateKbps ? `${profile.settings.bitrateKbps} Kbps` : "Auto" },
                       { label: "Codec de Áudio", value: profile.audioCodec.toUpperCase() },
                     ].map(row => (

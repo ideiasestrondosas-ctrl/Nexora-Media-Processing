@@ -133,8 +133,8 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
     // 3. Stream do ficheiro para disco temporário (previne OOM em ficheiros grandes)
     const assetId = uuidv4();
     const nodePath = require('path');
-    const tempDir = require('os').tmpdir();
-    const tempFilePath = nodePath.join(tempDir, `nexora_upload_${assetId}.tmp`);
+    const UPLOAD_DIR = process.env.NEXORA_TEMP_DIR || '/media/temp';
+    const tempFilePath = nodePath.join(UPLOAD_DIR, `nexora_upload_${assetId}.tmp`);
     const fs = require('fs');
     const { pipeline } = require('stream/promises');
 
@@ -192,34 +192,25 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
         );
 
       } else {
-        // ── 6b. Armazenamento MinIO (comportamento por defeito) ──
-        const rawKey = `upload/${assetId}/${filename}`;
-        const keyResult = pathSanitizer.sanitizeMinioKey(rawKey);
-        if (keyResult.rejected) {
-          throw new ValidationError(`Chave MinIO inválida: ${keyResult.reason}`);
-        }
-        minioKey = keyResult.sanitized;
-
-        await uploadFile(BUCKETS.INPUT, minioKey, tempFilePath, {
-          contentType: mimetype,
-          metadata: { 'x-nexora-asset-id': assetId },
-        });
+        // ── 6b. Armazenamento MinIO (adiado para o Worker) ──
+        // Apenas definimos a chave pretendida
+        minioKey = `upload/${assetId}/${filename}`;
 
         logger.info(
-          { assetId, minioKey, sizeBytes: fileSize },
-          'Asset enviado para MinIO'
+          { assetId, tempFilePath, sizeBytes: fileSize },
+          'Asset preparado para upload via Worker (MinIO)'
         );
       }
 
     } catch (err) {
       console.error('UPLOAD ERROR', err);
-      throw err;
-    } finally {
-      // Limpar o ficheiro temporário em qualquer caso
+      // Se falhar a pipeline, tentamos limpar
       if (fs.existsSync(tempFilePath)) {
         try { fs.unlinkSync(tempFilePath); } catch (e) {}
       }
+      throw err;
     }
+    // NOTA: Não limpamos o ficheiro no finally aqui porque o Worker precisa dele em /media/temp
 
     // 7. Registar o asset na base de dados
     await prisma.asset.create({
@@ -245,7 +236,8 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
 
     // 9. Enfileirar job de ingest
     const jobId = await enqueueIngest({
-      filePath:    strategy === 'LOCAL' ? localPath : minioKey,
+      assetId,
+      filePath:    strategy === 'LOCAL' ? localPath : tempFilePath,
       filename,
       mimeType:    mimetype,
       profile,
