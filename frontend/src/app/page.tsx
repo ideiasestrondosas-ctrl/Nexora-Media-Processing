@@ -120,7 +120,7 @@ export default function DashboardPage() {
         <MetricsChart 
           title="Qualidade Média (VMAF e PSNR)"
           description="Evolução da pontuação nas últimas 24 horas"
-          data={dashboardData?.qualityTrends || []}
+          data={dashboardData?.qualityTrends?.map((item: any) => ({ ...item, name: item.time })) || []}
           type="area"
           dataKeys={[
             { key: "vmaf", color: "#3b82f6", name: "VMAF Score" },
@@ -130,7 +130,7 @@ export default function DashboardPage() {
         <MetricsChart 
           title="Volume de Processamento"
           description="Volume processado em GB (Últimos 7 dias)"
-          data={dashboardData?.processingVolume || []}
+          data={dashboardData?.processingVolume?.map((item: any) => ({ ...item, name: item.date })) || []}
           type="bar"
           dataKeys={[
             { key: "gb", color: "#22c55e", name: "Volume (GB)" }

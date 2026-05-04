@@ -2,49 +2,21 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main(): Promise<void> {
-  console.log("A criar dados de teste...");
+  console.log("A executar seed de configuração...");
 
-  const asset = await prisma.asset.upsert({
-    where: { id: "00000000-0000-0000-0000-000000000001" },
-    update: {},
-    create: {
-      id: "00000000-0000-0000-0000-000000000001",
-      filename: "nexora_demo_broadcast.mp4",
-      originalPath: "/media/input/nexora_demo_broadcast.mp4",
-      mimeType: "video/mp4",
-      size: BigInt(1073741824),
-      metadata: { resolution: "1920x1080", frameRate: 25, durationMs: 3600000 }
-    }
-  });
-
-  const job = await prisma.job.upsert({
-    where: { id: "00000000-0000-0000-0000-000000000002" },
-    update: {},
-    create: {
-      id: "00000000-0000-0000-0000-000000000002",
-      type: "TRANSCODE",
-      status: "PENDING",
-      payload: { profile: "broadcast_hd" },
-      asset: {
-        connect: { id: asset.id }
-      }
-    }
-  });
-
-  // Criar utilizador default
+  // ── Utilizador administrador por defeito ──────────────────────────
   const user = await prisma.user.upsert({
     where: { username: "user-123" },
     update: {},
     create: {
       username: "user-123",
-      // Em produção, isto deve ser um hash real do bcrypt (ex: "$2b$10$...")
-      password: "changeme", 
-      role: "ADMIN"
-    }
+      password: "changeme",
+      role: "ADMIN",
+    },
   });
-  console.log("Utilizador criado:", user.username);
+  console.log("✓ Utilizador:", user.username);
 
-  // Criar perfis default
+  // ── Perfis de encoding ────────────────────────────────────────────
   const profiles = [
     {
       id: "00000000-0000-0000-0000-000000000010",
@@ -58,8 +30,8 @@ async function main(): Promise<void> {
         preset: "slow",
         profile: "high",
         level: "4.1",
-        bitrateKbps: 8000
-      }
+        bitrateKbps: 8000,
+      },
     },
     {
       id: "00000000-0000-0000-0000-000000000011",
@@ -73,23 +45,37 @@ async function main(): Promise<void> {
         preset: "fast",
         profile: "main",
         level: "3.1",
-        bitrateKbps: 2000
-      }
-    }
+        bitrateKbps: 2000,
+      },
+    },
   ];
 
   for (const p of profiles) {
     await prisma.encodingProfile.upsert({
       where: { name: p.name },
       update: {},
-      create: p
+      create: p,
     });
   }
-  console.log("Perfis default criados");
+  console.log("✓ Perfis de encoding criados/actualizados");
 
-  console.log("Asset criado:", asset.id);
-  console.log("Job criado:", job.id);
-  console.log("Seed concluido!");
+  // ── Remover asset e job fictícios criados por seeds anteriores ────
+  const demoAssetId = "00000000-0000-0000-0000-000000000001";
+  const demoJobId   = "00000000-0000-0000-0000-000000000002";
+
+  const demoJob = await prisma.job.findUnique({ where: { id: demoJobId } });
+  if (demoJob) {
+    await prisma.job.delete({ where: { id: demoJobId } });
+    console.log("✓ Job fictício removido");
+  }
+
+  const demoAsset = await prisma.asset.findUnique({ where: { id: demoAssetId } });
+  if (demoAsset) {
+    await prisma.asset.delete({ where: { id: demoAssetId } });
+    console.log("✓ Asset fictício removido");
+  }
+
+  console.log("Seed concluído!");
 }
 
 main()

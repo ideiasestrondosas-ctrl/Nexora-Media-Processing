@@ -1,6 +1,11 @@
+"use client";
+
 import { UploadZone } from "@/components/assets/UploadZone";
+import { useAuthStore } from "@/store/auth";
 
 export default function UploadPage() {
+  const token = useAuthStore((state) => state.token);
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="space-y-2">
@@ -12,8 +17,8 @@ export default function UploadPage() {
       
       <div className="mt-8">
         <UploadZone 
-          uploadUrl="http://localhost:3000/api/v1/upload" 
-          // O token real seria passado via client component / store, aqui para efeitos de exemplo
+          uploadUrl="http://localhost:3000/api/v1/assets/upload"
+          token={token}
         />
       </div>
     </div>
