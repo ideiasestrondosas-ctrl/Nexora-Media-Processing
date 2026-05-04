@@ -221,8 +221,8 @@ export default function DashboardPage() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center justify-between">
                   CPU
-                  <span className={dashboardData.hardware.cpuLoad > 80 ? "text-red-500" : "text-green-500"}>
-                    {dashboardData.hardware.cpuLoad}%
+                  <span className={(dashboardData.hardware.cpu || 0) > 80 ? "text-red-500" : "text-green-500"}>
+                    {Math.round(dashboardData.hardware.cpu || 0)}%
                   </span>
                 </CardTitle>
               </CardHeader>
@@ -230,7 +230,7 @@ export default function DashboardPage() {
                 <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-blue-500 transition-all duration-500" 
-                    style={{ width: `${dashboardData.hardware.cpuLoad}%` }}
+                    style={{ width: `${dashboardData.hardware.cpu || 0}%` }}
                   />
                 </div>
               </CardContent>
@@ -240,38 +240,39 @@ export default function DashboardPage() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center justify-between">
                   Memória RAM
-                  <span className="text-blue-500">{dashboardData.hardware.memUsedPercent}%</span>
+                  <span className="text-blue-500">{Math.round(dashboardData.hardware.memory?.percent || 0)}%</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-purple-500 transition-all duration-500" 
-                    style={{ width: `${dashboardData.hardware.memUsedPercent}%` }}
+                    style={{ width: `${dashboardData.hardware.memory?.percent || 0}%` }}
                   />
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-2 text-right">Total: {dashboardData.hardware.memTotal}</p>
+                <p className="text-[10px] text-muted-foreground mt-2 text-right">
+                  Total: {dashboardData.hardware.memory?.total ? (dashboardData.hardware.memory.total / (1024**3)).toFixed(1) : 0} GB
+                </p>
               </CardContent>
             </Card>
 
-            {dashboardData.hardware.gpu ? (
+            {dashboardData.hardware.gpu && dashboardData.hardware.gpu.model !== 'N/A' ? (
               <Card className="bg-slate-50/50 dark:bg-slate-900/50 border-blue-500/20">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center justify-between">
-                    GPU ({dashboardData.hardware.gpu.name})
-                    <span className="text-teal-500">{dashboardData.hardware.gpu.load}%</span>
+                    GPU ({dashboardData.hardware.gpu.model})
+                    <span className="text-teal-500">{Math.round(dashboardData.hardware.gpu.load || 0)}%</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-teal-500 transition-all duration-500" 
-                      style={{ width: `${dashboardData.hardware.gpu.load}%` }}
+                      style={{ width: `${dashboardData.hardware.gpu.load || 0}%` }}
                     />
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-2 flex justify-between">
-                    <span>Temp: {dashboardData.hardware.gpu.temp}ºC</span>
-                    <span>{dashboardData.hardware.gpu.memUsed} / {dashboardData.hardware.gpu.memTotal}</span>
+                    <span>VRAM: {Math.round((dashboardData.hardware.gpu.memoryUsed || 0) / 1024)} / {Math.round((dashboardData.hardware.gpu.memoryTotal || 0) / 1024)} GB</span>
                   </p>
                 </CardContent>
               </Card>
@@ -281,7 +282,7 @@ export default function DashboardPage() {
                   <CardTitle className="text-xs font-bold uppercase text-muted-foreground">GPU</CardTitle>
                 </CardHeader>
                 <CardContent className="flex items-center justify-center h-10">
-                  <span className="text-[10px] text-muted-foreground italic text-center">Nenhuma GPU NVIDIA detectada ou activa</span>
+                  <span className="text-[10px] text-muted-foreground italic text-center">Aceleração NVIDIA não detectada</span>
                 </CardContent>
               </Card>
             )}
@@ -290,18 +291,20 @@ export default function DashboardPage() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center justify-between">
                   Disco (Storage)
-                  <span>{dashboardData.hardware.storage.storage.percent}%</span>
+                  <span>
+                    {dashboardData.hardware.disk ? Math.round((dashboardData.hardware.disk.used / dashboardData.hardware.disk.total) * 100) : 0}%
+                  </span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-orange-500 transition-all duration-500" 
-                    style={{ width: `${dashboardData.hardware.storage.storage.percent}%` }}
+                    style={{ width: `${dashboardData.hardware.disk ? (dashboardData.hardware.disk.used / dashboardData.hardware.disk.total) * 100 : 0}%` }}
                   />
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-2 text-right">
-                  {dashboardData.hardware.storage.storage.used} de {dashboardData.hardware.storage.storage.total}
+                  {dashboardData.hardware.disk ? (dashboardData.hardware.disk.used / (1024**3)).toFixed(1) : 0} de {dashboardData.hardware.disk ? (dashboardData.hardware.disk.total / (1024**3)).toFixed(1) : 0} GB
                 </p>
               </CardContent>
             </Card>
@@ -312,12 +315,12 @@ export default function DashboardPage() {
             <MetricsChart
               title="Histórico de Carga"
               description="Uso de recursos nos últimos minutos"
-              data={dashboardData.hardwareHistory?.map(h => ({ ...h, name: h.time })) || []}
+              data={dashboardData.hardwareHistory?.map((h: any) => ({ ...h, name: h.time })) || []}
               type="area"
               dataKeys={[
                 { key: "cpu", color: "hsl(var(--chart-1))", name: "CPU (%)" },
-                { key: "ram", color: "hsl(var(--chart-4))", name: "RAM (%)" },
-                ...(dashboardData.hardware.gpu ? [{ key: "gpu", color: "hsl(var(--chart-5))", name: "GPU (%)" }] : []),
+                { key: "memory", color: "hsl(var(--chart-4))", name: "RAM (%)" },
+                ...(dashboardData.hardware.gpu && dashboardData.hardware.gpu.model !== 'N/A' ? [{ key: "gpu", color: "hsl(var(--chart-5))", name: "GPU (%)" }] : []),
               ]}
             />
           </Card>

@@ -3,18 +3,18 @@
 import { useState } from "react";
 import {
   BookOpen,
-  Menu as MenuIcon,
   ChevronRight,
   Film,
   UploadCloud,
-  ListVideo,
   Settings,
-  Users,
   LayoutDashboard,
-  Wrench,
-  RefreshCw,
   Shield,
   X,
+  HelpCircle,
+  PlayCircle,
+  AlertCircle,
+  Database,
+  CheckCircle2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -37,30 +37,21 @@ const sections: Section[] = [
   {
     id: "dashboard",
     icon: LayoutDashboard,
-    title: "Dashboard",
+    title: "Dashboard & Análise",
     content: (
       <div className="space-y-4">
         <p className="text-muted-foreground leading-relaxed">
-          O <strong>Dashboard</strong> é o ponto de entrada do Nexora e apresenta uma visão geral em tempo real do estado do sistema.
+          O <strong>Dashboard</strong> monitoriza a saúde técnica e a qualidade da produção em tempo real.
         </p>
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold uppercase tracking-wider">Métricas apresentadas</h3>
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-primary">Qualidade (VMAF/PSNR)</h3>
           <ul className="space-y-2 text-sm text-muted-foreground">
-            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" /><span><strong>Assets Processados</strong> — número de ficheiros com processamento concluído com sucesso.</span></li>
-            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" /><span><strong>Jobs Activos / Pendentes</strong> — tarefas de processamento em execução ou em fila de espera.</span></li>
-            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" /><span><strong>Taxa de Sucesso</strong> — percentagem de jobs concluídos com êxito nas últimas 24 horas.</span></li>
-            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" /><span><strong>Falhas (24h)</strong> — número de jobs que falharam nas últimas 24 horas.</span></li>
+            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" /><span><strong>VMAF</strong> — Mede a percepção visual humana. Valores acima de 90 indicam qualidade excelente.</span></li>
+            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" /><span><strong>PSNR</strong> — Métrica matemática de fidelidade de pixéis para deteção de erros técnicos.</span></li>
           </ul>
         </div>
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold uppercase tracking-wider">Gráficos</h3>
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" /><span><strong>Qualidade Média (VMAF/PSNR)</strong> — evolução da qualidade de transcodificação nas últimas 24h.</span></li>
-            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" /><span><strong>Volume de Processamento</strong> — total de GB processados nos últimos 7 dias.</span></li>
-          </ul>
-        </div>
-        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-sm text-blue-600 dark:text-blue-400">
-          💡 Os dados são actualizados automaticamente a cada 30 segundos.
+        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-xs text-blue-600 dark:text-blue-400">
+          💡 A monitorização de <strong>GPU (NVIDIA)</strong> garante que o hardware está a acelerar a conversão corretamente.
         </div>
       </div>
     ),
@@ -68,30 +59,17 @@ const sections: Section[] = [
   {
     id: "assets",
     icon: Film,
-    title: "Assets",
+    title: "Assets & Workflow",
     content: (
       <div className="space-y-4">
         <p className="text-muted-foreground leading-relaxed">
-          A secção <strong>Assets</strong> é a biblioteca de todos os ficheiros multimédia recebidos pelo sistema.
+          Cada asset passa por um ciclo de vida rigoroso: <strong>Análise -> QC -> Processamento</strong>.
         </p>
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold uppercase tracking-wider">Estados dos Assets</h3>
-          <div className="grid grid-cols-1 gap-2">
-            {[
-              { label: "PENDING", color: "bg-slate-500", desc: "Ficheiro recebido, aguarda início do processamento." },
-              { label: "INGESTING", color: "bg-blue-500", desc: "A analisar metadados e a calcular checksum SHA-256." },
-              { label: "QC_RUNNING", color: "bg-yellow-500", desc: "Controlo de Qualidade em execução (bitrate, loudness, normas)." },
-              { label: "QC_PASSED", color: "bg-green-500", desc: "Passou no QC, aguarda transcodificação." },
-              { label: "QC_QUARANTINED", color: "bg-orange-500", desc: "QC detetou problemas menores; requer revisão manual." },
-              { label: "TRANSCODING", color: "bg-blue-400", desc: "Transcodificação de vídeo em curso." },
-              { label: "COMPLETED", color: "bg-green-600", desc: "Processamento concluído com sucesso." },
-              { label: "FAILED", color: "bg-red-500", desc: "Erro durante o processamento." },
-            ].map(s => (
-              <div key={s.label} className="flex items-start gap-3">
-                <span className={cn("text-[10px] text-white px-1.5 py-0.5 rounded font-mono shrink-0 mt-0.5", s.color)}>{s.label}</span>
-                <span className="text-xs text-muted-foreground">{s.desc}</span>
-              </div>
-            ))}
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-primary">Controlo de Qualidade (QC)</h3>
+          <p className="text-sm text-muted-foreground">O sistema valida automaticamente normas de áudio (EBU R128) e vídeo.</p>
+          <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 text-xs text-orange-600 dark:text-orange-400">
+            ⚠️ <strong>Quarentena:</strong> Se o QC falhar, o asset é bloqueado para revisão manual para evitar emissões com erro.
           </div>
         </div>
       </div>
@@ -100,51 +78,48 @@ const sections: Section[] = [
   {
     id: "upload",
     icon: UploadCloud,
-    title: "Upload",
+    title: "Upload & Armazenamento",
     content: (
       <div className="space-y-4">
         <p className="text-muted-foreground leading-relaxed">
-          O <strong>Upload</strong> permite carregar ficheiros de vídeo para o sistema Nexora.
+          Pode escolher entre armazenamento em <strong>Nuvem (MinIO)</strong> para redundância ou <strong>Disco Local</strong> para máxima velocidade.
         </p>
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold uppercase tracking-wider">Upload Múltiplo</h3>
-          <p className="text-sm text-muted-foreground">
-            Pode carregar vários ficheiros em simultâneo. Use o selector global no topo para definir o perfil e destino para todos, ou ajuste individualmente na lista.
-          </p>
-        </div>
-        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-sm text-blue-600 dark:text-blue-400">
-          💡 Os ficheiros são processados em paralelo para maximizar a eficiência.
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-primary">Retenção de Dados</h3>
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" /><span><strong>Manter Original</strong> — Define se o ficheiro bruto é apagado após o transcode.</span></li>
+          </ul>
         </div>
       </div>
     ),
   },
   {
-    id: "profiles",
-    icon: Settings,
-    title: "Perfis",
+    id: "how-to",
+    icon: HelpCircle,
+    title: "Guias (HOW-TO)",
     content: (
       <div className="space-y-4">
-        <p className="text-muted-foreground leading-relaxed">
-          Os <strong>Perfis</strong> definem os parâmetros de transcodificação.
-        </p>
-        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 text-sm text-yellow-600 dark:text-yellow-400">
-          ⚠️ O sistema valida automaticamente a compatibilidade entre o container e os codecs.
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-primary">Processar vídeo</h3>
+        <div className="space-y-2 text-sm text-muted-foreground">
+          <p>1. Inicie o upload em <strong>Assets</strong>.</p>
+          <p>2. Configure o ficheiro com o <strong>Perfil</strong> desejado.</p>
+          <p>3. Monitorize o progresso no menu <strong>Filas</strong>.</p>
+        </div>
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-xs text-red-600 dark:text-red-400">
+          🆘 <strong>Falhas:</strong> Verifique o espaço em disco no Dashboard se os trabalhos não iniciarem.
         </div>
       </div>
     ),
   },
   {
-    id: "settings",
-    icon: Wrench,
-    title: "Definições",
+    id: "security",
+    icon: Shield,
+    title: "Segurança",
     content: (
       <div className="space-y-4">
         <p className="text-muted-foreground leading-relaxed">
-          Gestão de armazenamento e reset do sistema (apenas Admins).
+          O Nexora utiliza <strong>RBAC</strong> para garantir que apenas utilizadores autorizados acedem a funções críticas como o Reset do Sistema.
         </p>
-        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-600 dark:text-red-400">
-          ⚠️ O Reset Completo é irreversível e apaga todos os dados e ficheiros.
-        </div>
       </div>
     ),
   },
@@ -165,17 +140,17 @@ export function UserManualPopup() {
           <span className="hidden md:inline">Manual</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0 overflow-hidden bg-background/95 backdrop-blur-md border-border">
+      <DialogContent className="max-w-3xl h-[70vh] flex flex-col p-0 overflow-hidden bg-background/95 backdrop-blur-md border-border">
         <DialogHeader className="p-4 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-blue-500" />
+            <BookOpen className="h-5 w-5 text-primary" />
             Manual de Utilizador Nexora
           </DialogTitle>
         </DialogHeader>
         
         <div className="flex flex-1 overflow-hidden">
           {/* Sidebar */}
-          <aside className="w-48 border-r bg-muted/30 flex flex-col shrink-0">
+          <aside className="w-44 border-r bg-muted/20 flex flex-col shrink-0">
             <nav className="flex-1 py-2 overflow-y-auto">
               {sections.map((section) => {
                 const Icon = section.icon;
@@ -185,9 +160,9 @@ export function UserManualPopup() {
                     key={section.id}
                     onClick={() => setActiveId(section.id)}
                     className={cn(
-                      "w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left",
+                      "w-full flex items-center gap-3 px-4 py-2 text-xs transition-colors text-left",
                       isActive
-                        ? "bg-primary/10 text-primary border-r-2 border-primary font-medium"
+                        ? "bg-primary/10 text-primary border-r-2 border-primary font-bold"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     )}
                   >
@@ -200,14 +175,14 @@ export function UserManualPopup() {
           </aside>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-background/50">
-            <div className="flex items-center gap-3 mb-6">
+          <div className="flex-1 overflow-y-auto p-6 bg-background/50">
+            <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-primary/10 rounded-lg">
-                <activeSection.icon className="h-5 w-5 text-primary" />
+                <activeSection.icon className="h-4 w-4 text-primary" />
               </div>
-              <h2 className="text-xl font-bold">{activeSection.title}</h2>
+              <h2 className="text-lg font-bold">{activeSection.title}</h2>
             </div>
-            <div className="prose dark:prose-invert max-w-none">
+            <div className="prose prose-sm dark:prose-invert max-w-none">
               {activeSection.content}
             </div>
           </div>
