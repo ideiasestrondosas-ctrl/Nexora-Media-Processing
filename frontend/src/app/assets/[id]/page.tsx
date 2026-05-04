@@ -191,18 +191,60 @@ export default function AssetDetailsPage() {
   const audioStream = miAudio.Format ? miAudio : (meta.streams?.find((s: any) => s.codec_type === "audio") ?? {});
   const formatInfo = miGeneral.Format ? miGeneral : (meta.format ?? {});
 
+  // Funções de Formatação
+  const formatFileSize = (bytes: string | number | null) => {
+    if (!bytes) return "—";
+    const b = Number(bytes);
+    if (b === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB", "PB"];
+    const i = Math.floor(Math.log(b) / Math.log(k));
+    return parseFloat((b / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
+
+  const formatDuration = (seconds: string | number | null) => {
+    if (!seconds) return "—";
+    const s = Math.round(Number(seconds));
+    const hrs = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    return [hrs, mins, secs]
+      .map(v => v < 10 ? "0" + v : v)
+      .filter((v, i) => v !== "00" || i > 0)
+      .join(":");
+  };
+
+  const formatFrameRate = (fps: string | number | null) => {
+    if (!fps) return "—";
+    const f = Number(fps);
+    if (isNaN(f)) return fps.toString();
+    // Arredondar para 2 ou 3 casas se não for inteiro, mas remover zeros desnecessários
+    return parseFloat(f.toFixed(3)).toString() + " fps";
+  };
+
+  const getProfileName = (id: string | null) => {
+    if (!id) return "Padrão";
+    const names: Record<string, string> = {
+      'broadcast-hd': 'Broadcast HD',
+      'ott-high': 'OTT High Quality',
+      'web-standard': 'Web Standard',
+      'social-media': 'Social Media',
+      'proxy-low': 'Proxy Low-Res'
+    };
+    return names[id] || id.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+  };
+
   // Mapeamento de campos técnicos (Normalização entre MediaInfo e FFprobe)
   const technicalData = {
     format: formatInfo.Format ?? formatInfo.format_long_name ?? formatInfo.format_name ?? asset.mimeType ?? "—",
     videoCodec: videoStream.Format ?? videoStream.codec_name ?? "—",
     resolution: videoStream.Width ? `${videoStream.Width}×${videoStream.Height}` : (videoStream.width ? `${videoStream.width}×${videoStream.height}` : "—"),
-    frameRate: videoStream.FrameRate ? `${videoStream.FrameRate} fps` : (videoStream.avg_frame_rate ? `${videoStream.avg_frame_rate} fps` : "—"),
+    frameRate: formatFrameRate(videoStream.FrameRate ?? videoStream.avg_frame_rate),
     audioCodec: audioStream.Format ?? audioStream.codec_name ?? "—",
-    duration: formatInfo.Duration ? `${Math.round(Number(formatInfo.Duration))}s` : (formatInfo.duration ? `${Math.round(Number(formatInfo.duration))}s` : "—"),
+    duration: formatDuration(formatInfo.Duration ?? formatInfo.duration),
   };
 
-  const sizeGB = asset.size ? (Number(asset.size) / (1024 * 1024 * 1024)).toFixed(2) : null;
-  const sizeMB = asset.size ? (Number(asset.size) / (1024 * 1024)).toFixed(1) : null;
+  const formattedSize = formatFileSize(asset.size);
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-10">
@@ -227,6 +269,13 @@ export default function AssetDetailsPage() {
           <Button variant="outline" size="sm" className="gap-2 text-destructive hover:bg-destructive/10" onClick={handleDelete}>
             <Trash2 className="h-3.5 w-3.5" /> Apagar
           </Button>
+          {(asset as any).downloadUrl && (
+            <Button size="sm" className="gap-2 bg-green-600 hover:bg-green-700 text-white" asChild>
+              <a href={(asset as any).downloadUrl} download={asset.filename}>
+                <Download className="h-3.5 w-3.5" /> Download
+              </a>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -239,7 +288,7 @@ export default function AssetDetailsPage() {
               <video 
                 controls 
                 className="w-full aspect-video bg-black" 
-                poster="/api/placeholder/video" // Idealmente seria um thumbnail real
+                poster={(asset as any).thumbnailUrl || "/api/placeholder/video"}
               >
                 <source src={(asset as any).downloadUrl} type={asset.mimeType ?? "video/mp4"} />
                 O seu browser não suporta o elemento de vídeo.
@@ -295,8 +344,8 @@ export default function AssetDetailsPage() {
                 { label: "Framerate", value: technicalData.frameRate },
                 { label: "Codec Áudio", value: technicalData.audioCodec.toUpperCase() },
                 { label: "Duração", value: technicalData.duration },
-                { label: "Tamanho", value: sizeGB ? `${sizeGB} GB` : sizeMB ? `${sizeMB} MB` : "—" },
-                { label: "Perfil", value: asset.profile ?? "Padrão" },
+                { label: "Tamanho", value: formattedSize },
+                { label: "Perfil", value: getProfileName(asset.profile) },
               ].map(row => (
                 <div key={row.label} className="flex justify-between gap-4 pb-2 border-b last:border-0 last:pb-0 border-border/50">
                   <span className="text-muted-foreground font-medium">{row.label}</span>

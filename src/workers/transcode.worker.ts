@@ -180,7 +180,7 @@ export class TranscodeWorker {
           { encoder: selectedCommand.encoder, args: selectedCommand.args.slice(0, 6) },
           'A executar FFmpeg...'
         );
-        await this.runFFmpeg(job.id ?? 'unknown', assetId, selectedCommand.args, log);
+        await this.runFFmpeg(job, assetId, selectedCommand.args, log);
       } catch (gpuErr) {
         if (commandPair.gpu && selectedCommand.encoder !== 'cpu') {
           log.warn(
@@ -190,7 +190,7 @@ export class TranscodeWorker {
           usedCommand = commandPair.cpu;
 
           // Reconstruir args com paths correctos (o builder já os tem)
-          await this.runFFmpeg(job.id ?? 'unknown', assetId, commandPair.cpu.args, log);
+          await this.runFFmpeg(job, assetId, commandPair.cpu.args, log);
         } else {
           throw gpuErr;
         }
@@ -298,11 +298,12 @@ export class TranscodeWorker {
    * ADR-002: usa spawn() com array, nunca exec() com string.
    */
   private async runFFmpeg(
-    jobId: string,
+    job: BullJob<TranscodeJobPayload>,
     assetId: string,
     args: string[],
     _log: ReturnType<typeof jobLogger>
   ): Promise<void> {
+    const jobId = job.id ?? 'unknown';
     return new Promise((resolve, reject) => {
       const ffmpegPath = process.env.FFMPEG_PATH ?? 'ffmpeg';
       const timeout = Number(process.env.FFMPEG_DEFAULT_TIMEOUT_MS ?? 14400000);
@@ -364,6 +365,7 @@ export class TranscodeWorker {
             frame,
             eta,
           }).catch(() => {});
+          job.updateProgress(percent).catch(() => {});
         }
       });
 

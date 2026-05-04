@@ -77,7 +77,8 @@ export class NexoraLoudnessNormalizer {
     inputPath: string,
     outputPath: string,
     targetLufs: number,
-    truePeakLimit: number = TRUE_PEAK_LIMIT
+    truePeakLimit: number = TRUE_PEAK_LIMIT,
+    onProgress?: (percent: number) => void
   ): Promise<LoudnessResult> {
     const log = logger.child({ inputPath, targetLufs, truePeakLimit });
     let currentTarget = targetLufs;
@@ -92,10 +93,15 @@ export class NexoraLoudnessNormalizer {
         log.info({ analysis }, 'Pass 1 concluído');
 
         // Pass 2: Normalização linear com valores medidos
-        await this.runPass2(inputPath, outputPath, analysis, currentTarget);
+        onProgress?.(20); // 20% após análise
+        await this.runPass2(inputPath, outputPath, analysis, currentTarget, (p) => {
+          // Mapear progresso do pass 2 (0-100) para o global (20-90)
+          onProgress?.(20 + Math.floor(p * 0.7));
+        });
         log.info('Pass 2 concluído');
 
         // Verificação independente (ADR-005, ADR-009)
+        onProgress?.(95);
         const verification = await this.verify(outputPath, log);
         lastVerification = verification;
         log.info({ verification }, 'Verificação BS1770GAIN concluída');
@@ -201,7 +207,8 @@ export class NexoraLoudnessNormalizer {
     inputPath: string,
     outputPath: string,
     analysis: LoudnormAnalysis,
-    targetLufs: number
+    targetLufs: number,
+    onProgress?: (percent: number) => void
   ): Promise<void> {
     const ffmpegPath = process.env.FFMPEG_PATH ?? 'ffmpeg';
 
@@ -232,7 +239,30 @@ export class NexoraLoudnessNormalizer {
       );
 
       let stderrBuf = '';
-      proc.stderr?.on('data', (d: Buffer) => { stderrBuf += d.toString(); });
+      let totalDuration: number | null = null;
+
+      proc.stderr?.on('data', (d: Buffer) => { 
+        const text = d.toString();
+        stderrBuf += text; 
+
+        // Extrair duração se ainda não temos
+        if (!totalDuration) {
+          const durationMatch = text.match(/Duration:\s*(\d+):(\d+):(\d+\.?\d*)/);
+          if (durationMatch) {
+            const [, h, m, s] = durationMatch;
+            totalDuration = Number(h) * 3600 + Number(m) * 60 + Number(s);
+          }
+        }
+
+        // Parsear tempo actual
+        const timeMatch = text.match(/time=(\d+):(\d+):(\d+\.?\d*)/);
+        if (timeMatch && totalDuration) {
+          const [, h, m, s] = timeMatch;
+          const currentTime = Number(h) * 3600 + Number(m) * 60 + Number(s);
+          const percent = Math.min(Math.round((currentTime / totalDuration) * 100), 100);
+          onProgress?.(percent);
+        }
+      });
 
       // Timeout automático
       const timeoutId = setTimeout(() => {

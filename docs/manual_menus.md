@@ -7,24 +7,30 @@ Este documento detalha cada secção da aplicação Nexora, explicando as suas f
 ## 1. Dashboard
 O ecrã principal fornece uma visão panorâmica e em tempo real do estado do sistema.
 
-- **Indicadores de Desempenho (KPIs)**:
-    - **Volume Processado**: Total de GB de media processados nas últimas 24h.
-    - **Qualidade Média (VMAF)**: Pontuação de qualidade visual média dos ficheiros processados.
-    - **Utilização de CPU/RAM**: Gráficos de consumo de recursos dos workers.
+- **Métricas de Infraestrutura**:
+    - **CPU e RAM**: Gráficos de histórico e indicadores de carga actual.
+    - **GPU NVIDIA**: Monitorização de temperatura, carga e memória de vídeo.
+    - **Ocupação de Disco**: Estado dos volumes temporários (`/media/temp`) e de arquivo.
+- **Jobs em Execução**: Contador em tempo real de tarefas activas no pipeline.
 - **Gráficos de Tendência**:
     - **Evolução de Qualidade**: Gráfico de área mostrando a qualidade VMAF e PSNR ao longo do tempo.
-    - **Volume Diário**: Histograma de processamento dos últimos 7 dias.
+    - **Histórico de Carga**: Gráfico comparativo do uso de recursos de hardware.
 
 ## 2. Assets (Biblioteca de Media)
 Onde residem todos os ficheiros ingeridos no sistema.
 
-- **Tabela de Assets**: Mostra o nome do ficheiro, tipo de ficheiro (mimetype), tamanho e estado atual.
+- **Asset Cards**: Apresentam uma **Thumbnail** (pré-visualização) do vídeo, o nome do perfil utilizado e o tamanho formatado.
 - **Estados de um Asset**:
     - `INGESTING`: O ficheiro está a ser carregado ou analisado.
-    - `PROCESSING`: O ficheiro está em fila ou a ser transcodificado.
+    - `QC_RUNNING`: Verificação automática de conformidade (Controlo de Qualidade).
+    - `TRANSCODING`: O ficheiro está em transcodificação de vídeo.
+    - `AUDIO_PROCESSING`: Normalização de loudness EBU R128 em curso.
     - `COMPLETED`: Processamento concluído com sucesso.
     - `FAILED`: Ocorreu um erro (ver detalhes no log do job).
-- **Ações**: Visualização de metadados técnicos (resolução, bitrate, codecs originais).
+- **Ações e Detalhe**: 
+    - Reprodução de vídeo com poster (thumbnail).
+    - Metadados técnicos formatados (Resolução, Framerate decimal, Duração HH:MM:SS).
+    - Download directo do ficheiro original/processado.
 
 ## 3. Upload (Ingest de Media)
 A porta de entrada para novos conteúdos.
@@ -40,8 +46,8 @@ A porta de entrada para novos conteúdos.
 ## 4. Filas (Queue)
 Monitorização técnica da infraestrutura de processamento (BullMQ).
 
-- **Estado das Filas**: Monitorização das filas `ingest` e `process`.
-- **Contadores**: Total de tarefas pendentes, activas, completadas e falhadas.
+- **Estado das Filas**: Monitorização das filas `INGEST`, `QC`, `TRANSCODE`, `AUDIO`, `PROXY`, `SUBTITLE` e `DELIVERY`.
+- **Barra de Progresso Real**: Mostra a percentagem exacta de cada trabalho em execução, extraída directamente dos workers em tempo real.
 - **Worker Status**: Lista de workers activos e a sua carga de trabalho actual.
 
 ## 5. Perfis de Encoding

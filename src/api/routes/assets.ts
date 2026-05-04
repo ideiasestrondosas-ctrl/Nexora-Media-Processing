@@ -303,6 +303,7 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
           size: true,
           status: true,
           profile: true,
+          thumbnailKey: true,
           sha256: true,
           createdAt: true,
           updatedAt: true,
@@ -314,10 +315,19 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
       prisma.asset.count({ where }),
     ]);
 
-    // Serializar BigInt para string
-    const serialized = assets.map(asset => ({
-      ...asset,
-      size: asset.size?.toString() ?? null,
+    // Serializar BigInt para string e gerar URLs de thumbnail
+    const serialized = await Promise.all(assets.map(async (asset) => {
+      let thumbnailUrl: string | null = null;
+      if (asset.thumbnailKey) {
+        try {
+          thumbnailUrl = await getPresignedUrl(BUCKETS.OUTPUT, asset.thumbnailKey, 3600);
+        } catch {}
+      }
+      return {
+        ...asset,
+        size: asset.size?.toString() ?? null,
+        thumbnailUrl,
+      };
     }));
 
     return reply.send(paginate(serialized, total, page, limit));
@@ -373,10 +383,19 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
     let downloadUrl: string | null = null;
     if (asset.minioKey) {
       try {
-        const [, ...keyParts] = asset.minioKey.split('/');
-        downloadUrl = await getPresignedUrl(BUCKETS.INPUT, keyParts.join('/'), 3600);
-      } catch {
-        // Não falhar se URL pre-assinada falhar
+        downloadUrl = await getPresignedUrl(BUCKETS.INPUT, asset.minioKey, 3600);
+      } catch (err) {
+        logger.warn({ assetId: id, err }, 'Erro ao gerar downloadUrl');
+      }
+    }
+
+    // Gerar URL para thumbnail
+    let thumbnailUrl: string | null = null;
+    if (asset.thumbnailKey) {
+      try {
+        thumbnailUrl = await getPresignedUrl(BUCKETS.OUTPUT, asset.thumbnailKey, 3600);
+      } catch (err) {
+        logger.warn({ assetId: id, err }, 'Erro ao gerar thumbnailUrl');
       }
     }
 
@@ -384,6 +403,7 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
       ...asset,
       size: asset.size?.toString() ?? null,
       downloadUrl,
+      thumbnailUrl,
     });
   });
 

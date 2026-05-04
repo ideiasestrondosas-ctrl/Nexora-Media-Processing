@@ -18,6 +18,11 @@ interface QueueStat {
   failed: number;
   delayed: number;
   total: number;
+  progressList?: {
+    id: string;
+    progress: number;
+    data: { assetId?: string; filename?: string };
+  }[];
 }
 
 interface QueueStatsResponse {
@@ -140,7 +145,24 @@ export function QueueDashboard() {
                     )}
                   </TableCell>
                   <TableCell>
-                    {queue.active > 0 && <Progress value={100} className="h-1 animate-pulse" />}
+                    <div className="space-y-2">
+                      {queue.progressList && queue.progressList.length > 0 ? (
+                        queue.progressList.map((job: any) => (
+                          <div key={job.id} className="space-y-1">
+                            <div className="flex justify-between text-[10px] text-muted-foreground">
+                              <span className="truncate max-w-[120px]">{job.data?.filename || job.id}</span>
+                              <span>{typeof job.progress === 'number' ? `${job.progress}%` : '0%'}</span>
+                            </div>
+                            <Progress 
+                              value={typeof job.progress === 'number' ? job.progress : 0} 
+                              className="h-1" 
+                            />
+                          </div>
+                        ))
+                      ) : (
+                        queue.active > 0 && <Progress value={100} className="h-1 animate-pulse" />
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

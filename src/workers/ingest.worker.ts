@@ -23,6 +23,8 @@ import {
 } from '../common/errors';
 import type { IngestJobPayload } from './queues';
 import { mediainfoAdapter } from '../pipeline/tools/mediainfo-adapter';
+import { extractThumbnail } from '../pipeline/ffmpeg/thumbnail';
+import path from 'path';
 
 // ── Worker ───────────────────────────────────────────────────────
 
@@ -134,6 +136,25 @@ export class IngestWorker {
       );
     }
 
+    // 5.1 Geração de Thumbnail
+    const thumbFilename = `thumb_${assetId}.jpg`;
+    const localThumbPath = path.join(path.dirname(filePath), thumbFilename);
+    const thumbMinioKey = `raw/${assetId}/proxies/${thumbFilename}`;
+    
+    log.info('A extrair thumbnail...');
+    try {
+      await extractThumbnail(filePath, localThumbPath, 5);
+      log.info({ thumbMinioKey }, 'A fazer upload da thumbnail para MinIO...');
+      await uploadFile(BUCKETS.INPUT, thumbMinioKey, localThumbPath, {
+        contentType: 'image/jpeg',
+        metadata: { 'x-nexora-asset-id': assetId }
+      });
+      // Remover thumbnail local
+      await unlink(localThumbPath).catch(() => {});
+    } catch (err) {
+      log.warn({ err }, 'Falha ao gerar/upload de thumbnail (não crítico)');
+    }
+
     // 6. Criar ou Atualizar registo Asset no PostgreSQL
     log.info('A atualizar registo Asset no PostgreSQL...');
     await prisma.asset.upsert({
@@ -147,12 +168,14 @@ export class IngestWorker {
         metadata: metadata as object,
         profile: profile ?? 'broadcast-hd',
         status: AssetStatus.QC_RUNNING,
+        thumbnailKey: thumbMinioKey
       },
       create: {
         id: assetId,
         filename,
         originalPath: filePath,
         minioKey: `${BUCKETS.INPUT}/${minioKey}`,
+        thumbnailKey: thumbMinioKey,
         mimeType: mimeType ?? this.inferMimeType(filename),
         size: fileSizeBytes,
         sha256,

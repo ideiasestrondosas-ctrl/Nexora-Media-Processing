@@ -8,6 +8,7 @@
 import { Queue } from 'bullmq';
 import { getRedisClient } from '../common/redis';
 import { logger } from '../observability/logger';
+import { prisma } from '../db/prisma';
 
 // ── Nomes das filas ──────────────────────────────────────────────
 
@@ -272,6 +273,20 @@ export async function enqueueIngest(
     priority: bullPriority,
   });
 
+  // Criar registo no PostgreSQL para tracking histórico
+  if (job.id) {
+    await prisma.job.create({
+      data: {
+        id: job.id,
+        assetId: payload.assetId || '',
+        queue: QUEUE_NAMES.INGEST,
+        status: 'PENDING',
+        payload: payload as any,
+        priority: payload.priority ?? 5
+      }
+    });
+  }
+
   logger.info({ jobId: job.id, filename: payload.filename }, 'Job ingest enfileirado');
   return job.id ?? '';
 }
@@ -286,6 +301,19 @@ export async function enqueueQC(
   const queues = getNexoraQueues();
 
   const job = await queues.QC.add('qc', payload, { jobId });
+
+  if (job.id) {
+    await prisma.job.create({
+      data: {
+        id: job.id,
+        assetId: payload.assetId,
+        queue: QUEUE_NAMES.QC,
+        status: 'PENDING',
+        payload: payload as any
+      }
+    });
+  }
+
   logger.info({ jobId: job.id, assetId: payload.assetId }, 'Job QC enfileirado');
   return job.id ?? '';
 }
@@ -300,6 +328,19 @@ export async function enqueueTranscode(
   const queues = getNexoraQueues();
 
   const job = await queues.TRANSCODE.add('transcode', payload, { jobId });
+
+  if (job.id) {
+    await prisma.job.create({
+      data: {
+        id: job.id,
+        assetId: payload.assetId,
+        queue: QUEUE_NAMES.TRANSCODE,
+        status: 'PENDING',
+        payload: payload as any
+      }
+    });
+  }
+
   logger.info({ jobId: job.id, assetId: payload.assetId, profile: payload.profile }, 'Job transcode enfileirado');
   return job.id ?? '';
 }
@@ -314,6 +355,19 @@ export async function enqueueAudio(
   const queues = getNexoraQueues();
 
   const job = await queues.AUDIO.add('audio', payload, { jobId });
+
+  if (job.id) {
+    await prisma.job.create({
+      data: {
+        id: job.id,
+        assetId: payload.assetId,
+        queue: QUEUE_NAMES.AUDIO,
+        status: 'PENDING',
+        payload: payload as any
+      }
+    });
+  }
+
   logger.info({ jobId: job.id, assetId: payload.assetId }, 'Job áudio enfileirado');
   return job.id ?? '';
 }
@@ -328,6 +382,19 @@ export async function enqueueSubtitle(
   const queues = getNexoraQueues();
 
   const job = await queues.SUBTITLE.add('subtitle', payload, { jobId });
+
+  if (job.id) {
+    await prisma.job.create({
+      data: {
+        id: job.id,
+        assetId: payload.assetId,
+        queue: QUEUE_NAMES.SUBTITLE,
+        status: 'PENDING',
+        payload: payload as any
+      }
+    });
+  }
+
   logger.info({ jobId: job.id, assetId: payload.assetId, format: payload.outputFormat }, 'Job legendas enfileirado');
   return job.id ?? '';
 }

@@ -22,6 +22,13 @@ export async function queueStatsRoutes(fastify: FastifyInstance): Promise<void> 
             queue.getDelayedCount(),
           ]);
 
+          const activeJobs = await queue.getJobs(['active']);
+          const progressList = activeJobs.map(job => ({
+            id: job.id,
+            progress: job.progress,
+            data: { assetId: job.data?.assetId, filename: job.data?.filename }
+          }));
+
           return {
             name,
             queueKey: (QUEUE_NAMES as Record<string, string>)[name] ?? name,
@@ -30,6 +37,7 @@ export async function queueStatsRoutes(fastify: FastifyInstance): Promise<void> 
             completed,
             failed,
             delayed,
+            progressList,
             total: waiting + active + completed + failed + delayed,
           };
         })

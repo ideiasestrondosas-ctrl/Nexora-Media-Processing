@@ -11,6 +11,7 @@ import { QCWorker } from './workers/qc.worker';
 import { TranscodeWorker } from './workers/transcode.worker';
 import { AudioWorker } from './workers/audio.worker';
 import { SubtitleWorker } from './workers/subtitle.worker';
+import { setupJobSync } from './workers/job-sync';
 import { initDatabase, closeDatabase } from './db/prisma';
 import { ensureBuckets } from './common/minio';
 import { closeRedis } from './common/redis';
@@ -44,7 +45,10 @@ async function startWorkers(): Promise<void> {
     // 3. Garantir que buckets MinIO existem
     await ensureBuckets();
 
-    // 4. Verificar disponibilidade das ferramentas de media
+    // 4. Iniciar sincronização de jobs (BullMQ -> Postgres)
+    setupJobSync();
+
+    // 5. Verificar disponibilidade das ferramentas de media
     //    Substituição do checkToolAvailability() inline pelo NexoraToolRegistry (Prompt 9)
     const report = await toolRegistry.checkAllTools();
 

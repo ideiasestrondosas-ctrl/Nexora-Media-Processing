@@ -17,11 +17,27 @@ Este manual guia-o através da utilização diária da plataforma Nexora e forne
     - **Manter Original**: Ative se não quiser que o ficheiro de origem seja apagado após a conclusão.
     - Selecione o perfil de encoding.
     - Clique em **"Iniciar Upload"**.
-4. **Monitorização**: 
-    - Acompanhe a barra de progresso.
-    - Quando terminar, o ficheiro aparecerá no menu **"Assets"**.
-    - O estado passará de `PROCESSING` para `COMPLETED` quando a transcodificação terminar.
-5. **Download/Verificação**: Pode visualizar o asset concluído na biblioteca de Assets.
+20. **Monitorização**: 
+    - No **Dashboard**, acompanhe a carga de CPU, Memória e utilização de GPU em tempo real.
+    - No menu **Filas**, veja a barra de progresso real (percentagem) de cada trabalho activo.
+    - Quando terminar, o ficheiro aparecerá no menu **"Assets"** com uma **Thumbnail** (pré-visualização) gerada automaticamente.
+21. **Download/Verificação**: No detalhe do Asset, pode ver metadados técnicos formatados (Resolução, Framerate, Duração), reproduzir o vídeo com a Thumbnail como poster inicial, e descarregar o ficheiro original.
+22. **Áudio**: O sistema agora realiza normalização de áudio (EBU R128) automática se configurado no perfil.
+
+---
+
+## 2. Visibilidade e Observabilidade
+
+### Dashboards de Infraestrutura
+A plataforma monitoriza continuamente os recursos do servidor:
+- **CPU e RAM**: Gráficos de histórico para detectar picos de carga.
+- **GPU (NVIDIA)**: Monitorização de temperatura, carga e memória de vídeo para processos de transcodificação acelerada.
+- **Armazenamento**: Estado de ocupação das pastas temporárias e de arquivo final.
+
+### Gestão de Filas
+No menu "Filas", pode ver exactamente o que o sistema está a processar:
+- **Barra de Progresso**: Percentagem exacta baseada no tempo de transcodificação.
+- **Status Sincronizado**: Visibilidade imediata entre o que está no Redis (BullMQ) e na base de dados (PostgreSQL).
 
 ---
 

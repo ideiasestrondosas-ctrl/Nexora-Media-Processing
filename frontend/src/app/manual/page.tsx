@@ -24,17 +24,17 @@ const sections: Section[] = [
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Métricas apresentadas</h3>
           <ul className="space-y-2 text-sm text-slate-400">
-            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">Assets Processados</strong> — número de ficheiros com processamento concluído com sucesso.</span></li>
-            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">Jobs Activos / Pendentes</strong> — tarefas de processamento em execução ou em fila de espera.</span></li>
+            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">Infraestrutura Hardware</strong> — monitorização em tempo real de CPU, RAM e GPU (NVIDIA).</span></li>
+            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">Armazenamento</strong> — ocupação dos volumes de trabalho e arquivo final.</span></li>
+            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">Jobs Activos</strong> — contador de tarefas em execução no pipeline.</span></li>
             <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">Taxa de Sucesso</strong> — percentagem de jobs concluídos com êxito nas últimas 24 horas.</span></li>
-            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">Falhas (24h)</strong> — número de jobs que falharam nas últimas 24 horas.</span></li>
           </ul>
         </div>
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Gráficos</h3>
+          <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Gráficos de Histórico</h3>
           <ul className="space-y-2 text-sm text-slate-400">
-            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">Qualidade Média (VMAF/PSNR)</strong> — evolução da qualidade de transcodificação nas últimas 24h.</span></li>
-            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">Volume de Processamento</strong> — total de GB processados nos últimos 7 dias.</span></li>
+            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">Carga de Hardware</strong> — evolução do uso de recursos nos últimos minutos.</span></li>
+            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">Qualidade (VMAF/PSNR)</strong> — tendência de qualidade visual dos assets processados.</span></li>
           </ul>
         </div>
         <div className="bg-blue-950/40 border border-blue-800/50 rounded-lg p-3 text-sm text-blue-300">
@@ -61,7 +61,8 @@ const sections: Section[] = [
               { label: "QC_RUNNING", color: "bg-yellow-700", desc: "Controlo de Qualidade em execução (bitrate, loudness, normas)." },
               { label: "QC_PASSED", color: "bg-green-700", desc: "Passou no QC, aguarda transcodificação." },
               { label: "QC_QUARANTINED", color: "bg-orange-700", desc: "QC detetou problemas menores; requer revisão manual." },
-              { label: "TRANSCODING", color: "bg-blue-600", desc: "Transcodificação de vídeo em curso." },
+              { label: "TRANSCODING", color: "bg-blue-600", desc: "Transcodificação de vídeo (aceleração GPU se disponível)." },
+              { label: "AUDIO_PROCESSING", color: "bg-purple-600", desc: "Normalização de Loudness EBU R128." },
               { label: "COMPLETED", color: "bg-green-600", desc: "Processamento concluído com sucesso." },
               { label: "FAILED", color: "bg-red-600", desc: "Erro durante o processamento." },
             ].map(s => (
@@ -77,8 +78,12 @@ const sections: Section[] = [
           <p className="text-sm text-slate-400">Pode filtrar por <strong className="text-slate-300">nome do ficheiro</strong> e por <strong className="text-slate-300">estado</strong> para localizar rapidamente um asset específico.</p>
         </div>
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Detalhe do Asset</h3>
-          <p className="text-sm text-slate-400">Ao clicar num asset obtém a vista de detalhe com os metadados técnicos originais (codec, resolução, framerate, áudio), o relatório de QC e a linha cronológica de todos os jobs de processamento.</p>
+          <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Funcionalidades Visuais</h3>
+          <ul className="space-y-2 text-sm text-slate-400">
+            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">Thumbnails</strong> — pré-visualização automática de cada vídeo na biblioteca.</span></li>
+            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">Metadados Formatados</strong> — visualização clara de framerate decimal, duração e tamanho legível.</span></li>
+            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">Download</strong> — acesso directo ao ficheiro original e entregas.</span></li>
+          </ul>
         </div>
       </div>
     ),
@@ -120,14 +125,8 @@ const sections: Section[] = [
           As <strong>Filas</strong> apresentam o estado das filas de processamento BullMQ em tempo real.
         </p>
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Tipos de Filas</h3>
-          <ul className="space-y-2 text-sm text-slate-400">
-            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">INGEST</strong> — análise de metadados e validação inicial do ficheiro.</span></li>
-            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">QC</strong> — verificação de conformidade técnica (EBU R128, bitrate, resolução).</span></li>
-            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">TRANSCODE</strong> — conversão de formato de vídeo com FFmpeg.</span></li>
-            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">AUDIO</strong> — normalização de áudio (EBU R128) e geração de mix.</span></li>
-            <li className="flex gap-2"><ChevronRight className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" /><span><strong className="text-slate-300">DELIVERY</strong> — entrega do ficheiro processado ao destino configurado.</span></li>
-          </ul>
+          <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Monitorização em Tempo Real</h3>
+          <p className="text-sm text-slate-400">Pode acompanhar a <strong className="text-slate-300">percentagem de conclusão</strong> de cada job activo directamente nas barras de progresso reais, sincronizadas com os workers.</p>
         </div>
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">Prioridades</h3>

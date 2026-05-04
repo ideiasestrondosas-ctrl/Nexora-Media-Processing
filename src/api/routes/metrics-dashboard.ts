@@ -1,5 +1,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { prisma } from '../../db/prisma';
+import si from 'systeminformation';
+import fs from 'fs';
+import path from 'path';
 
 export async function metricsDashboardRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /metrics/dashboard-data
@@ -111,6 +114,64 @@ export async function metricsDashboardRoutes(fastify: FastifyInstance): Promise<
     const uptimeHours = Math.floor(uptimeStr / 3600);
     const uptimeMinutes = Math.floor((uptimeStr % 3600) / 60);
 
+    // 4. Hardware Metrics (Nova Secção)
+    let cpuLoad = 0;
+    let memUsed = 0;
+    let memTotal = 0;
+    let gpuInfo = { model: 'N/A', memoryUsed: 0, memoryTotal: 0, load: 0 };
+    let diskStats = { total: 0, used: 0, tempUsed: 0, storageUsed: 0 };
+
+    try {
+      const [cpu, mem, gpus, disk] = await Promise.all([
+        si.currentLoad(),
+        si.mem(),
+        si.graphics(),
+        si.fsSize()
+      ]);
+
+      cpuLoad = cpu.currentLoad;
+      memUsed = mem.active;
+      memTotal = mem.total;
+
+      if (gpus.controllers && gpus.controllers.length > 0) {
+        const primaryGpu = gpus.controllers[0];
+        gpuInfo = {
+          model: primaryGpu.model,
+          memoryUsed: primaryGpu.memoryUsed || 0,
+          memoryTotal: primaryGpu.memoryTotal || 0,
+          load: primaryGpu.utilizationGpu || 0
+        };
+      }
+
+      // Disco principal (onde corre a app)
+      const mainDisk = disk.find(d => d.mount === '/' || d.mount === 'C:') || disk[0];
+      diskStats.total = mainDisk.size;
+      diskStats.used = mainDisk.used;
+
+      // Calcular espaço em /media/temp e /media/storage (Nexora específicos)
+      const tempDir = process.env.NEXORA_TEMP_DIR || '/media/temp';
+      const storageDir = process.env.NEXORA_STORAGE_DIR || '/media/storage';
+
+      const getDirSize = (dirPath: string): number => {
+        try {
+          if (!fs.existsSync(dirPath)) return 0;
+          let totalSize = 0;
+          const files = fs.readdirSync(dirPath);
+          for (const file of files) {
+            const stats = fs.statSync(path.join(dirPath, file));
+            if (stats.isFile()) totalSize += stats.size;
+          }
+          return totalSize;
+        } catch { return 0; }
+      };
+
+      diskStats.tempUsed = getDirSize(tempDir);
+      diskStats.storageUsed = getDirSize(storageDir);
+
+    } catch (err) {
+      console.error("Erro a obter métricas de hardware:", err);
+    }
+
     return {
       processingVolume,
       qualityTrends,
@@ -119,7 +180,27 @@ export async function metricsDashboardRoutes(fastify: FastifyInstance): Promise<
         activeJobs,
         failedJobsLast24h,
         uptime: `${uptimeHours}h ${uptimeMinutes}m`
-      }
+      },
+      hardware: {
+        cpu: Number(cpuLoad.toFixed(1)),
+        memory: {
+          used: memUsed,
+          total: memTotal,
+          percent: Number(((memUsed / memTotal) * 100).toFixed(1))
+        },
+        gpu: gpuInfo,
+        disk: diskStats
+      },
+      // Mock de histórico de hardware (últimas 24h)
+      hardwareHistory: Array.from({ length: 6 }, (_, i) => {
+        const d = new Date();
+        d.setHours(d.getHours() - (5 - i) * 4);
+        return {
+          time: `${d.getHours().toString().padStart(2, '0')}:00`,
+          cpu: Math.random() * 40 + 10,
+          memory: Math.random() * 20 + 40
+        };
+      })
     };
   });
 }

@@ -115,7 +115,8 @@ export class AudioWorker {
         inputPath,
         outputPath,
         targetLufs,
-        truePeakLimit
+        truePeakLimit,
+        (p) => { job.updateProgress(p).catch(() => {}); }
       );
 
       log.info(

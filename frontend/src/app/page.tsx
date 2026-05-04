@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { MetricsChart } from "@/components/dashboard/MetricsChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Clock, Film, AlertTriangle, RefreshCw, UploadCloud } from "lucide-react";
+import { Activity, Clock, Film, AlertTriangle, RefreshCw, UploadCloud, Cpu, Layers, Database, Gauge } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import Link from "next/link";
@@ -40,6 +40,28 @@ interface DashboardData {
     failedJobsLast24h: number;
     uptime: string;
   };
+  hardware: {
+    cpuLoad: number;
+    memUsedPercent: number;
+    memTotal: string;
+    gpu?: {
+      name: string;
+      load: number;
+      memUsed: string;
+      memTotal: string;
+      temp: number;
+    };
+    storage: {
+      temp: { used: string; total: string; percent: number };
+      storage: { used: string; total: string; percent: number };
+    };
+  };
+  hardwareHistory: {
+    time: string;
+    cpu: number;
+    ram: number;
+    gpu?: number;
+  }[];
 }
 
 export default function DashboardPage() {
@@ -186,7 +208,123 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Gráficos originais */}
+      {/* Infraestrutura Hardware */}
+      {!loading && dashboardData?.hardware && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 px-1">
+            <Cpu className="h-5 w-5 text-muted-foreground" />
+            <h2 className="text-lg font-semibold tracking-tight">Estado da Infraestrutura</h2>
+          </div>
+          
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card className="bg-slate-50/50 dark:bg-slate-900/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center justify-between">
+                  CPU
+                  <span className={dashboardData.hardware.cpuLoad > 80 ? "text-red-500" : "text-green-500"}>
+                    {dashboardData.hardware.cpuLoad}%
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-500 transition-all duration-500" 
+                    style={{ width: `${dashboardData.hardware.cpuLoad}%` }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-slate-50/50 dark:bg-slate-900/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center justify-between">
+                  Memória RAM
+                  <span className="text-blue-500">{dashboardData.hardware.memUsedPercent}%</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-purple-500 transition-all duration-500" 
+                    style={{ width: `${dashboardData.hardware.memUsedPercent}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-2 text-right">Total: {dashboardData.hardware.memTotal}</p>
+              </CardContent>
+            </Card>
+
+            {dashboardData.hardware.gpu ? (
+              <Card className="bg-slate-50/50 dark:bg-slate-900/50 border-blue-500/20">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center justify-between">
+                    GPU ({dashboardData.hardware.gpu.name})
+                    <span className="text-teal-500">{dashboardData.hardware.gpu.load}%</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-teal-500 transition-all duration-500" 
+                      style={{ width: `${dashboardData.hardware.gpu.load}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-2 flex justify-between">
+                    <span>Temp: {dashboardData.hardware.gpu.temp}ºC</span>
+                    <span>{dashboardData.hardware.gpu.memUsed} / {dashboardData.hardware.gpu.memTotal}</span>
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="bg-slate-50/50 dark:bg-slate-900/50 border-dashed">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs font-bold uppercase text-muted-foreground">GPU</CardTitle>
+                </CardHeader>
+                <CardContent className="flex items-center justify-center h-10">
+                  <span className="text-[10px] text-muted-foreground italic text-center">Nenhuma GPU NVIDIA detectada ou activa</span>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card className="bg-slate-50/50 dark:bg-slate-900/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-bold uppercase text-muted-foreground flex items-center justify-between">
+                  Disco (Storage)
+                  <span>{dashboardData.hardware.storage.storage.percent}%</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-orange-500 transition-all duration-500" 
+                    style={{ width: `${dashboardData.hardware.storage.storage.percent}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-2 text-right">
+                  {dashboardData.hardware.storage.storage.used} de {dashboardData.hardware.storage.storage.total}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Gráfico de Histórico de Hardware */}
+          <Card className="p-4 pt-6">
+            <MetricsChart
+              title="Histórico de Carga"
+              description="Uso de recursos nos últimos minutos"
+              data={dashboardData.hardwareHistory?.map(h => ({ ...h, name: h.time })) || []}
+              type="area"
+              dataKeys={[
+                { key: "cpu", color: "hsl(var(--chart-1))", name: "CPU (%)" },
+                { key: "ram", color: "hsl(var(--chart-4))", name: "RAM (%)" },
+                ...(dashboardData.hardware.gpu ? [{ key: "gpu", color: "hsl(var(--chart-5))", name: "GPU (%)" }] : []),
+              ]}
+            />
+          </Card>
+        </div>
+      )}
+
+      {/* Gráficos de Media */}
       {!loading && totalAssets > 0 && (
         <div className="grid gap-4 md:grid-cols-2">
           <MetricsChart

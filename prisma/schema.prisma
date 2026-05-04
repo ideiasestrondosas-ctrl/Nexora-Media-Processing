@@ -88,6 +88,7 @@ model Asset {
   filename     String
   originalPath String?                      // caminho local antes do upload
   minioKey     String?                      // chave no MinIO (bucket/key)
+  thumbnailKey String?                      // chave da imagem de preview
   mimeType     String?
   size         BigInt?                      // tamanho em bytes
   sha256       String?                      // checksum ADR-003
