@@ -1,4 +1,4 @@
-﻿# Nexora Media Processing â€” Estado do Projecto
+# Nexora Media Processing â€” Estado do Projecto
 
 > **âš ï¸ LEITURA OBRIGATÃ“RIA PARA TODOS OS AGENTES IA**
 > Este ficheiro deve ser lido ANTES de qualquer trabalho e actualizado no FIM de cada sessÃ£o.
@@ -39,12 +39,13 @@
 
 ---
 
-## ðŸ”„ Em progresso agora
+## 🔄 Em progresso agora
 
 ```
 Data: 2026-05-05
 Agente: Antigravity (Gemini)
-Estado: âœ… Release v1.0.0 concluÃ­da (Desktop Planning a decorrer)
+Estado: 🔄 Planeamento da Migração Desktop & Sincronização GitHub
+Fase Actual: Fase 0 (Arquitectura) e Sincronização de Tarefas no GitHub
 Bloqueios: Nenhum
 ```
 

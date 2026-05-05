@@ -396,12 +396,42 @@ Os logs de background são guardados em `.logs/`.
 
 ---
 
-## Documentação
+## Documentação e Manuais
 
-- [Estado do projecto](PROGRESS.md) — 10/10 prompts concluídos
-- [API Reference (OpenAPI)](openapi.yaml) — especificação completa
-- [ADRs](docs/adr/) — Architecture Decision Records detalhados
-- [Manual técnico](docs/manual-v4.md)
+Para uma compreensão aprofundada da plataforma, consulte os manuais detalhados na pasta `docs/`:
+
+- [**Manual de Utilizador**](docs/manual_utilizador.md) — Guia passo-a-passo para processar media, monitorização e resolução de problemas comuns.
+- [**Manual de Menus**](docs/manual_menus.md) — Explicação detalhada de cada funcionalidade da interface (Dashboard, Assets, Upload, Filas, Perfis, Utilizadores).
+- [**Manual Técnico (v4)**](docs/manual-v4.md) — Detalhes de implementação, fluxos de dados e configuração avançada.
+- [**Referência de API (OpenAPI)**](openapi.yaml) — Especificação completa para integração externa.
+- [**ADRs**](docs/adr/) — Architecture Decision Records para entender as decisões de design.
+
+---
+
+## Roadmap 2026 — O Futuro do Nexora
+
+O projecto Nexora está em constante evolução. Após a conclusão bem-sucedida da v1.0.0 (Server), o foco actual é a **Migração para Desktop Nativo**.
+
+### Q2 2026 — Nexora Desktop (v0.1.0)
+- **Motor**: Tauri 2.x + Rust para performance extrema e baixo consumo de RAM.
+- **Base de Dados**: SQLite local para persistência zero-config.
+- **Sidecar**: Node.js integrado para execução de workers de media.
+- **Portabilidade**: Binários nativos para Windows (.exe), macOS (.dmg) e Linux (.AppImage).
+- **Offline First**: Capacidade de processamento 100% local sem necessidade de infraestrutura cloud.
+
+---
+
+## Deep Dive Técnico
+
+### Segurança de Media
+- **Magic Bytes Validation**: O Nexora não confia apenas na extensão do ficheiro. Validamos os primeiros 4KB de cada upload contra assinaturas binárias reais para prevenir ataques de *polyglot files* ou extensões forjadas.
+- **SSRF Guard**: Todas as notificações de webhooks passam por um filtro de rede que bloqueia IPs privados (RFC 1918), loopback e metadata de cloud (AWS/GCP/Azure).
+- **Path Sanitizer**: Proteção robusta contra *Path Traversal*, limpando null bytes, encodings maliciosos e sequências `../`.
+
+### Performance e Qualidade
+- **Aceleração por GPU**: Detecção automática de hardware NVIDIA (NVENC), Intel (QSV) e AMD (AMF) com fallback inteligente para CPU.
+- **VMAF Scoring**: Garantia de qualidade perceptual. Se o score VMAF for inferior ao threshold do perfil (ex: <90 para Broadcast), o sistema pode ser configurado para re-processar com bitrate superior.
+- **EBU R128**: Normalização de áudio profissional de dois passos, garantindo que todos os conteúdos cumprem as normas de loudness internacionais.
 
 ---
 
