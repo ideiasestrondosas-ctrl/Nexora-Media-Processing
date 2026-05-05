@@ -8,7 +8,7 @@
 // usada para outros comandos Redis.
 
 import Redis, { type RedisOptions } from 'ioredis';
-import { logger } from '../observability/logger';
+// import { logger } from '../observability/logger';
 
 // ── Configuração ─────────────────────────────────────────────────
 
@@ -20,7 +20,7 @@ const REDIS_CONNECT_OPTIONS: RedisOptions = {
   retryStrategy: (times: number) => {
     // Reconectar com backoff exponencial até 30s
     const delay = Math.min(times * 500, 30000);
-    logger.warn({ attempt: times, delayMs: delay }, 'Redis a reconectar...');
+    console.warn(`[Redis] A reconectar... (tentativa ${times}, delay ${delay}ms)`);
     return delay;
   },
   lazyConnect: true,
@@ -39,21 +39,11 @@ export function getRedisClient(): Redis {
 
   _redisClient = new Redis(REDIS_URL, REDIS_CONNECT_OPTIONS);
 
-  _redisClient.on('connect', () =>
-    logger.info('Redis conectado')
-  );
-  _redisClient.on('ready', () =>
-    logger.debug('Redis pronto')
-  );
-  _redisClient.on('error', (err: Error) =>
-    logger.error({ err }, 'Erro Redis')
-  );
-  _redisClient.on('close', () =>
-    logger.warn('Conexão Redis encerrada')
-  );
-  _redisClient.on('reconnecting', () =>
-    logger.warn('Redis a reconectar')
-  );
+  _redisClient.on('connect', () => console.info('[Redis] Conectado'));
+  _redisClient.on('ready', () => console.debug('[Redis] Pronto'));
+  _redisClient.on('error', (err: Error) => console.error('[Redis] Erro:', err.message));
+  _redisClient.on('close', () => console.warn('[Redis] Conexão encerrada'));
+  _redisClient.on('reconnecting', () => console.warn('[Redis] A reconectar...'));
 
   return _redisClient;
 }
@@ -76,12 +66,8 @@ export function getRedisPubSub(): Redis {
     maxRetriesPerRequest: null as unknown as number,
   });
 
-  _redisPubSub.on('connect', () =>
-    logger.info('Redis PubSub conectado')
-  );
-  _redisPubSub.on('error', (err: Error) =>
-    logger.error({ err }, 'Erro Redis PubSub')
-  );
+  _redisPubSub.on('connect', () => console.info('[Redis PubSub] Conectado'));
+  _redisPubSub.on('error', (err: Error) => console.error('[Redis PubSub] Erro:', err.message));
 
   return _redisPubSub;
 }
@@ -136,5 +122,5 @@ export async function closeRedis(): Promise<void> {
     await _redisClient.quit();
     _redisClient = null;
   }
-  logger.info('Redis desconectado');
+  console.info('[Redis] Desconectado');
 }

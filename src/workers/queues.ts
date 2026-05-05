@@ -182,7 +182,9 @@ export async function addToDeadLetter(
 export async function initQueues(): Promise<void> {
   // Verificar conexão ao Redis antes de criar filas
   const redis = getRedisClient();
-  await redis.connect();
+  if (redis.status === 'wait' || redis.status === 'end') {
+    await redis.connect();
+  }
   await redis.ping();
 
   const queues = getNexoraQueues();

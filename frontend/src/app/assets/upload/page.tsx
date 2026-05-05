@@ -1,11 +1,10 @@
 "use client";
 
 import { UploadZone } from "@/components/assets/UploadZone";
-import { useAuthStore } from "@/store/auth";
+
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3005").replace(/\/$/, "");
 
 export default function UploadPage() {
-  const token = useAuthStore((state) => state.token);
-
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="space-y-2">
@@ -17,10 +16,10 @@ export default function UploadPage() {
       
       <div className="mt-8">
         <UploadZone 
-          uploadUrl="http://localhost:3000/api/v1/assets/upload"
-          token={token}
+          uploadUrl={`${API_BASE}/api/v1/assets/upload`}
         />
       </div>
     </div>
   );
 }
+

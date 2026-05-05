@@ -14,8 +14,9 @@ export async function queueStatsRoutes(fastify: FastifyInstance): Promise<void> 
 
       const stats = await Promise.all(
         Object.entries(queues).map(async ([name, queue]) => {
-          const [waiting, active, completed, failed, delayed] = await Promise.all([
+          const [waiting, prioritized, active, completed, failed, delayed] = await Promise.all([
             queue.getWaitingCount(),
+            queue.getPrioritizedCount(),
             queue.getActiveCount(),
             queue.getCompletedCount(),
             queue.getFailedCount(),
@@ -32,13 +33,13 @@ export async function queueStatsRoutes(fastify: FastifyInstance): Promise<void> 
           return {
             name,
             queueKey: (QUEUE_NAMES as Record<string, string>)[name] ?? name,
-            waiting,
+            waiting: waiting + prioritized,
             active,
             completed,
             failed,
             delayed,
             progressList,
-            total: waiting + active + completed + failed + delayed,
+            total: waiting + prioritized + active + completed + failed + delayed,
           };
         })
       );

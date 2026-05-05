@@ -20,6 +20,20 @@ const memoryStream = {
   }
 };
 
+// Stream para publicar logs no Redis para que outros serviços (ex: API) os recebam
+const redisStream = {
+  write(msg: string) {
+    try {
+      // Import dinâmico para evitar circular dependency total no arranque
+      const { getRedisClient } = require('../common/redis');
+      const client = getRedisClient();
+      client.publish('nexora:logs:stream', msg).catch(() => {});
+    } catch {
+      // Silencioso para não crashar o processo por causa do logger
+    }
+  }
+};
+
 export const logger = pino({
   level: process.env.LOG_LEVEL ?? 'info',
   base: {
@@ -30,7 +44,8 @@ export const logger = pino({
   timestamp: pino.stdTimeFunctions.isoTime,
 }, pino.multistream([
   { stream: process.stdout }, // Mantém output original
-  { stream: memoryStream }    // Adiciona stream para o dashboard
+  { stream: memoryStream },    // Adiciona stream para o dashboard local
+  { stream: redisStream }      // Publica no Redis para stream global
 ]));
 
 /** Helper para criar logger filho com contexto de asset */

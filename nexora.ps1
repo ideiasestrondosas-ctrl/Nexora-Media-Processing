@@ -83,6 +83,15 @@ function Start-NexoraService([string]$name) {
     
     if (Test-Path $logFile) { Remove-Item $logFile -Force -ErrorAction SilentlyContinue }
 
+    # Garantir que o package.json do projecto nao tem BOM (o tsx crasha com BOM)
+    $pkgPath = Join-Path $svc.cwd "package.json"
+    if (Test-Path $pkgPath) {
+        $raw = Get-Content $pkgPath -Raw
+        $Utf8NoBom = New-Object System.Text.UTF8Encoding $False
+        [System.IO.File]::WriteAllText($pkgPath, $raw, $Utf8NoBom)
+    }
+
+
     # Usar powershell.exe para arrancar em background com redireccionamento limpo
     $cmdToRun = $svc.cmd
     $sb = "Set-Location '$($svc.cwd)'; $cmdToRun *>&1 | Out-File -FilePath '$logFile' -Encoding utf8"

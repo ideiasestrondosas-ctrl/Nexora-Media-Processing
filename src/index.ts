@@ -13,6 +13,7 @@ import { ensureBuckets } from './common/minio';
 import { closeRedis } from './common/redis';
 import { metricsServer } from './observability/metrics';
 import { logger } from './observability/logger';
+import { logStreamer } from './observability/log-streamer';
 
 // Usar o logger do Pino em vez do logger nativo do Fastify
 // para consistência com o resto da aplicação
@@ -30,6 +31,9 @@ async function start(): Promise<void> {
   try {
     // 1. Validar variáveis de ambiente obrigatórias (falha rápida)
     validateEnvironment();
+
+    // Iniciar recepção de logs via Redis Pub/Sub
+    logStreamer.initRedisSubscription();
 
     // 2. Inicializar base de dados (verificar conectividade)
     await initDatabase();
