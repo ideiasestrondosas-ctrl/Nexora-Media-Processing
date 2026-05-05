@@ -41,19 +41,23 @@ interface DashboardData {
     uptime: string;
   };
   hardware: {
-    cpuLoad: number;
-    memUsedPercent: number;
-    memTotal: string;
-    gpu?: {
-      name: string;
-      load: number;
-      memUsed: string;
-      memTotal: string;
-      temp: number;
+    cpu: number;
+    memory: {
+      used: number;
+      total: number;
+      percent: number;
     };
-    storage: {
-      temp: { used: string; total: string; percent: number };
-      storage: { used: string; total: string; percent: number };
+    gpu?: {
+      model: string;
+      memoryUsed: number;
+      memoryTotal: number;
+      load: number;
+    };
+    disk: {
+      total: number;
+      used: number;
+      tempUsed: number;
+      storageUsed: number;
     };
   };
   hardwareHistory: {
@@ -64,6 +68,7 @@ interface DashboardData {
     disk?: number;
   }[];
 }
+
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);

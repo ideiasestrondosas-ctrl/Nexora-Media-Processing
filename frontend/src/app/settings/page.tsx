@@ -8,8 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Wrench, HardDrive, Cloud, RefreshCw, AlertTriangle, Loader2,
-  CheckCircle2, XCircle, Shield, Database, FileX
+  CheckCircle2, XCircle, Shield, Database, FileX, UploadCloud, Download
 } from "lucide-react";
+
+
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
 import { cn } from "@/lib/utils";
@@ -267,7 +269,8 @@ export default function SettingsPage() {
                     }
                   }}
                 >
-                  <UploadCloud className="h-4 w-4" />
+                  <Download className="h-4 w-4" />
+
                   Descarregar Backup
                 </Button>
               </div>
