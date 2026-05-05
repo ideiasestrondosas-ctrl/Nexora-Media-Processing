@@ -41,72 +41,111 @@ if (!$remote) {
 }
 
 # ---------------------------------------------------------
-# DETECAO DE ALTERACOES
+# DETECAO DE ALTERACOES E VARREDURA PROFUNDA
 # ---------------------------------------------------------
-Write-Step "Verificando alteracoes no workspace..."
+Write-Step "Iniciando varredura profunda no workspace..."
+
+# 1. Refrescar o index para garantir que o Git ve tudo o que mudou no disco
+git update-index --refresh > $null 2>&1
+
+# 2. Verificar o que esta 'ahead' (commits locais nao enviados)
+$branch = git branch --show-current
+$pendingCommits = git log origin/$branch..HEAD --oneline
+$pendingFiles = git log origin/$branch..HEAD --name-only --oneline | Select-Object -Unique | Where-Object { $_ -and $_ -notmatch "^[a-f0-9]{7} " }
+
+# 3. Verificar alteracoes nao comitadas
 $status = git status --porcelain
-if (!$status) {
-    Write-Success "Workspace limpo. Nada para atualizar."
+
+if (!$status -and !$pendingCommits) {
+    Write-Success "Workspace e GitHub estao sincronizados. Nada para fazer."
     exit
 }
 
-Write-Host "Alteracoes detetadas:"
-Write-Host $status
+if ($pendingCommits) {
+    Write-Warning "DETETADOS COMMITS PENDENTES (Ainda nao estao no GitHub):"
+    Write-Host $pendingCommits -ForegroundColor Gray
+    Write-Host "`nFicheiros nestes commits:"
+    Write-Host ($pendingFiles -join ", ") -ForegroundColor Cyan
+}
+
+if ($status) {
+    Write-Host "`nAlteracoes locais por comitar:" -ForegroundColor Yellow
+    Write-Host $status
+} else {
+    Write-Success "`nNao ha alteracoes locais pendentes (tudo comitado)."
+}
 
 # ---------------------------------------------------------
 # COMMIT E CONVENCOES
 # ---------------------------------------------------------
-$commitMsg = $Message
-if (!$commitMsg) {
-    # Sugestao automatica baseada no status
-    $firstLine = ($status -split "`n")[0]
-    $fileCount = ($status -split "`n").Count
-    if ($firstLine.Length -gt 3) {
-        $firstFile = $firstLine.Substring(3).Trim()
-        $suggestedDesc = "atualizar $firstFile"
-        if ($fileCount -gt 1) { $suggestedDesc += " e mais $($fileCount -1) ficheiros" }
-    } else {
-        $suggestedDesc = "atualizacoes gerais"
+if ($status) {
+    $commitMsg = $Message
+    if (!$commitMsg) {
+        # Sugestao automatica baseada no status
+        $firstLine = ($status -split "`n")[0]
+        $fileCount = ($status -split "`n").Count
+        if ($firstLine.Length -gt 3) {
+            $firstFile = $firstLine.Substring(3).Trim()
+            $suggestedDesc = "atualizar $firstFile"
+            if ($fileCount -gt 1) { $suggestedDesc += " e mais $($fileCount -1) ficheiros" }
+        } else {
+            $suggestedDesc = "atualizacoes gerais"
+        }
+        
+        Write-Host "`nNormas de Commit (GitHub):"
+        Write-Host "1. feat: (Novas funcionalidades)"
+        Write-Host "2. fix: (Correcao de bugs)"
+        Write-Host "3. docs: (Alteracoes na documentacao)"
+        Write-Host "4. style: (Formatacao, estetica)"
+        Write-Host "5. refactor: (Refatoracao de codigo)"
+        
+        $type = Read-Host "Escolha o tipo (Padrao: feat)"
+        if (!$type) { $type = "feat" }
+        
+        $desc = Read-Host "Descricao (Sugestao: $suggestedDesc)"
+        if (!$desc) { $desc = $suggestedDesc }
+        
+        $commitMsg = "$($type): $desc"
     }
-    
-    Write-Host "`nNormas de Commit (GitHub):"
-    Write-Host "1. feat: (Novas funcionalidades)"
-    Write-Host "2. fix: (Correcao de bugs)"
-    Write-Host "3. docs: (Alteracoes na documentacao)"
-    Write-Host "4. style: (Formatacao, estetica)"
-    Write-Host "5. refactor: (Refatoracao de codigo)"
-    
-    $type = Read-Host "Escolha o tipo (Padrao: feat)"
-    if (!$type) { $type = "feat" }
-    
-    $desc = Read-Host "Descricao (Sugestao: $suggestedDesc)"
-    if (!$desc) { $desc = $suggestedDesc }
-    
-    $commitMsg = "$($type): $desc"
-}
 
-Write-Step "A utilizar mensagem: '$commitMsg'"
-$confirmCommit = Read-Host "Confirmar commit e push? (y/n, Padrao: y)"
-if ($confirmCommit -eq "n") { Write-Warning "Operacao cancelada."; exit }
+    Write-Step "A utilizar mensagem: '$commitMsg'"
+    $confirmCommit = Read-Host "Confirmar commit e push? (y/n, Padrao: y)"
+    if ($confirmCommit -eq "n") { Write-Warning "Operacao cancelada."; exit }
 
-Write-Step "Adicionando ficheiros e fazendo commit..."
-git add .
-git commit -m $commitMsg
-
-if ($LASTEXITCODE -ne 0) {
-    Write-ErrorMsg "Falha ao realizar o commit."
-    exit
-}
-
-# ---------------------------------------------------------
-# LIMPEZA POS-COMMIT (GRAPHIFY)
-# ---------------------------------------------------------
-Start-Sleep -Seconds 1
-$postStatus = git status --porcelain
-if ($postStatus) {
-    Write-Step "Sincronizando alteracoes automaticas (Graphify)..."
+    Write-Step "Adicionando ficheiros e fazendo commit..."
     git add .
-    git commit -m "docs: atualizar grafo e relatorios (auto)" --no-verify
+    git commit -m $commitMsg
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-ErrorMsg "Falha ao realizar o commit."
+        exit
+    }
+
+    # ---------------------------------------------------------
+    # LIMPEZA POS-COMMIT (GRAPHIFY)
+    # ---------------------------------------------------------
+    Start-Sleep -Seconds 1
+    $postStatus = git status --porcelain
+    if ($postStatus) {
+        Write-Step "Sincronizando alteracoes automaticas (Graphify)..."
+        git add .
+        git commit -m "docs: atualizar grafo e relatorios (auto)" --no-verify
+    }
+} else {
+    Write-Step "Sem novas alteracoes locais para comitar. Seguindo para o Push..."
+}
+
+# ---------------------------------------------------------
+# CARREGAMENTO DE CONFIGURACOES (.env)
+# ---------------------------------------------------------
+if (Test-Path ".env") {
+    Get-Content ".env" | ForEach-Object {
+        if ($_ -match "^\s*([^#\s=]+)\s*=\s*(.*)$") {
+            $name = $matches[1]
+            $value = $matches[2]
+            if ($name -eq "GITHUB_TOKEN") { $script:GITHUB_TOKEN = $value }
+        }
+    }
 }
 
 # ---------------------------------------------------------
@@ -115,8 +154,19 @@ if ($postStatus) {
 Write-Step "Enviando para o GitHub..."
 $branch = git branch --show-current
 
-# Capturar output para análise de erros
-$pushResult = git push -u origin $branch 2>&1
+# Se tivermos um token, usamos um URL temporario para o push
+if ($script:GITHUB_TOKEN) {
+    Write-Step "A utilizar Personal Access Token detetado no .env..."
+    $remoteUrl = git remote get-url origin
+    # Remover protocolo e possiveis credenciais antigas
+    $cleanUrl = $remoteUrl -replace "https://[^@]+@", "" -replace "https://", ""
+    $authenticatedUrl = "https://$($script:GITHUB_TOKEN)@$cleanUrl"
+    
+    $pushResult = git push -u "$authenticatedUrl" $branch 2>&1
+} else {
+    # Capturar output para análise de erros (metodo normal)
+    $pushResult = git push -u origin $branch 2>&1
+}
 
 if ($LASTEXITCODE -eq 0) {
     Write-Success "Projeto atualizado no GitHub com sucesso!"
