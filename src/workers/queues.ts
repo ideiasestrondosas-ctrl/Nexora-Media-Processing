@@ -279,7 +279,7 @@ export async function enqueueIngest(
       data: {
         id: job.id,
         assetId: payload.assetId || '',
-        queue: QUEUE_NAMES.INGEST,
+        type: 'INGEST',
         status: 'PENDING',
         payload: payload as any,
         priority: payload.priority ?? 5
@@ -307,7 +307,7 @@ export async function enqueueQC(
       data: {
         id: job.id,
         assetId: payload.assetId,
-        queue: QUEUE_NAMES.QC,
+        type: 'QC',
         status: 'PENDING',
         payload: payload as any
       }
@@ -334,7 +334,7 @@ export async function enqueueTranscode(
       data: {
         id: job.id,
         assetId: payload.assetId,
-        queue: QUEUE_NAMES.TRANSCODE,
+        type: 'TRANSCODE',
         status: 'PENDING',
         payload: payload as any
       }
@@ -361,7 +361,7 @@ export async function enqueueAudio(
       data: {
         id: job.id,
         assetId: payload.assetId,
-        queue: QUEUE_NAMES.AUDIO,
+        type: 'AUDIO',
         status: 'PENDING',
         payload: payload as any
       }
@@ -388,7 +388,7 @@ export async function enqueueSubtitle(
       data: {
         id: job.id,
         assetId: payload.assetId,
-        queue: QUEUE_NAMES.SUBTITLE,
+        type: 'SUBTITLE',
         status: 'PENDING',
         payload: payload as any
       }

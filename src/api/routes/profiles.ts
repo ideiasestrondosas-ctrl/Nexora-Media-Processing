@@ -107,8 +107,29 @@ export async function profilesRoutes(fastify: FastifyInstance): Promise<void> {
         return reply.status(404).send({ error: 'NOT_FOUND', message: 'Perfil não encontrado' });
       }
 
-      if (existing.isDefault) {
+      // Regra 1: Perfis de sistema só podem ser apagados por Administradores
+      const userRoles = request.user?.roles || [];
+      const isAdmin = userRoles.includes('ADMIN');
+
+      if (existing.isSystem && !isAdmin) {
+        return reply.status(403).send({ 
+          error: 'FORBIDDEN', 
+          message: 'Apenas administradores podem remover perfis padrão do sistema' 
+        });
+      }
+
+      // Regra 2: Impedir apagar o perfil por defeito (se não for admin ou se houver risco)
+      if (existing.isDefault && !isAdmin) {
         return reply.status(400).send({ error: 'BAD_REQUEST', message: 'Não pode apagar o perfil por defeito' });
+      }
+
+      // Regra 3: Deve sempre existir pelo menos um perfil no sistema
+      const totalProfiles = await prisma.encodingProfile.count();
+      if (totalProfiles <= 1) {
+        return reply.status(400).send({ 
+          error: 'CONSTRAINT_VIOLATION', 
+          message: 'Deve existir sempre pelo menos um perfil de encoding no sistema' 
+        });
       }
 
       await prisma.encodingProfile.delete({

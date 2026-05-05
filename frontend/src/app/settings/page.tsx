@@ -232,6 +232,79 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Backup e Restore — apenas admins */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Database className="h-4 w-4 text-muted-foreground" />
+              Backup e Recuperação
+            </CardTitle>
+            <CardDescription>Cópia de segurança das configurações, perfis e utilizadores.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1 space-y-2">
+                <p className="text-sm font-medium">Exportar Configurações</p>
+                <p className="text-xs text-muted-foreground">
+                  Gera um ficheiro JSON com todos os perfis, destinos de entrega, utilizadores e definições globais.
+                </p>
+                <Button 
+                  variant="outline" 
+                  className="w-full sm:w-auto gap-2"
+                  onClick={async () => {
+                    try {
+                      const data = await api.get("/system/backup");
+                      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `nexora-backup-${new Date().toISOString().split('T')[0]}.json`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch (err: any) {
+                      alert("Erro ao gerar backup: " + err.message);
+                    }
+                  }}
+                >
+                  <UploadCloud className="h-4 w-4" />
+                  Descarregar Backup
+                </Button>
+              </div>
+
+              <div className="flex-1 space-y-2">
+                <p className="text-sm font-medium">Importar Backup</p>
+                <p className="text-xs text-muted-foreground">
+                  Restaura o sistema a partir de um ficheiro previamente exportado. <span className="text-destructive font-semibold">Substitui dados existentes.</span>
+                </p>
+                <div className="flex gap-2">
+                  <Input 
+                    type="file" 
+                    accept=".json"
+                    className="text-xs h-9 cursor-pointer"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (!confirm("Tem a certeza que deseja restaurar este backup? As configurações actuais serão sobrescritas.")) return;
+                      
+                      try {
+                        const text = await file.text();
+                        const backup = JSON.parse(text);
+                        await api.post("/system/restore", backup);
+                        alert("Sistema restaurado com sucesso! A recarregar...");
+                        window.location.reload();
+                      } catch (err: any) {
+                        alert("Erro ao restaurar backup: " + err.message);
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Reset do Sistema — apenas admins */}
       {isAdmin && (
         <Card className="border-destructive/30">

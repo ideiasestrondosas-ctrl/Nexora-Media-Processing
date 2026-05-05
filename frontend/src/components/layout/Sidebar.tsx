@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/store/ui";
-import { LayoutDashboard, Film, UploadCloud, ListVideo, Settings, Users, Menu, Wrench, BookOpen } from "lucide-react";
+import { LayoutDashboard, Film, UploadCloud, ListVideo, Settings, Users, Menu, Wrench, BookOpen, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
@@ -14,6 +14,7 @@ const navItems = [
   { href: "/queue", label: "Filas (Queue)", icon: ListVideo },
   { href: "/profiles", label: "Perfis de Encoding", icon: Settings },
   { href: "/users", label: "Utilizadores", icon: Users },
+  { href: "/logs", label: "Logs do Sistema", icon: Terminal },
   { href: "/manual", label: "Manual", icon: BookOpen },
   { href: "/settings", label: "Definições", icon: Wrench },
 ];

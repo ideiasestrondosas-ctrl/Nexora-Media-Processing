@@ -6,6 +6,19 @@
 // Inclui helpers para contexto de asset e job.
 
 import pino from 'pino';
+import { logStreamer } from './log-streamer';
+
+// Stream customizado para capturar logs em memória para o dashboard
+const memoryStream = {
+  write(msg: string) {
+    try {
+      const log = JSON.parse(msg);
+      logStreamer.pushLog(log);
+    } catch {
+      // Ignorar erros de parsing
+    }
+  }
+};
 
 export const logger = pino({
   level: process.env.LOG_LEVEL ?? 'info',
@@ -15,19 +28,10 @@ export const logger = pino({
     env: process.env.NODE_ENV ?? 'development',
   },
   timestamp: pino.stdTimeFunctions.isoTime,
-  // Em produção: logs JSON puro (para Loki/ELK)
-  // Em desenvolvimento: logs formatados com pino-pretty
-  transport: process.env.NODE_ENV === 'development'
-    ? {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'HH:MM:ss',
-          ignore: 'pid,hostname,service,version,env',
-        },
-      }
-    : undefined,
-});
+}, pino.multistream([
+  { stream: process.stdout }, // Mantém output original
+  { stream: memoryStream }    // Adiciona stream para o dashboard
+]));
 
 /** Helper para criar logger filho com contexto de asset */
 export function assetLogger(assetId: string): pino.Logger {

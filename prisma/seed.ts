@@ -20,44 +20,100 @@ async function main(): Promise<void> {
   const profiles = [
     {
       id: "00000000-0000-0000-0000-000000000010",
-      name: "nexora_broadcast_hd",
-      description: "Broadcast television — conformidade máxima EBU/SMPTE",
+      name: "Broadcast HD (EBU R128)",
+      description: "Alta qualidade para TV — conformidade SMPTE/EBU",
       container: "mp4",
       videoCodec: "h264",
       audioCodec: "pcm_s24le",
       isDefault: true,
+      isSystem: true,
       settings: {
         preset: "slow",
         profile: "high",
         level: "4.1",
         bitrateKbps: 8000,
+        gop: 25,
       },
     },
     {
       id: "00000000-0000-0000-0000-000000000011",
-      name: "nexora_web_sd",
-      description: "Streaming web — compatibilidade máxima browsers",
+      name: "Web HD 1080p",
+      description: "Ideal para YouTube/Vimeo em alta resolução",
       container: "mp4",
       videoCodec: "h264",
       audioCodec: "aac",
       isDefault: false,
+      isSystem: true,
+      settings: {
+        preset: "medium",
+        profile: "main",
+        level: "4.0",
+        bitrateKbps: 5000,
+      },
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000012",
+      name: "Mobile SD 480p",
+      description: "Baixo consumo de dados para redes móveis",
+      container: "mp4",
+      videoCodec: "h264",
+      audioCodec: "aac",
+      isDefault: false,
+      isSystem: true,
       settings: {
         preset: "fast",
-        profile: "main",
-        level: "3.1",
-        bitrateKbps: 2000,
+        profile: "baseline",
+        level: "3.0",
+        bitrateKbps: 800,
+      },
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000013",
+      name: "4K UHD Professional",
+      description: "Máxima fidelidade visual para grandes ecrãs",
+      container: "mp4",
+      videoCodec: "hevc",
+      audioCodec: "aac",
+      isDefault: false,
+      isSystem: true,
+      settings: {
+        preset: "slow",
+        bitrateKbps: 25000,
+      },
+    },
+    {
+      id: "00000000-0000-0000-0000-000000000014",
+      name: "Proxy Editing",
+      description: "Baixa resolução para edição offline ultra rápida",
+      container: "mp4",
+      videoCodec: "h264",
+      audioCodec: "aac",
+      isDefault: false,
+      isSystem: true,
+      settings: {
+        preset: "ultrafast",
+        bitrateKbps: 400,
+        resolution: "640x360",
       },
     },
   ];
 
   for (const p of profiles) {
     await prisma.encodingProfile.upsert({
-      where: { name: p.name },
-      update: {},
+      where: { id: p.id },
+      update: {
+        name: p.name,
+        description: p.description,
+        container: p.container,
+        videoCodec: p.videoCodec,
+        audioCodec: p.audioCodec,
+        isSystem: p.isSystem,
+        settings: p.settings,
+      },
       create: p,
     });
   }
-  console.log("✓ Perfis de encoding criados/actualizados");
+  console.log("✓ Perfis de encoding (Standard) criados/actualizados");
 
   // ── Remover asset e job fictícios criados por seeds anteriores ────
   const demoAssetId = "00000000-0000-0000-0000-000000000001";

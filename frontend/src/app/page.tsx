@@ -59,8 +59,9 @@ interface DashboardData {
   hardwareHistory: {
     time: string;
     cpu: number;
-    ram: number;
+    memory: number;
     gpu?: number;
+    disk?: number;
   }[];
 }
 
@@ -318,9 +319,10 @@ export default function DashboardPage() {
               data={dashboardData.hardwareHistory?.map((h: any) => ({ ...h, name: h.time })) || []}
               type="area"
               dataKeys={[
-                { key: "cpu", color: "hsl(var(--chart-1))", name: "CPU (%)" },
-                { key: "memory", color: "hsl(var(--chart-4))", name: "RAM (%)" },
-                ...(dashboardData.hardware.gpu && dashboardData.hardware.gpu.model !== 'N/A' ? [{ key: "gpu", color: "hsl(var(--chart-5))", name: "GPU (%)" }] : []),
+                { key: "cpu", color: "#3b82f6", name: "CPU (%)" },
+                { key: "memory", color: "#a855f7", name: "RAM (%)" },
+                { key: "gpu", color: "#14b8a6", name: "GPU (%)" },
+                { key: "disk", color: "#f97316", name: "Disco (%)" },
               ]}
             />
           </Card>

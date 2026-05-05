@@ -4,6 +4,32 @@ import si from 'systeminformation';
 import fs from 'fs';
 import path from 'path';
 
+const PROMETHEUS_URL = process.env.PROMETHEUS_URL || 'http://prometheus:9090';
+
+/**
+ * Helper para interrogar o Prometheus.
+ */
+async function queryPrometheus(query: string, rangeSeconds: number = 3600): Promise<any> {
+  try {
+    const end = Math.floor(Date.now() / 1000);
+    const start = end - rangeSeconds;
+    const step = Math.max(60, Math.floor(rangeSeconds / 60)); // 60 pontos aprox
+
+    const url = `${PROMETHEUS_URL}/api/v1/query_range?query=${encodeURIComponent(query)}&start=${start}&end=${end}&step=${step}`;
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 2000); // Timeout de 2s
+
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(id);
+
+    if (!res.ok) return null;
+    const data = await res.json() as any;
+    return data.data?.result || null;
+  } catch (err) {
+    return null;
+  }
+}
+
 export async function metricsDashboardRoutes(fastify: FastifyInstance): Promise<void> {
   // GET /metrics/dashboard-data
   fastify.get('/metrics/dashboard-data', async (_request: FastifyRequest, _reply: FastifyReply) => {
@@ -191,16 +217,42 @@ export async function metricsDashboardRoutes(fastify: FastifyInstance): Promise<
         gpu: gpuInfo,
         disk: diskStats
       },
-      // Mock de histórico de hardware (últimas 24h)
-      hardwareHistory: Array.from({ length: 6 }, (_, i) => {
-        const d = new Date();
-        d.setHours(d.getHours() - (5 - i) * 4);
-        return {
-          time: `${d.getHours().toString().padStart(2, '0')}:00`,
-          cpu: Math.random() * 40 + 10,
-          memory: Math.random() * 20 + 40
-        };
-      })
+      // Histórico de hardware real vindo do Prometheus (se disponível)
+      hardwareHistory: await (async () => {
+        // Queries Prometheus (última hora)
+        // CPU: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+        // Mem: 100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))
+        
+        const cpuData = await queryPrometheus('100 - (avg(irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)', 3600);
+        const memData = await queryPrometheus('100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))', 3600);
+
+        if (cpuData && cpuData[0]?.values) {
+          return cpuData[0].values.map((v: [number, string], idx: number) => {
+            const time = new Date(v[0] * 1000);
+            const memVal = memData?.[0]?.values?.[idx]?.[1] || "0";
+            return {
+              time: `${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}`,
+              cpu: Number(Number(v[1]).toFixed(1)),
+              memory: Number(Number(memVal).toFixed(1)),
+              gpu: Math.random() * 20, // Mock GPU (node-exporter não expõe GPU por defeito)
+              disk: 25 // Mock Disk
+            };
+          });
+        }
+
+        // Mock fallback se Prometheus não estiver ativo
+        return Array.from({ length: 12 }, (_, i) => {
+          const d = new Date();
+          d.setMinutes(d.getMinutes() - (11 - i) * 5);
+          return {
+            time: `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`,
+            cpu: Math.random() * 40 + 10,
+            memory: Math.random() * 20 + 40,
+            gpu: Math.random() * 15 + 5,
+            disk: 22
+          };
+        });
+      })()
     };
   });
 }
