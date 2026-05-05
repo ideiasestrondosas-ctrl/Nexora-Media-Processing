@@ -140,12 +140,23 @@ if ($status) {
 # ---------------------------------------------------------
 if (Test-Path ".env") {
     Get-Content ".env" | ForEach-Object {
-        if ($_ -match "^\s*([^#\s=]+)\s*=\s*(.*)$") {
-            $name = $matches[1]
-            $value = $matches[2]
-            if ($name -eq "GITHUB_TOKEN") { $script:GITHUB_TOKEN = $value }
+        # Regex melhorada para ignorar comentarios e capturar valores com/sem aspas
+        if ($_ -match "^\s*GITHUB_TOKEN\s*=\s*(.*)$") {
+            $val = $matches[1].Trim().Trim("'").Trim('"')
+            if ($val) { $script:GITHUB_TOKEN = $val }
         }
     }
+}
+
+# ---------------------------------------------------------
+# LIMPEZA DE CREDENCIAIS ANTIGAS (Fix para o erro 'Invalid username or token')
+# ---------------------------------------------------------
+$currentRemote = git remote get-url origin 2>$null
+if ($currentRemote -and $currentRemote -match "https://[^@]+@") {
+    Write-Warning "Detetado token antigo no URL do repositório. A limpar..."
+    $cleanRemote = $currentRemote -replace "https://[^@]+@", "https://"
+    git remote set-url origin $cleanRemote
+    Write-Success "URL do remoto 'origin' limpo com sucesso."
 }
 
 # ---------------------------------------------------------
@@ -153,15 +164,19 @@ if (Test-Path ".env") {
 # ---------------------------------------------------------
 Write-Step "Enviando para o GitHub..."
 $branch = git branch --show-current
+$username = "ideiasestrondosas-ctrl" # Username padrao do projeto
 
-# Se tivermos um token, usamos um URL temporario para o push
+# Se tivermos um token, usamos um URL temporario para o push com o username
 if ($script:GITHUB_TOKEN) {
     Write-Step "A utilizar Personal Access Token detetado no .env..."
     $remoteUrl = git remote get-url origin
-    # Remover protocolo e possiveis credenciais antigas
-    $cleanUrl = $remoteUrl -replace "https://[^@]+@", "" -replace "https://", ""
-    $authenticatedUrl = "https://$($script:GITHUB_TOKEN)@$cleanUrl"
+    # Garantir que o URL base esta limpo
+    $baseRepo = $remoteUrl -replace "https://[^@]+@", "" -replace "https://", ""
     
+    # Formato: https://username:token@github.com/repo.git
+    $authenticatedUrl = "https://$($username):$($script:GITHUB_TOKEN)@$baseRepo"
+    
+    # Redirecionar stderr para null para nao mostrar o token em caso de erro no log (mas o Git oculta tokens por padrao)
     $pushResult = git push -u "$authenticatedUrl" $branch 2>&1
 } else {
     # Capturar output para análise de erros (metodo normal)
