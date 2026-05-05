@@ -58,7 +58,7 @@ export function Header() {
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground/60">Nexora Media Processing</span>
           <span className="px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-[10px] font-bold tracking-tight">
-            V{version}
+            {version}
           </span>
         </div>
         <span className="text-muted-foreground/40">/</span>

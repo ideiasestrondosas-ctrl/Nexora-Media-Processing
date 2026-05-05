@@ -11,7 +11,7 @@ if (-not (Test-Path $LOG_DIR)) { New-Item -ItemType Directory -Path $LOG_DIR -Fo
 if (-not (Test-Path $PID_DIR)) { New-Item -ItemType Directory -Path $PID_DIR -Force | Out-Null }
 
 $SERVICES = @{
-    "backend"  = @{ "port" = 3000; "metricsPort" = 9200; "cmd" = "npm run dev"; "cwd" = $PROJECT_ROOT; "log" = "backend.log"; "url" = "http://localhost:3000" }
+    "backend"  = @{ "port" = 3005; "metricsPort" = 9200; "cmd" = "npm run dev"; "cwd" = $PROJECT_ROOT; "log" = "backend.log"; "url" = "http://localhost:3005" }
     "worker"   = @{ "port" = $null; "metricsPort" = 9201; "cmd" = "npm run worker"; "cwd" = $PROJECT_ROOT; "log" = "worker.log"; "url" = $null }
     "frontend" = @{ "port" = 3002; "metricsPort" = $null; "cmd" = "npm run dev -- -p 3002"; "cwd" = (Join-Path $PROJECT_ROOT "frontend"); "log" = "frontend.log"; "url" = "http://localhost:3002" }
 }
@@ -102,24 +102,26 @@ function Show-Status {
     Write-Host ""
     Write-Nexora "--- Processos de Desenvolvimento (Node.js) ---" "Magenta"
     
-    $header = "{0,-12} {1,-8} {2,-10} {3,-8}" -f "Servico", "Porta", "Estado", "PID"
+    $header = "{0,-12} {1,-8} {2,-10} {3,-8} {4,-25} {5}" -f "Servico", "Porta", "Estado", "PID", "URL / Acesso", "Porta Metrics"
     Write-Host $header -ForegroundColor DarkCyan
-    Write-Host ("-" * 42) -ForegroundColor DarkGray
+    Write-Host ("-" * 85) -ForegroundColor DarkGray
 
     foreach ($name in @("backend", "frontend", "worker")) {
         $svc = $SERVICES[$name]
         $svcPid = Get-ServicePID $name
         $portStr = if ($svc.port) { $svc.port.ToString() } else { "N/A" }
+        $urlStr = if ($svc.url) { $svc.url } else { "N/A" }
+        $metricsStr = if ($svc.metricsPort) { $svc.metricsPort.ToString() } else { "N/A" }
         
         $line = "{0,-12} {1,-8} " -f $name, $portStr
         Write-Host $line -NoNewline
         
         if ($svcPid) {
             Write-Host ("{0,-10}" -f "Running") -NoNewline -ForegroundColor Green
-            Write-Host (" {0}" -f $svcPid)
+            Write-Host (" {0,-8} {1,-25} {2}" -f $svcPid, $urlStr, $metricsStr)
         } else {
             Write-Host ("{0,-10}" -f "Stopped") -NoNewline -ForegroundColor Red
-            Write-Host " ---"
+            Write-Host (" {0,-8} {1,-25} {2}" -f "---", "---", "---")
         }
     }
     Write-Host ""
@@ -264,42 +266,46 @@ switch ($action) {
     "reset" { Reset-Nexora }
     "details" { Show-SystemDetails }
     Default {
+        Clear-Host
         do {
-            Clear-Host
             Write-Host ""
-            Write-Host "  ============================================" -ForegroundColor Blue
-            Write-Host "    NEXORA MANAGER v2.0                       " -ForegroundColor White -BackgroundColor DarkBlue
-            Write-Host "  ============================================" -ForegroundColor Blue
-            Write-Host ""
+            Write-Host "  ==========================================================================" -ForegroundColor Cyan
+            Write-Host "    NEXORA MANAGER v2.0 - Interface de Controlo                             " -ForegroundColor White -BackgroundColor DarkCyan
+            Write-Host "  ==========================================================================" -ForegroundColor Cyan
+            
             Show-Status
 
+            Write-Host "  [ COMANDOS DE SERVICO ]" -ForegroundColor Yellow
             Write-Host "  1. Iniciar Tudo (Background)" -ForegroundColor White
             Write-Host "  2. Parar Tudo" -ForegroundColor White
+            Write-Host "  3. Reiniciar Tudo" -ForegroundColor White
             Write-Host ""
-            Write-Host "  3. Ver Logs Backend" -ForegroundColor Gray
-            Write-Host "  4. Ver Logs Frontend" -ForegroundColor Gray
-            Write-Host "  5. Ver Logs Worker" -ForegroundColor Gray
+            Write-Host "  [ MONITORIZACAO & LOGS ]" -ForegroundColor Yellow
+            Write-Host "  4. Ver Logs Backend" -ForegroundColor Gray
+            Write-Host "  5. Ver Logs Frontend" -ForegroundColor Gray
+            Write-Host "  6. Ver Logs Worker" -ForegroundColor Gray
+            Write-Host "  7. Modo Stream (Todos os Logs)" -ForegroundColor Green
+            Write-Host "  8. Ver Detalhes RAM" -ForegroundColor Gray
             Write-Host ""
-            Write-Host "  6. Ver Detalhes RAM" -ForegroundColor Gray
-            Write-Host "  7. Reset Total" -ForegroundColor Red
-            Write-Host "  8. Modo Stream (Todos os Logs)" -ForegroundColor Yellow
-            Write-Host "  9. Ver Status Actual" -ForegroundColor Gray
+            Write-Host "  [ MANUTENCAO ]" -ForegroundColor Yellow
+            Write-Host "  9. Reset Total (Docker + BD + Queues)" -ForegroundColor Red
             Write-Host ""
             Write-Host "  0. Sair" -ForegroundColor DarkGray
             Write-Host ""
-            $menuInput = Read-Host "  Escolha"
+            $menuInput = Read-Host "  Escolha uma opcao"
 
+            Write-Host ""
             switch ($menuInput) {
-                "1" { foreach ($name in @("backend", "frontend", "worker")) { Start-NexoraService $name }; Read-Host "`n  [Enter para continuar]" }
-                "2" { foreach ($name in @("backend", "frontend", "worker")) { Stop-NexoraService $name }; Read-Host "`n  [Enter para continuar]" }
-                "3" { Show-Logs "backend" }
-                "4" { Show-Logs "frontend" }
-                "5" { Show-Logs "worker" }
-                "6" { Show-SystemDetails; Read-Host "`n  [Enter para continuar]" }
-                "7" { Reset-Nexora; Read-Host "`n  [Enter para continuar]" }
-                "8" { Show-AllLogs }
-                "9" { Show-Status; Read-Host "`n  [Enter para continuar]" }
-                "0" { break }
+                "1" { foreach ($name in @("backend", "frontend", "worker")) { Start-NexoraService $name } }
+                "2" { foreach ($name in @("backend", "frontend", "worker")) { Stop-NexoraService $name } }
+                "3" { foreach ($name in @("backend", "frontend", "worker")) { Stop-NexoraService $name; Start-NexoraService $name } }
+                "4" { Show-Logs "backend"; Read-Host "`n  [Enter para voltar]" }
+                "5" { Show-Logs "frontend"; Read-Host "`n  [Enter para voltar]" }
+                "6" { Show-Logs "worker"; Read-Host "`n  [Enter para voltar]" }
+                "7" { Show-AllLogs; Read-Host "`n  [Enter para voltar]" }
+                "8" { Show-SystemDetails; Read-Host "`n  [Enter para voltar]" }
+                "9" { Reset-Nexora; Read-Host "`n  [Enter para voltar]" }
+                "0" { Write-Nexora "A sair..."; break }
             }
         } while ($menuInput -ne "0")
     }

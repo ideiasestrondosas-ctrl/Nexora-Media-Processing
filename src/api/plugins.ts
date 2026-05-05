@@ -45,7 +45,7 @@ export async function registerPlugins(fastify: FastifyInstance): Promise<void> {
       : false,
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     crossOriginEmbedderPolicy: false,  // necessário para media streams
-    crossOriginResourcePolicy: { policy: 'same-site' },
+    crossOriginResourcePolicy: { policy: process.env.NODE_ENV === 'production' ? 'same-site' : 'cross-origin' },
     xFrameOptions: { action: 'deny' },
     xContentTypeOptions: true,
   });
@@ -57,7 +57,11 @@ export async function registerPlugins(fastify: FastifyInstance): Promise<void> {
     ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
     : process.env.NODE_ENV === 'production'
       ? []
-      : [/^https?:\/\/localhost(:\d+)?$/, /^https?:\/\/127\.0\.0\.1(:\d+)?$/];
+      : [
+          /^https?:\/\/localhost(:\d+)?$/,
+          /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
+          /^https?:\/\/0\.0\.0\.0(:\d+)?$/,
+        ];
 
   await fastify.register(fastifyCors, {
     origin: corsOrigins.length > 0 ? corsOrigins : false,
