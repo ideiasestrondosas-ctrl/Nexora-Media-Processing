@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   BookOpen,
   ChevronRight,
@@ -357,7 +357,15 @@ const sections: Section[] = [
 
 export function UserManualPopup() {
   const [activeId, setActiveId] = useState("dashboard");
+  const [version, setVersion] = useState<string>("1.1.0");
   const activeSection = sections.find((s) => s.id === activeId) ?? sections[0]!;
+
+  useEffect(() => {
+    fetch("/api/v1/system/version")
+      .then((res) => res.json())
+      .then((data) => setVersion(data.version))
+      .catch(() => {});
+  }, []);
 
   return (
     <Dialog>
@@ -375,7 +383,6 @@ export function UserManualPopup() {
           <DialogTitle className="flex items-center gap-2">
             <BookOpen className="h-5 w-5 text-primary" />
             Manual de Utilizador Nexora
-            <span className="ml-auto text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded">v1.0.0</span>
           </DialogTitle>
         </DialogHeader>
 
@@ -403,10 +410,10 @@ export function UserManualPopup() {
                 );
               })}
             </nav>
-            <div className="px-4 py-3 border-t">
-              <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+            <div className="px-4 py-3 border-t bg-muted/30">
+              <p className="text-[10px] text-muted-foreground/60 leading-relaxed font-medium">
                 Nexora Media Processing<br />
-                Plataforma Broadcast & OTT
+                <span className="text-primary/70 font-bold">V{version}</span> — Broadcast & OTT
               </p>
             </div>
           </aside>

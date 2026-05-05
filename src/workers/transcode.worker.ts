@@ -112,6 +112,13 @@ export class TranscodeWorker {
     }
   }
 
+  public setConcurrency(n: number): void {
+    if (this.worker) {
+      this.worker.concurrency = n;
+      logger.info({ worker: this.name, concurrency: n }, 'Concorrência atualizada dinamicamente');
+    }
+  }
+
   private async process(job: BullJob<TranscodeJobPayload>): Promise<void> {
     const { assetId, profile, inputMinioKey } = job.data;
     const log = jobLogger(job.id ?? 'unknown', assetId);
@@ -133,7 +140,8 @@ export class TranscodeWorker {
     const outputPath = join(tmpDir, 'output.mp4');
 
     // 3. Resolver encoder e tipo de slot
-    const commandPair = ffmpegBuilder.build(profile, inputPath, outputPath, gpuCapability);
+    const profileData = await this.getProfileData(profile);
+    const commandPair = ffmpegBuilder.build(profileData, inputPath, outputPath, gpuCapability);
     const selectedCommand = commandPair.gpu ?? commandPair.cpu;
     const jobType = NexoraJobScheduler.resolveJobType(profile, selectedCommand.encoder);
 
@@ -405,5 +413,46 @@ export class TranscodeWorker {
   private extractRedisPort(): number {
     const url = process.env.REDIS_URL ?? 'redis://localhost:6379';
     try { return Number(new URL(url).port) || 6379; } catch { return 6379; }
+  }
+  /**
+   * Obtém os dados técnicos de um perfil a partir da base de dados.
+   * Se não encontrar, retorna o nome para fallback no mapa estático.
+   */
+  private async getProfileData(name: string): Promise<any> {
+    try {
+      const dbProfile = await prisma.encodingProfile.findUnique({
+        where: { name }
+      });
+
+      if (dbProfile) {
+        const settings = (dbProfile.settings as any) || {};
+        const isVideoCopy = dbProfile.videoCodec === 'copy';
+        const isAudioCopy = dbProfile.audioCodec === 'copy';
+
+        return {
+          name: dbProfile.name,
+          videoBitrateK: isVideoCopy ? 0 : (settings.bitrateKbps || 4000),
+          maxrateK: isVideoCopy ? 0 : (settings.maxrateKbps || (settings.bitrateKbps * 1.5) || 6000),
+          bufsizeK: isVideoCopy ? 0 : (settings.bufsizeKbps || (settings.bitrateKbps * 2) || 8000),
+          gopSize: settings.gopSize || 50,
+          pixFmt: 'yuv420p',
+          cpuPreset: settings.cpuPreset || 'medium',
+          nvencPreset: settings.nvencPreset || 'p4',
+          bFrames: settings.bFrames || 0,
+          rateControlCpu: settings.rateControlCpu || 'vbr',
+          rateControlGpu: settings.rateControlGpu || 'vbr',
+          audioCodec: dbProfile.audioCodec,
+          audioBitrateK: isAudioCopy ? 0 : (settings.audioBitrateKbps || 192),
+          audioSampleRate: 48000,
+          h264Profile: settings.h264Profile || 'high',
+          h264Level: settings.h264Level || '4.1',
+          resolution: settings.resolution || 'Original',
+        };
+      }
+    } catch (err) {
+      logger.error({ name, err }, 'Erro ao procurar perfil na base de dados');
+    }
+
+    return name; // Fallback para os perfis hardcoded se não existir na DB
   }
 }

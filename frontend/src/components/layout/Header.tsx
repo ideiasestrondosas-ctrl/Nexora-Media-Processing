@@ -36,17 +36,31 @@ function getPageLabel(pathname: string): string {
 
 import { ModeToggle } from "@/components/mode-toggle";
 import { UserManualPopup } from "./UserManualPopup";
+import { useState, useEffect } from "react";
 
 export function Header() {
   const { token, logout, user } = useAuthStore();
   const pathname = usePathname();
   const pageLabel = getPageLabel(pathname);
+  const [version, setVersion] = useState<string>("...");
+
+  useEffect(() => {
+    fetch("/api/v1/system/version")
+      .then((res) => res.json())
+      .then((data) => setVersion(data.version))
+      .catch(() => setVersion("v1.1.0"));
+  }, []);
 
   return (
     <header className="h-16 bg-background border-b flex items-center justify-between px-6 shrink-0">
       {/* Breadcrumb dinâmico */}
       <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-        <span className="text-muted-foreground/60">Nexora Media Processing</span>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground/60">Nexora Media Processing</span>
+          <span className="px-1.5 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded text-[10px] font-bold tracking-tight">
+            V{version}
+          </span>
+        </div>
         <span className="text-muted-foreground/40">/</span>
         <span className="text-foreground font-semibold">{pageLabel}</span>
       </div>

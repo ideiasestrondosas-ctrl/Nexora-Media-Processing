@@ -16,27 +16,27 @@ import { api } from "@/lib/api";
 
 const CONTAINERS = ["mp4", "mov", "mkv", "mxf", "ts", "avi"];
 
-const VIDEO_CODECS = ["h264", "h265", "hevc", "prores", "prores_hq", "dnxhd", "vp9", "av1"];
+const VIDEO_CODECS = ["h264", "h265", "hevc", "prores", "prores_hq", "dnxhd", "vp9", "av1", "copy"];
 
-const AUDIO_CODECS = ["aac", "ac3", "eac3", "pcm_s16le", "pcm_s24le", "opus", "flac", "mp3"];
+const AUDIO_CODECS = ["aac", "ac3", "eac3", "pcm_s16le", "pcm_s24le", "opus", "flac", "mp3", "copy"];
 
 // Compatibilidade container → codecs permitidos
 const CONTAINER_VIDEO_COMPAT: Record<string, string[]> = {
-  mp4: ["h264", "h265", "hevc"],
-  mov: ["h264", "h265", "hevc", "prores", "prores_hq"],
-  mkv: ["h264", "h265", "hevc", "vp9", "av1", "dnxhd"],
-  mxf: ["prores", "prores_hq", "dnxhd"],
-  ts:  ["h264", "h265", "hevc"],
-  avi: ["h264"],
+  mp4: ["h264", "h265", "hevc", "copy"],
+  mov: ["h264", "h265", "hevc", "prores", "prores_hq", "copy"],
+  mkv: ["h264", "h265", "hevc", "vp9", "av1", "dnxhd", "copy"],
+  mxf: ["prores", "prores_hq", "dnxhd", "copy"],
+  ts:  ["h264", "h265", "hevc", "copy"],
+  avi: ["h264", "copy"],
 };
 
 const CONTAINER_AUDIO_COMPAT: Record<string, string[]> = {
-  mp4: ["aac", "ac3", "eac3", "mp3"],
-  mov: ["aac", "pcm_s16le", "pcm_s24le", "ac3"],
-  mkv: ["aac", "ac3", "eac3", "flac", "opus", "mp3"],
-  mxf: ["pcm_s16le", "pcm_s24le"],
-  ts:  ["aac", "ac3", "eac3"],
-  avi: ["aac", "mp3", "ac3"],
+  mp4: ["aac", "ac3", "eac3", "mp3", "copy"],
+  mov: ["aac", "pcm_s16le", "pcm_s24le", "ac3", "copy"],
+  mkv: ["aac", "ac3", "eac3", "flac", "opus", "mp3", "copy"],
+  mxf: ["pcm_s16le", "pcm_s24le", "copy"],
+  ts:  ["aac", "ac3", "eac3", "copy"],
+  avi: ["aac", "mp3", "ac3", "copy"],
 };
 
 function getCompatWarning(container: string, videoCodec: string, audioCodec: string): string | null {
@@ -236,7 +236,7 @@ function ProfileModal({
                 <SelectContent>
                   {validVideoCodecs.map(c => (
                     <SelectItem key={c} value={c}>
-                      <span className="font-mono">{c}</span>
+                      <span className="font-mono">{c === 'copy' ? 'Original (Copy)' : c}</span>
                     </SelectItem>
                   ))}
                   {VIDEO_CODECS.filter(c => !validVideoCodecs.includes(c)).map(c => (
@@ -257,7 +257,7 @@ function ProfileModal({
                 <SelectContent>
                   {validAudioCodecs.map(c => (
                     <SelectItem key={c} value={c}>
-                      <span className="font-mono">{c}</span>
+                      <span className="font-mono">{c === 'copy' ? 'Original (Copy)' : c}</span>
                     </SelectItem>
                   ))}
                   {AUDIO_CODECS.filter(c => !validAudioCodecs.includes(c)).map(c => (
@@ -447,10 +447,10 @@ export default function ProfilesPage() {
                   <TableBody>
                     {[
                       { label: "Container", value: profile.container.toUpperCase() },
-                      { label: "Codec de Vídeo", value: profile.videoCodec.toUpperCase() },
+                      { label: "Codec de Vídeo", value: profile.videoCodec === 'copy' ? 'Original (Copy)' : profile.videoCodec.toUpperCase() },
                       { label: "Resolução", value: profile.settings?.resolution ?? "Original" },
                       { label: "Bitrate", value: profile.settings?.bitrateKbps ? `${profile.settings.bitrateKbps} Kbps` : "Auto" },
-                      { label: "Codec de Áudio", value: profile.audioCodec.toUpperCase() },
+                      { label: "Codec de Áudio", value: profile.audioCodec === 'copy' ? 'Original (Copy)' : profile.audioCodec.toUpperCase() },
                     ].map(row => (
                       <TableRow key={row.label}>
                         <TableCell className="font-medium">{row.label}</TableCell>

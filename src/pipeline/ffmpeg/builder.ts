@@ -71,14 +71,16 @@ interface NexoraProfile {
   rateControlCpu: string;
   /** Rate control mode GPU */
   rateControlGpu: 'cbr' | 'vbr' | 'constqp';
-  /** Codec de áudio: pcm_s24le em broadcast, aac nos restantes */
-  audioCodec: 'pcm_s24le' | 'aac' | 'libfdk_aac';
+  /** Codec de áudio: pcm_s24le em broadcast, aac nos restantes, copy para original */
+  audioCodec: 'pcm_s24le' | 'aac' | 'libfdk_aac' | 'copy';
   audioBitrateK: number;
   audioSampleRate: 48000;
   /** Profile H.264 */
   h264Profile: 'high' | 'main' | 'baseline';
   /** Level H.264 */
   h264Level: '4.1' | '4.0' | '3.1';
+  /** Resolução: 'Original' ou 'WxH' */
+  resolution?: string;
 }
 
 const NEXORA_PROFILES: Record<string, NexoraProfile> = {
@@ -169,20 +171,24 @@ export class NexoraFFmpegCommandBuilder {
    * @param loudnorm - Parâmetros de loudnorm (opcional, para Pass 2)
    */
   build(
-    profile: string,
+    profile: string | NexoraProfile,
     input: string,
     output: string,
     gpu: GPUCapability | null = null,
     loudnorm?: AudioLoudnormParams
   ): FFmpegCommandPair {
-    const p = NEXORA_PROFILES[profile] ?? NEXORA_PROFILES['broadcast-hd'];
+    const p = typeof profile === 'string' 
+      ? (NEXORA_PROFILES[profile] ?? NEXORA_PROFILES['broadcast-hd'])
+      : profile;
+
+    const profileName = typeof profile === 'string' ? profile : p.name;
 
     const audioArgs = this.buildAudioArgs(p, loudnorm);
 
     const cpu: FFmpegCommand = {
       args: this.buildCpuArgs(input, output, p, audioArgs),
       encoder: 'cpu',
-      profile,
+      profile: profileName,
       videoBitrateK: p.videoBitrateK,
     };
 
@@ -191,7 +197,7 @@ export class NexoraFFmpegCommandBuilder {
       gpuCommand = {
         args: this.buildGpuArgs(input, output, p, audioArgs, gpu.type),
         encoder: gpu.type as EncoderType,
-        profile,
+        profile: profileName,
         videoBitrateK: p.videoBitrateK,
       };
     }
@@ -214,40 +220,53 @@ export class NexoraFFmpegCommandBuilder {
       '-y',
       '-i', input,
       // Vídeo
-      '-c:v', 'libx264',
-      '-preset', p.cpuPreset,
-      '-tune', 'film',
-      '-profile:v', p.h264Profile,
-      '-level:v', p.h264Level,
-      '-pix_fmt', p.pixFmt,         // ADR-004
-      '-g', String(p.gopSize),       // GOP size — ADR-006
-      '-keyint_min', String(p.gopSize),
-      '-sc_threshold', '0',          // sem scene-cut detection
-      '-flags', '+cgop',             // Closed GOP — ADR-006
-      '-bf', String(p.bFrames),      // B-frames (0 para broadcast)
+      '-c:v', p.videoBitrateK === 0 ? 'copy' : 'libx264',
     ];
 
+    if (p.videoBitrateK !== 0) {
+      args.push(
+        '-preset', p.cpuPreset,
+        '-tune', 'film',
+        '-profile:v', p.h264Profile,
+        '-level:v', p.h264Level,
+        '-pix_fmt', p.pixFmt,         // ADR-004
+        '-g', String(p.gopSize),       // GOP size — ADR-006
+        '-keyint_min', String(p.gopSize),
+        '-sc_threshold', '0',          // sem scene-cut detection
+        '-flags', '+cgop',             // Closed GOP — ADR-006
+        '-bf', String(p.bFrames),      // B-frames (0 para broadcast)
+      );
+    }
+
     // Parâmetros x264 específicos para broadcast (ADR-006)
-    if (p.bFrames === 0) {
+    if (p.videoBitrateK !== 0 && p.bFrames === 0) {
       args.push('-x264-params', 'open-gop=0:bframes=0:ref=4:nal-hrd=cbr:force-cfr=1');
     }
 
-    args.push(
-      '-b:v', `${p.videoBitrateK}k`,
-      '-maxrate', `${p.maxrateK}k`,
-      '-bufsize', `${p.bufsizeK}k`,
-      // Colorspace BT.709
-      '-colorspace', 'bt709',
-      '-color_primaries', 'bt709',
-      '-color_trc', 'bt709',
-      '-r', '25',
-      '-vsync', 'cfr',               // CFR obrigatório — ADR-006
-    );
+    if (p.videoBitrateK !== 0) {
+      args.push(
+        '-b:v', `${p.videoBitrateK}k`,
+        '-maxrate', `${p.maxrateK}k`,
+        '-bufsize', `${p.bufsizeK}k`,
+        // Colorspace BT.709
+        '-colorspace', 'bt709',
+        '-color_primaries', 'bt709',
+        '-color_trc', 'bt709',
+        '-r', '25',
+        '-vsync', 'cfr',               // CFR obrigatório — ADR-006
+      );
+    }
 
     // Áudio
     args.push(...audioArgs);
 
     // Container
+    // Escala (se não for Original e não for copy)
+    if (p.videoBitrateK !== 0 && p.resolution && p.resolution !== 'Original') {
+      const [w, h] = p.resolution.split('x');
+      args.push('-vf', `scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`);
+    }
+
     args.push('-movflags', '+faststart', output);
 
     return args;
@@ -282,36 +301,49 @@ export class NexoraFFmpegCommandBuilder {
     args.push(
       '-i', input,
       // Vídeo GPU
-      '-c:v', encoder,
-      '-preset', p.nvencPreset,
-      '-tune', 'hq',
-      '-profile:v', p.h264Profile,
-      '-level:v', p.h264Level,
-      '-pix_fmt', p.pixFmt,          // ADR-004
-      '-g', String(p.gopSize),        // ADR-006
-      '-keyint_min', String(p.gopSize),
+      '-c:v', p.videoBitrateK === 0 ? 'copy' : encoder,
     );
+
+    if (p.videoBitrateK !== 0) {
+      args.push(
+        '-preset', p.nvencPreset,
+        '-tune', 'hq',
+        '-profile:v', p.h264Profile,
+        '-level:v', p.h264Level,
+        '-pix_fmt', p.pixFmt,          // ADR-004
+        '-g', String(p.gopSize),        // ADR-006
+        '-keyint_min', String(p.gopSize),
+      );
+    }
 
     // Parâmetros específicos NVENC broadcast (ADR-006)
     if (encoder === 'h264_nvenc' && p.bFrames === 0) {
       args.push('-forced-idr', '1', '-no-scenecut', '1');
     }
 
-    args.push(
-      '-b:v', `${p.videoBitrateK}k`,
-      '-maxrate', `${p.maxrateK}k`,
-      '-bufsize', `${p.bufsizeK}k`,
-      '-rc', p.rateControlGpu,
-      // Colorspace BT.709
-      '-colorspace', 'bt709',
-      '-color_primaries', 'bt709',
-      '-color_trc', 'bt709',
-    );
+    if (p.videoBitrateK !== 0) {
+      args.push(
+        '-b:v', `${p.videoBitrateK}k`,
+        '-maxrate', `${p.maxrateK}k`,
+        '-bufsize', `${p.bufsizeK}k`,
+        '-rc', p.rateControlGpu,
+        // Colorspace BT.709
+        '-colorspace', 'bt709',
+        '-color_primaries', 'bt709',
+        '-color_trc', 'bt709',
+      );
+    }
 
     // Áudio
     args.push(...audioArgs);
 
     // Container
+    // Escala (se não for Original e não for copy)
+    if (p.videoBitrateK !== 0 && p.resolution && p.resolution !== 'Original') {
+      const [w, h] = p.resolution.split('x');
+      args.push('-vf', `scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`);
+    }
+
     args.push('-movflags', '+faststart', output);
 
     return args;
@@ -342,6 +374,10 @@ export class NexoraFFmpegCommandBuilder {
    * Se passado com valores medidos: Pass 2 (normalização linear).
    */
   private buildAudioArgs(p: NexoraProfile, loudnorm?: AudioLoudnormParams): string[] {
+    if (p.audioCodec === 'copy') {
+      return ['-c:a', 'copy'];
+    }
+
     const args: string[] = ['-c:a', p.audioCodec];
 
     if (p.audioCodec !== 'pcm_s24le') {

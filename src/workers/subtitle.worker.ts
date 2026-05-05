@@ -83,6 +83,13 @@ export class SubtitleWorker {
     }
   }
 
+  public setConcurrency(n: number): void {
+    if (this.worker) {
+      this.worker.concurrency = n;
+      logger.info({ worker: this.name, concurrency: n }, 'Concorrência atualizada dinamicamente');
+    }
+  }
+
   private async process(job: BullJob<SubtitleJobPayload>): Promise<void> {
     const { assetId, inputMinioKey, outputFormat, offsetMs } = job.data;
     const log = jobLogger(job.id ?? 'unknown', assetId);

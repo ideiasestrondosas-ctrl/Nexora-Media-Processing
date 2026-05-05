@@ -92,6 +92,13 @@ export class AudioWorker {
     }
   }
 
+  public setConcurrency(n: number): void {
+    if (this.worker) {
+      this.worker.concurrency = n;
+      logger.info({ worker: this.name, concurrency: n }, 'Concorrência atualizada dinamicamente');
+    }
+  }
+
   private async process(job: BullJob<AudioJobPayload>): Promise<void> {
     const { assetId, inputMinioKey, targetLufs, truePeakLimit } = job.data;
     const log = jobLogger(job.id ?? 'unknown', assetId);

@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Loader2,
   Trash2,
+  Monitor, Clock, Music, Layers, FileType, Play
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -56,6 +57,10 @@ interface UploadItem {
   profileId: string;
   storageStrategy: "MINIO" | "LOCAL";
   keepOriginal: boolean;
+  // Metadata
+  resolution?: string;
+  duration?: number;
+  extension: string;
 }
 
 interface UploadZoneProps {
@@ -123,14 +128,40 @@ export function UploadZone({ onAllComplete, uploadUrl }: UploadZoneProps) {
     return true;
   };
 
-  const addFiles = (newFiles: FileList | null) => {
+  const extractMetadata = (file: File): Promise<{ resolution?: string; duration?: number }> => {
+    return new Promise((resolve) => {
+      if (!file.type.startsWith("video/")) {
+        resolve({});
+        return;
+      }
+
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(video.src);
+        resolve({
+          resolution: `${video.videoWidth}x${video.videoHeight}`,
+          duration: video.duration,
+        });
+      };
+      video.onerror = () => {
+        resolve({});
+      };
+      video.src = URL.createObjectURL(file);
+    });
+  };
+
+  const addFiles = async (newFiles: FileList | null) => {
     if (!newFiles) return;
     
-    const validFiles: UploadItem[] = [];
+    const validItems: UploadItem[] = [];
     for (let i = 0; i < newFiles.length; i++) {
       const f = newFiles[i];
       if (validateFile(f)) {
-        validFiles.push({
+        const metadata = await extractMetadata(f);
+        const ext = f.name.split(".").pop()?.toUpperCase() || "???";
+        
+        validItems.push({
           id: Math.random().toString(36).substring(7),
           file: f,
           progress: 0,
@@ -138,11 +169,14 @@ export function UploadZone({ onAllComplete, uploadUrl }: UploadZoneProps) {
           profileId: globalProfile,
           storageStrategy: globalStorage,
           keepOriginal: globalKeep,
+          resolution: metadata.resolution,
+          duration: metadata.duration,
+          extension: ext,
         });
       }
     }
     
-    setFiles((prev) => [...prev, ...validFiles]);
+    setFiles((prev) => [...prev, ...validItems]);
   };
 
   const handleDrag = useCallback((e: React.DragEvent) => {
@@ -402,20 +436,45 @@ export function UploadZone({ onAllComplete, uploadUrl }: UploadZoneProps) {
                   <div className="flex flex-col md:flex-row gap-4">
                     {/* Info Ficheiro */}
                     <div className="flex gap-3 min-w-0 flex-1">
-                      <div className={cn(
-                        "p-3 rounded-lg shrink-0 h-12 w-12 flex items-center justify-center",
-                        item.status === "success" ? "bg-green-100 text-green-600" : "bg-primary/10 text-primary"
-                      )}>
-                        {item.status === "uploading" ? <Loader2 className="h-6 w-6 animate-spin" /> : <FileVideo className="h-6 w-6" />}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold truncate text-sm" title={item.file.name}>{item.file.name}</span>
-                          {item.status === "success" && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
+                        <div className={cn(
+                          "p-3 rounded-lg shrink-0 h-14 w-14 flex flex-col items-center justify-center relative border shadow-inner",
+                          item.status === "success" ? "bg-green-100 border-green-200 text-green-600" : "bg-muted border-muted-foreground/10 text-primary"
+                        )}>
+                          {item.status === "uploading" ? (
+                            <Loader2 className="h-6 w-6 animate-spin" />
+                          ) : (
+                            <>
+                              <FileType className="h-5 w-5 mb-0.5 opacity-50" />
+                              <span className="text-[10px] font-black tracking-tighter leading-none">{item.extension}</span>
+                            </>
+                          )}
+                          {item.status === "success" && (
+                            <div className="absolute -top-1.5 -right-1.5 bg-green-500 rounded-full p-0.5 text-white border-2 border-background">
+                              <CheckCircle2 className="h-3 w-3" />
+                            </div>
+                          )}
                         </div>
-                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">
-                          {(item.file.size / (1024 * 1024)).toFixed(2)} MB • {item.file.type || "video/mxf"}
-                        </p>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold truncate text-sm" title={item.file.name}>{item.file.name}</span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
+                            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">
+                              {(item.file.size / (1024 * 1024)).toFixed(2)} MB
+                            </p>
+                            {item.resolution && (
+                              <div className="flex items-center gap-1 text-[10px] text-primary font-bold">
+                                <Monitor className="h-3 w-3" />
+                                {item.resolution}
+                              </div>
+                            )}
+                            {item.duration && (
+                              <div className="flex items-center gap-1 text-[10px] text-blue-500 font-bold">
+                                <Clock className="h-3 w-3" />
+                                {Math.floor(item.duration / 60)}:{(Math.floor(item.duration % 60)).toString().padStart(2, '0')}
+                              </div>
+                            )}
+                          </div>
                         
                         {/* Barra de Progresso */}
                         {(item.status === "uploading" || item.status === "success" || item.status === "error") && (

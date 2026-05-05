@@ -5,6 +5,19 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '../../observability/logger';
 
+/**
+ * Lê a versão do sistema a partir do package.json da raiz.
+ */
+export function getSystemVersion(): string {
+  try {
+    const pkgPath = path.join(process.cwd(), 'package.json');
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    return pkg.version || '0.0.0';
+  } catch (err) {
+    return '0.0.0';
+  }
+}
+
 // ── Configuração ────────────────────────────────────────────────────────────
 
 const BACKUP_DIR = process.env.NEXORA_BACKUP_DIR || '/media/storage/backups';
@@ -135,6 +148,11 @@ export async function systemRoutes(fastify: FastifyInstance): Promise<void> {
       logger.error({ err, BACKUP_DIR }, 'Falha ao criar diretório de backups');
     }
   }
+
+  // ── GET /system/version — Versão atual do sistema ────────────────────────
+  fastify.get('/system/version', async () => {
+    return { version: getSystemVersion() };
+  });
 
   // ── GET /system/backups — Listar backups disponíveis ──────────────────────
   fastify.get('/system/backups', async (request: FastifyRequest, reply: FastifyReply) => {

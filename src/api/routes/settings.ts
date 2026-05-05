@@ -9,17 +9,20 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getSystemVersion } from './system';
 
 const CONFIG_FILE = path.join(process.cwd(), 'nexora-config.json');
 
 const DEFAULT_CONFIG: NexoraConfig = {
   localStoragePath: 'C:\\NexoraStorage\\assets',
   defaultStorageStrategy: 'MINIO',
+  webPriorityPercentage: 20,
 };
 
 interface NexoraConfig {
   localStoragePath: string;
   defaultStorageStrategy: 'MINIO' | 'LOCAL';
+  webPriorityPercentage: number;
 }
 
 export function readConfig(): NexoraConfig {
@@ -56,13 +59,18 @@ export async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
           properties: {
             localStoragePath:        { type: 'string' },
             defaultStorageStrategy:  { type: 'string' },
+            webPriorityPercentage:   { type: 'integer' },
+            version:                 { type: 'string' },
           },
         },
       },
     },
   }, async (_request: FastifyRequest, reply: FastifyReply) => {
     const config = readConfig();
-    return reply.send(config);
+    return reply.send({
+      ...config,
+      version: getSystemVersion(),
+    });
   });
 
   // ── PUT /settings — Actualizar configuração (admin only) ───────
@@ -75,6 +83,7 @@ export async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
         properties: {
           localStoragePath:        { type: 'string' },
           defaultStorageStrategy:  { type: 'string', enum: ['MINIO', 'LOCAL'] },
+          webPriorityPercentage:   { type: 'integer', minimum: 10, maximum: 90 },
         },
       },
     },

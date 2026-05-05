@@ -23,9 +23,16 @@ interface NexoraWorker {
   readonly name: string;
   start(): Promise<void>;
   stop(): Promise<void>;
+  setConcurrency(n: number): void;
 }
 
+import os from 'os';
+import fs from 'fs';
+import path from 'path';
+
 // ── Startup ──────────────────────────────────────────────────────
+
+const CONFIG_PATH = path.join(process.cwd(), 'nexora-config.json');
 
 async function startWorkers(): Promise<void> {
   try {
@@ -49,21 +56,16 @@ async function startWorkers(): Promise<void> {
     setupJobSync();
 
     // 5. Verificar disponibilidade das ferramentas de media
-    //    Substituição do checkToolAvailability() inline pelo NexoraToolRegistry (Prompt 9)
     const report = await toolRegistry.checkAllTools();
 
-    // Ferramentas críticas (FFmpeg/FFprobe) — startup falha se ausentes
     if (report.criticalMissing.length > 0) {
       throw new Error(
         `Ferramentas críticas não encontradas: ${report.criticalMissing.join(', ')}.\n` +
         'Instala com:\n' +
-        '  Windows: choco install ffmpeg\n' +
-        '  macOS:   brew install ffmpeg\n' +
-        '  Ubuntu:  sudo apt install ffmpeg'
+        '  Windows: choco install ffmpeg'
       );
     }
 
-    // Log de ferramentas opcionais em falta (aviso, não bloqueia)
     if (report.optionalMissing.length > 0) {
       logger.warn(
         { missing: report.optionalMissing },
@@ -71,10 +73,9 @@ async function startWorkers(): Promise<void> {
       );
     }
 
-    // 5. Iniciar métricas Prometheus (porta separada dos workers: 9101)
+    // 5. Iniciar métricas Prometheus
     const prometheusPort = Number(process.env.PROMETHEUS_WORKER_PORT ?? 9101);
     await metricsServer.start(prometheusPort);
-    logger.info({ port: prometheusPort }, 'Prometheus workers iniciado');
 
     // 6. Criar e iniciar todos os workers
     const workers: NexoraWorker[] = [
@@ -83,9 +84,6 @@ async function startWorkers(): Promise<void> {
       new TranscodeWorker(),
       new AudioWorker(),
       new SubtitleWorker(),
-      // Os workers seguintes serão implementados em prompts futuros:
-      // new ProxyWorker()    — Prompt futuro
-      // new DeliveryWorker() — Prompt futuro
     ];
 
     for (const worker of workers) {
@@ -93,13 +91,54 @@ async function startWorkers(): Promise<void> {
       logger.info({ worker: worker.name }, `Worker ${worker.name} iniciado`);
     }
 
-    logger.info({ count: workers.length }, 'Todos os workers iniciados com sucesso');
+    // 7. Dynamic Resource Management (Web Priority)
+    const totalCpus = os.cpus().length;
+    let lastPriority = -1;
 
-    // 7. Manter processo vivo e shutdown gracioso
+    const updateConcurrency = () => {
+      try {
+        if (!fs.existsSync(CONFIG_PATH)) return;
+        const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+        const priority = config.webPriorityPercentage ?? 20;
+
+        if (priority === lastPriority) return;
+        lastPriority = priority;
+
+        // Cálculo de concorrência:
+        // Se priority = 20% (reserva para web), sobram 80% para workers.
+        // n = Math.floor(totalCpus * (1 - priority/100))
+        // Garantimos pelo menos 1 worker.
+        const availableRatio = 1 - (priority / 100);
+        const transcodeConcurrency = Math.max(1, Math.floor(totalCpus * availableRatio));
+        
+        // Outros workers (ingest, subtitle) são menos pesados, usamos o mesmo ratio ou fixo
+        const lightConcurrency = Math.max(1, Math.round(transcodeConcurrency * 1.5));
+
+        logger.info({ priority, transcodeConcurrency, lightConcurrency }, 'Ajustando recursos de hardware');
+
+        for (const worker of workers) {
+          if (worker.name === 'TranscodeWorker' || worker.name === 'QCWorker') {
+            worker.setConcurrency(transcodeConcurrency);
+          } else {
+            worker.setConcurrency(lightConcurrency);
+          }
+        }
+      } catch (err) {
+        logger.error({ err }, 'Erro ao atualizar concorrência dinâmica');
+      }
+    };
+
+    // Poll a cada 30 segundos
+    const interval = setInterval(updateConcurrency, 30000);
+    updateConcurrency(); // Execução inicial
+
+    logger.info({ count: workers.length, cpus: totalCpus }, 'Todos os workers iniciados com gestão dinâmica');
+
+    // 8. Manter processo vivo e shutdown gracioso
     const shutdown = async (signal: string): Promise<void> => {
       logger.info({ signal }, 'A encerrar workers graciosamente...');
+      clearInterval(interval);
 
-      // Parar todos os workers (aguardam jobs activos)
       await Promise.all(workers.map(async w => {
         try {
           await w.stop();
@@ -118,7 +157,6 @@ async function startWorkers(): Promise<void> {
     process.on('SIGTERM', () => void shutdown('SIGTERM'));
     process.on('SIGINT',  () => void shutdown('SIGINT'));
 
-    // Manter o processo vivo
     process.stdin.resume();
 
   } catch (error) {

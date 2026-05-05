@@ -81,6 +81,13 @@ export class IngestWorker {
     }
   }
 
+  public setConcurrency(n: number): void {
+    if (this.worker) {
+      this.worker.concurrency = n;
+      logger.info({ worker: this.name, concurrency: n }, 'Concorrência atualizada dinamicamente');
+    }
+  }
+
   /** Processa um job de ingest */
   private async process(job: BullJob<IngestJobPayload>): Promise<void> {
     const { assetId: jobAssetId, filePath, filename, mimeType, profile } = job.data;
