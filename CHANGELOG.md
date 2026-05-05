@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## [1.1.4] - 2026-05-06
+
+### Added
+- feat: atualizacoes gerais
+
+
+
 ## [1.1.3] - 2026-05-06
 
 ### Added
@@ -139,6 +146,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [1.0.0]: https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing/releases/tag/v1.0.0
 [0.1.0]: https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing/compare/v0.1.0...v1.0.0
+
 
 
 
