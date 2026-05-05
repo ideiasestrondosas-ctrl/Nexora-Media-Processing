@@ -1,17 +1,18 @@
 param (
-    [string]$Message
+    [string]$Message,
+    [switch]$SkipRelease
 )
 
 <#
 .SYNOPSIS
-    Nexora Sync - Automatiza a sincronização do workspace com o GitHub.
+    Nexora Sync - Automatiza a sincronização, versionamento (SemVer) e releases no GitHub.
 #>
 
 # Configurações de codificação para o terminal
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-# Funcoes de Log (Cores nativas e texto sem acentos para evitar erros de encoding)
+# Funcoes de Log
 function Write-Step($msg) { Write-Host "[STEP] $msg" -ForegroundColor Cyan }
 function Write-Success($msg) { Write-Host "[OK] $msg" -ForegroundColor Green }
 function Write-Warning($msg) { Write-Host "[WARN] $msg" -ForegroundColor Yellow }
@@ -41,106 +42,10 @@ if (!$remote) {
 }
 
 # ---------------------------------------------------------
-# DETECAO DE ALTERACOES E VARREDURA PROFUNDA
-# ---------------------------------------------------------
-Write-Step "Iniciando varredura profunda no workspace..."
-
-# 1. Refrescar o index para garantir que o Git ve tudo o que mudou no disco
-git update-index --refresh > $null 2>&1
-
-# 2. Verificar o que esta 'ahead' (commits locais nao enviados)
-$branch = git branch --show-current
-$pendingCommits = git log origin/$branch..HEAD --oneline
-$pendingFiles = git log origin/$branch..HEAD --name-only --oneline | Select-Object -Unique | Where-Object { $_ -and $_ -notmatch "^[a-f0-9]{7} " }
-
-# 3. Verificar alteracoes nao comitadas
-$status = git status --porcelain
-
-if (!$status -and !$pendingCommits) {
-    Write-Success "Workspace e GitHub estao sincronizados. Nada para fazer."
-    exit
-}
-
-if ($pendingCommits) {
-    Write-Warning "DETETADOS COMMITS PENDENTES (Ainda nao estao no GitHub):"
-    Write-Host $pendingCommits -ForegroundColor Gray
-    Write-Host "`nFicheiros nestes commits:"
-    Write-Host ($pendingFiles -join ", ") -ForegroundColor Cyan
-}
-
-if ($status) {
-    Write-Host "`nAlteracoes locais por comitar:" -ForegroundColor Yellow
-    Write-Host $status
-} else {
-    Write-Success "`nNao ha alteracoes locais pendentes (tudo comitado)."
-}
-
-# ---------------------------------------------------------
-# COMMIT E CONVENCOES
-# ---------------------------------------------------------
-if ($status) {
-    $commitMsg = $Message
-    if (!$commitMsg) {
-        # Sugestao automatica baseada no status
-        $firstLine = ($status -split "`n")[0]
-        $fileCount = ($status -split "`n").Count
-        if ($firstLine.Length -gt 3) {
-            $firstFile = $firstLine.Substring(3).Trim()
-            $suggestedDesc = "atualizar $firstFile"
-            if ($fileCount -gt 1) { $suggestedDesc += " e mais $($fileCount -1) ficheiros" }
-        } else {
-            $suggestedDesc = "atualizacoes gerais"
-        }
-        
-        Write-Host "`nNormas de Commit (GitHub):"
-        Write-Host "1. feat: (Novas funcionalidades)"
-        Write-Host "2. fix: (Correcao de bugs)"
-        Write-Host "3. docs: (Alteracoes na documentacao)"
-        Write-Host "4. style: (Formatacao, estetica)"
-        Write-Host "5. refactor: (Refatoracao de codigo)"
-        
-        $type = Read-Host "Escolha o tipo (Padrao: feat)"
-        if (!$type) { $type = "feat" }
-        
-        $desc = Read-Host "Descricao (Sugestao: $suggestedDesc)"
-        if (!$desc) { $desc = $suggestedDesc }
-        
-        $commitMsg = "$($type): $desc"
-    }
-
-    Write-Step "A utilizar mensagem: '$commitMsg'"
-    $confirmCommit = Read-Host "Confirmar commit e push? (y/n, Padrao: y)"
-    if ($confirmCommit -eq "n") { Write-Warning "Operacao cancelada."; exit }
-
-    Write-Step "Adicionando ficheiros e fazendo commit..."
-    git add .
-    git commit -m $commitMsg
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-ErrorMsg "Falha ao realizar o commit."
-        exit
-    }
-
-    # ---------------------------------------------------------
-    # LIMPEZA POS-COMMIT (GRAPHIFY)
-    # ---------------------------------------------------------
-    Start-Sleep -Seconds 1
-    $postStatus = git status --porcelain
-    if ($postStatus) {
-        Write-Step "Sincronizando alteracoes automaticas (Graphify)..."
-        git add .
-        git commit -m "docs: atualizar grafo e relatorios (auto)" --no-verify
-    }
-} else {
-    Write-Step "Sem novas alteracoes locais para comitar. Seguindo para o Push..."
-}
-
-# ---------------------------------------------------------
 # CARREGAMENTO DE CONFIGURACOES (.env)
 # ---------------------------------------------------------
 if (Test-Path ".env") {
     Get-Content ".env" | ForEach-Object {
-        # Regex melhorada para ignorar comentarios e capturar valores com/sem aspas
         if ($_ -match "^\s*GITHUB_TOKEN\s*=\s*(.*)$") {
             $val = $matches[1].Trim().Trim("'").Trim('"')
             if ($val) { $script:GITHUB_TOKEN = $val }
@@ -149,73 +54,185 @@ if (Test-Path ".env") {
 }
 
 # ---------------------------------------------------------
-# LIMPEZA DE CREDENCIAIS ANTIGAS (Fix para o erro 'Invalid username or token')
+# DETECAO DE ALTERACOES
 # ---------------------------------------------------------
-$currentRemote = git remote get-url origin 2>$null
-if ($currentRemote -and $currentRemote -match "https://[^@]+@") {
-    Write-Warning "Detetado token antigo no URL do repositório. A limpar..."
-    $cleanRemote = $currentRemote -replace "https://[^@]+@", "https://"
-    git remote set-url origin $cleanRemote
-    Write-Success "URL do remoto 'origin' limpo com sucesso."
+Write-Step "Analisando alteracoes no workspace..."
+
+git update-index --refresh > $null 2>&1
+$branch = git branch --show-current
+$status = git status --porcelain
+
+if (!$status -and !(git log origin/$branch..HEAD --oneline)) {
+    Write-Success "Workspace e GitHub estao sincronizados. Nada para fazer."
+    exit
+}
+
+# ---------------------------------------------------------
+# COMMIT DE CODIGO
+# ---------------------------------------------------------
+if ($status) {
+    $commitMsg = $Message
+    if (!$commitMsg) {
+        Write-Host "`nConvencoes de Commit (SemVer):"
+        Write-Host "1. feat: (Nova funcionalidade -> Bump MINOR)"
+        Write-Host "2. fix: (Correcao de bug -> Bump PATCH)"
+        Write-Host "3. docs: (Documentacao -> Bump PATCH)"
+        Write-Host "4. style: (Estetica -> Bump PATCH)"
+        Write-Host "5. refactor: (Refatoracao -> Bump PATCH)"
+        Write-Host "6. BREAKING CHANGE: (Alteracao disruptiva -> Bump MAJOR)"
+        
+        $type = Read-Host "Escolha o tipo (Padrao: feat)"
+        if (!$type) { $type = "feat" }
+        
+        $desc = Read-Host "Descricao"
+        if (!$desc) { $desc = "atualizacoes gerais" }
+        
+        $commitMsg = "$($type): $desc"
+    }
+
+    Write-Step "Realizando commit: '$commitMsg'..."
+    git add .
+    git commit -m $commitMsg
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-ErrorMsg "Falha ao realizar o commit."
+        exit
+    }
+
+    # Sincronizar Graphify se necessario
+    Start-Sleep -Seconds 1
+    if (git status --porcelain) {
+        git add .
+        git commit -m "docs: atualizar grafo e relatorios (auto)" --no-verify
+    }
+}
+
+# ---------------------------------------------------------
+# GESTAO DE VERSAO (SemVer)
+# ---------------------------------------------------------
+if (!$SkipRelease) {
+    Write-Step "Iniciando processo de versionamento..."
+    
+    # 1. Ler versao atual
+    if (Test-Path "package.json") {
+        $packageJson = Get-Content "package.json" | ConvertFrom-Json
+        $currentVersion = $packageJson.version
+    } else {
+        $currentVersion = "0.1.0"
+    }
+    
+    Write-Host "Versao atual: $currentVersion" -ForegroundColor Gray
+
+    # 2. Deduzir proxima versao
+    $vParts = $currentVersion.Split('.')
+    $major = [int]$vParts[0]
+    $minor = [int]$vParts[1]
+    $patch = [int]$vParts[2]
+
+    $suggestedVersion = ""
+    if ($commitMsg -match "BREAKING CHANGE") {
+        $suggestedVersion = "$($major + 1).0.0"
+    } elseif ($commitMsg -match "^feat:") {
+        $suggestedVersion = "$major.$($minor + 1).0"
+    } else {
+        $suggestedVersion = "$major.$minor.$($patch + 1)"
+    }
+
+    # 3. Menu Interativo
+    Write-Host "`nEscolha a proxima versao:" -ForegroundColor Yellow
+    Write-Host "1) Patch ($($major).$($minor).$($patch + 1))"
+    Write-Host "2) Minor ($($major).$($minor + 1).0)"
+    Write-Host "3) Major ($($major + 1).0.0)"
+    Write-Host "4) Ignorar versao (Apenas push)"
+    
+    $choice = Read-Host "Opcao (Padrao baseada no commit: $suggestedVersion)"
+    
+    $newVersion = ""
+    switch ($choice) {
+        "1" { $newVersion = "$($major).$($minor).$($patch + 1)" }
+        "2" { $newVersion = "$major.$($minor + 1).0" }
+        "3" { $newVersion = "$($major + 1).0.0" }
+        "4" { $newVersion = "" }
+        default { if (!$choice) { $newVersion = $suggestedVersion } }
+    }
+
+    if ($newVersion) {
+        Write-Step "Aplicando versao v$newVersion..."
+
+        # Atualizar package.json
+        if (Test-Path "package.json") {
+            $packageJson.version = $newVersion
+            $packageJson | ConvertTo-Json -Depth 20 | Out-File "package.json" -Encoding UTF8
+        }
+
+        # Atualizar CHANGELOG.md
+        if (Test-Path "CHANGELOG.md") {
+            $changelog = Get-Content "CHANGELOG.md" -Raw
+            $date = Get-Date -Format "yyyy-MM-dd"
+            $newEntry = "## [$newVersion] - $date`n`n### Added`n- $commitMsg`n"
+            $changelog = $changelog -replace "## \[Unreleased\]", "## [Unreleased]`n`n$newEntry"
+            # Se nao tiver Unreleased, colocar no topo
+            if ($changelog -notmatch "## \[Unreleased\]") {
+                $changelog = "# Changelog`n`n$newEntry`n" + ($changelog -replace "# Changelog", "")
+            }
+            $changelog | Out-File "CHANGELOG.md" -Encoding UTF8
+        }
+
+        # Atualizar PROGRESS.md
+        if (Test-Path "PROGRESS.md") {
+            (Get-Content "PROGRESS.md") -replace "\| \*\*Versão\*\* \| .* \|", "| **Versão** | $newVersion |" | Out-File "PROGRESS.md" -Encoding UTF8
+        }
+
+        # Commit de release e Tag
+        git add package.json CHANGELOG.md PROGRESS.md
+        git commit -m "chore(release): v$newVersion" --no-verify
+        git tag -a "v$newVersion" -m "Nexora Release v$newVersion"
+        Write-Success "Versao v$newVersion preparada com sucesso!"
+        $isNewRelease = $true
+    }
 }
 
 # ---------------------------------------------------------
 # PUSH PARA O GITHUB
 # ---------------------------------------------------------
 Write-Step "Enviando para o GitHub..."
-$branch = git branch --show-current
-$username = "ideiasestrondosas-ctrl" # Username padrao do projeto
+$username = "ideiasestrondosas-ctrl"
 
-# Se tivermos um token, usamos um URL temporario para o push com o username
 if ($script:GITHUB_TOKEN) {
-    Write-Step "A utilizar Personal Access Token detetado no .env..."
     $remoteUrl = git remote get-url origin
-    # Garantir que o URL base esta limpo
     $baseRepo = $remoteUrl -replace "https://[^@]+@", "" -replace "https://", ""
-    
-    # Formato: https://username:token@github.com/repo.git
     $authenticatedUrl = "https://$($username):$($script:GITHUB_TOKEN)@$baseRepo"
-    
-    # Redirecionar stderr para null para nao mostrar o token em caso de erro no log (mas o Git oculta tokens por padrao)
-    $pushResult = git push -u "$authenticatedUrl" $branch 2>&1
+    git push -u "$authenticatedUrl" $branch --tags
 } else {
-    # Capturar output para análise de erros (metodo normal)
-    $pushResult = git push -u origin $branch 2>&1
+    git push -u origin $branch --tags
 }
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Success "Projeto atualizado no GitHub com sucesso!"
+    Write-Success "Sincronizacao concluida!"
+    
+    # Criar GitHub Release se houver nova versao e token
+    if ($isNewRelease -and $script:GITHUB_TOKEN) {
+        Write-Step "Criando Release no GitHub via API..."
+        try {
+            $releaseBody = @{
+                tag_name = "v$newVersion"
+                name = "Nexora Media Processing v$newVersion"
+                body = "### Alteracoes nesta versao`n`n- $commitMsg`n`nConsulte o CHANGELOG.md para detalhes."
+                draft = $false
+                prerelease = $false
+            } | ConvertTo-Json
+
+            $headers = @{
+                "Authorization" = "token $script:GITHUB_TOKEN"
+                "Accept" = "application/vnd.github+json"
+            }
+
+            Invoke-RestMethod -Uri "https://api.github.com/repos/$username/Nexora-Media-Processing/releases" -Method Post -Headers $headers -Body $releaseBody -ContentType "application/json" > $null
+            Write-Success "GitHub Release v$newVersion publicada!"
+        } catch {
+            Write-Warning "Nao foi possivel publicar a Release no GitHub: $_"
+        }
+    }
 } else {
     Write-ErrorMsg "Falha ao enviar para o GitHub."
-    
-    # Verificação de erro de permissão de workflow
-    if ($pushResult -like "*without `*workflow`* scope*") {
-        Write-Warning "DETETADO: O seu Token nao tem permissao para atualizar workflows (.github/)."
-        $fix = Read-Host "Deseja ignorar a pasta .github/ no Git para resolver este erro automaticamente? (y/n)"
-        if ($fix -eq "y") {
-            Write-Step "Aplicando correcao automatica..."
-            
-            # Adicionar ao .gitignore se nao estiver la
-            $ignoreContent = Get-Content ".gitignore" -ErrorAction SilentlyContinue
-            if ($ignoreContent -notcontains ".github/") {
-                Add-Content -Path ".gitignore" -Value "`n.github/"
-                Write-Success ".github/ adicionado ao .gitignore"
-            }
-            
-            # Remover do index
-            git rm -r --cached .github 2>$null
-            git add .gitignore
-            git commit -m "fix: contornar erro de permissao de workflow (auto)"
-            
-            Write-Step "Tentando enviar novamente..."
-            git push -u origin $branch
-            if ($LASTEXITCODE -eq 0) {
-                Write-Success "Projeto atualizado com sucesso apos correcao!"
-            }
-        } else {
-            Write-Host "Dica: Atualize o seu Token no GitHub com o scope 'workflow' para permitir automacoes." -ForegroundColor Cyan
-        }
-    } else {
-        Write-Host $pushResult -ForegroundColor Gray
-    }
 }

@@ -1,3 +1,4 @@
+<!-- sync-script-verification -->
 # Nexora Media Processing
 
 > Plataforma profissional de ingest, validação, transcoding e entrega de media para Broadcast & OTT  

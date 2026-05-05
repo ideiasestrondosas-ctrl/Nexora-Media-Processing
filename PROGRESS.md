@@ -10,7 +10,7 @@
 | Campo | Valor |
 |---|---|
 | **Nome** | Nexora Media Processing |
-| **Versão** | 0.1.0 |
+| **Versão** | 1.0.0 |
 | **IDE** | Google Antigravity |
 | **Stack** | Node.js 20 + TypeScript + Fastify + BullMQ + Redis + PostgreSQL + MinIO |
 | **Frontend** | Next.js 14 + React + Tailwind CSS |
@@ -42,9 +42,9 @@
 ## 🔄 Em progresso agora
 
 ```
-Data: 2026-05-03
-Agente: Antigravity (Claude Sonnet)
-Estado: ✅ PROJECTO CONCLUÍDO — 10/10 Prompts executados
+Data: 2026-05-05
+Agente: Antigravity (Gemini)
+Estado: ✅ Release v1.0.0 concluída (Desktop Planning a decorrer)
 Bloqueios: Nenhum
 ```
 
@@ -405,4 +405,4 @@ Não existem mais passos pendentes. O Nexora Media Processing está pronto para 
 
 ---
 
-*Última actualização: 2026-05-03 — Prompt 10 (Integração Final) concluído — 0 erros TS — build OK — 10/10 Prompts*
+*Última actualização: 2026-05-05 — Release v1.0.0 concluída — 0 erros TS — build OK — 10/10 Prompts*
