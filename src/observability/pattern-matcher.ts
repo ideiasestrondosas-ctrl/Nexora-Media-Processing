@@ -264,7 +264,106 @@ export const ERROR_PATTERNS: ErrorPattern[] = [
     isRetryable: false,
     suggestedFixId: undefined,
   },
+
+  // ── STREAM CORROMPIDO: Análise de fluxos de vídeo corrompidos ──
+
+  {
+    id: 'CORRUPTED_HEADER',
+    regex: /Header missing|Could not find codec parameters|missing codec parameters|Invalid codec tag|codec not found/i,
+    errorCode: 'CORRUPTED_HEADER',
+    sources: ['ffmpeg', 'mediainfo'],
+    severity: 'critical',
+    category: 'container',
+    description: 'Header do stream corrompido ou parâmetros de codec em falta. O ficheiro pode ter sido truncado no início.',
+    isRetryable: false,
+    suggestedFixId: undefined,
+  },
+
+  {
+    id: 'TRUNCATED_FILE',
+    regex: /Discarding\s+\d+\s+bytes.*truncat|Unexpected end of file|unexpected EOF|End of file while reading|no such file or directory.*\.part/i,
+    errorCode: 'TRUNCATED_FILE',
+    sources: ['ffmpeg', 'mediainfo'],
+    severity: 'critical',
+    category: 'container',
+    description: 'Ficheiro truncado ou incompleto — transmissão interrompida ou download incompleto.',
+    isRetryable: false,
+    suggestedFixId: undefined,
+  },
+
+  {
+    id: 'CORRUPTED_FRAMES',
+    regex: /error while decoding MB|decode_slice_header error|non-existing PPS|Concealment\s+\d+\s+MBs|slice type.*not implemented|SEI type.*not implemented|cabac_init_idc overflow/i,
+    errorCode: 'CORRUPTED_FRAMES',
+    sources: ['ffmpeg'],
+    severity: 'high',
+    category: 'stream',
+    description: 'Frames corrompidos no stream de vídeo — dados de slice inválidos ou macroblocos em falta.',
+    isRetryable: true,
+    suggestedFixId: 'FIX_ERR_DETECT',
+  },
+
+  {
+    id: 'MISSING_REFERENCE_FRAMES',
+    regex: /Missing reference picture|short-term ref.*missing|long-term ref.*missing|reference picture list|no reference frame/i,
+    errorCode: 'MISSING_REFERENCE_FRAMES',
+    sources: ['ffmpeg'],
+    severity: 'high',
+    category: 'stream',
+    description: 'Reference frames em falta — estrutura GOP corrompida. Comum em ficheiros com segmentos em falta.',
+    isRetryable: true,
+    suggestedFixId: 'FIX_ERR_DETECT',
+  },
+
+  {
+    id: 'BITSTREAM_CORRUPTION',
+    regex: /Invalid NAL unit size|illegal temporal_id|non-existing SPS|forbidden_zero_bit|SPS id.*out of range|PPS id.*out of range|slice.*NAL.*corrupted/i,
+    errorCode: 'BITSTREAM_CORRUPTION',
+    sources: ['ffmpeg'],
+    severity: 'critical',
+    category: 'stream',
+    description: 'Bitstream H.264/H.265 estruturalmente corrompido — NAL units inválidas ou parâmetros fora de range.',
+    isRetryable: true,
+    suggestedFixId: 'FIX_COPY_UNKNOWN',
+  },
+
+  {
+    id: 'AUDIO_SYNC_DRIFT',
+    regex: /discarding\s+\d+\s+audio (packets|frames)|audio timestamp discontinuity|A\/V sync.*lost|av_interleaved_write_frame.*Audio|pts.*not monotonically.*audio/i,
+    errorCode: 'AUDIO_SYNC_DRIFT',
+    sources: ['ffmpeg'],
+    severity: 'medium',
+    category: 'audio',
+    description: 'Drift ou dessincronização de áudio detectados — timestamps de áudio não monotónicos ou saltos no PTS.',
+    isRetryable: true,
+    suggestedFixId: 'FIX_ASYNC_AUDIO',
+  },
+
+  {
+    id: 'INTERLACE_MISMATCH',
+    regex: /Discarding mismatched.*field order|interlacing.*mismatch|field dominance.*mismatch|interlaced.*conflict|top field first.*mismatch/i,
+    errorCode: 'INTERLACE_MISMATCH',
+    sources: ['ffmpeg', 'mediainfo'],
+    severity: 'medium',
+    category: 'stream',
+    description: 'Conflito de interlacing detectado — a source declara field order diferente do que está nos dados.',
+    isRetryable: true,
+    suggestedFixId: 'FIX_DEINTERLACE',
+  },
+
+  {
+    id: 'CONTAINER_CORRUPTION',
+    regex: /corrupt input|mdat.*corrupt|ftyp.*invalid|fragment.*overlap|index.*corrupt|stco.*out of range|moov.*corrupt|chunk offset.*invalid/i,
+    errorCode: 'CONTAINER_CORRUPTION',
+    sources: ['ffmpeg', 'mediainfo'],
+    severity: 'critical',
+    category: 'container',
+    description: 'Container MP4/MKV estruturalmente danificado — atoms/boxes com offsets inválidos ou overlapping.',
+    isRetryable: false,
+    suggestedFixId: undefined,
+  },
 ];
+
 
 // Índice por ID para acesso O(1)
 const PATTERN_INDEX = new Map<string, ErrorPattern>(

@@ -5,6 +5,8 @@
 
 [![Tests](https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing/actions/workflows/test.yml/badge.svg)](https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing/actions/workflows/test.yml)
 [![Build Docker](https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing/actions/workflows/build.yml/badge.svg)](https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/ideiasestrondosas-ctrl/Nexora-Media-Processing?label=release&color=blue)](https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing/releases/latest)
+[![Changelog](https://img.shields.io/badge/changelog-v1.0.0-informational)](CHANGELOG.md)
 
 ---
 

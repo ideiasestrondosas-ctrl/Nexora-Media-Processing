@@ -181,6 +181,75 @@ const FIX_CATALOG: FixSuggestion[] = [
     riskLevel: 'safe',
     affectsQuality: false,
   },
+
+  // ── Fixes para Fluxos de Vídeo Corrompidos ───────────────────
+
+  {
+    id: 'FIX_ERR_DETECT',
+    patternIds: ['CORRUPTED_FRAMES', 'MISSING_REFERENCE_FRAMES'],
+    title: 'Activar detecção agressiva de erros e exportar motion vectors',
+    explanation:
+      'Frames corrompidos ou reference frames em falta indicam GOP danificado. ' +
+      'A flag -err_detect explode instrui o FFmpeg a parar imediatamente ao detectar erros ' +
+      'em vez de tentar concealment (que pode propagar corrupção). ' +
+      'Combinado com -flags2 +export_mvs para expor motion vectors de frames problemáticos ' +
+      'no log, facilitando identificação do ponto exacto da corrupção.',
+    ffmpegInputFlags: ['-err_detect', 'explode'],
+    ffmpegFlagsAdd: ['-flags2', '+export_mvs'],
+    confidence: 'high',
+    riskLevel: 'moderate',
+    affectsQuality: false,
+  },
+
+  {
+    id: 'FIX_COPY_UNKNOWN',
+    patternIds: ['BITSTREAM_CORRUPTION'],
+    title: 'Re-encode completo ignorando bitstream corrompido (-copy_unknown)',
+    explanation:
+      'O bitstream H.264/H.265 tem NAL units inválidas ou parâmetros SPS/PPS fora de range. ' +
+      'A flag -copy_unknown permite ao muxer ignorar streams desconhecidos e continuar. ' +
+      'Combinado com re-encode forçado (sem -c:v copy) para reconstruir o bitstream de raiz. ' +
+      'O output pode ter frames iniciais em preto se os primeiros GOPs estão corrompidos.',
+    ffmpegFlagsAdd: ['-copy_unknown', '-c:v', 'libx264', '-preset', 'fast'],
+    ffmpegInputFlags: ['-fflags', '+igndts+discardcorrupt'],
+    confidence: 'medium',
+    riskLevel: 'moderate',
+    affectsQuality: true,
+  },
+
+  {
+    id: 'FIX_ASYNC_AUDIO',
+    patternIds: ['AUDIO_SYNC_DRIFT'],
+    title: 'Resincronizar áudio com aresample async e -async 1',
+    explanation:
+      'Drift de áudio detectado — timestamps de áudio não monotónicos ou A/V sync perdido. ' +
+      'O filtro aresample=async=1000 resamples o áudio para compensar drift até 1000ms. ' +
+      'A flag -async 1 instrui o FFmpeg a ajustar os timestamps de áudio para alinhar com o vídeo. ' +
+      'Solução segura para a maioria dos casos de dessincronização sem perda de conteúdo.',
+    ffmpegFlagsAdd: ['-async', '1'],
+    ffmpegAudioFilter: 'aresample=async=1000',
+    confidence: 'high',
+    riskLevel: 'safe',
+    affectsQuality: false,
+  },
+
+  {
+    id: 'FIX_DEINTERLACE',
+    patternIds: ['INTERLACE_MISMATCH'],
+    title: 'Aplicar deinterlacing adaptativo com yadif (modo send_frame)',
+    explanation:
+      'Conflito de interlacing detectado entre os metadados declarados e os dados reais do stream. ' +
+      'O filtro yadif=1:-1:0 aplica deinterlacing frame-by-frame de forma adaptativa: ' +
+      'modo 1 (send_frame) emite um frame por campo interlaced, -1 detecta automaticamente ' +
+      'top-field-first ou bottom-field-first, e 0 processa todos os frames. ' +
+      'Para outputs broadcast, combine com -r 25 para garantir CFR a 25fps.',
+    ffmpegFlagsAdd: ['-r', '25'],
+    ffmpegAudioFilter: undefined,
+    // Nota: vf é tratado separadamente pelo builder — documentado aqui como override
+    confidence: 'high',
+    riskLevel: 'safe',
+    affectsQuality: false,
+  },
 ];
 
 // Índice por ID para acesso O(1)
