@@ -81,9 +81,12 @@ export async function logsRoutes(fastify: FastifyInstance): Promise<void> {
   // SSE: Stream de Logs em tempo real
   fastify.get('/logs/stream', async (request: FastifyRequest, reply: FastifyReply) => {
     // Configurar headers para SSE
-    reply.raw.setHeader('Content-Type', 'text/event-stream');
-    reply.raw.setHeader('Cache-Control', 'no-cache');
-    reply.raw.setHeader('Connection', 'keep-alive');
+    void reply.raw.writeHead(200, {
+      'Content-Type':  'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection':    'keep-alive',
+      'X-Accel-Buffering': 'no', // Desactivar buffering no Nginx
+    });
 
     // Enviar histórico inicial
     const history = logStreamer.getHistory();
@@ -91,6 +94,15 @@ export async function logsRoutes(fastify: FastifyInstance): Promise<void> {
       const diagnostic = analyzeLog(log);
       reply.raw.write(`data: ${JSON.stringify({ ...log, diagnostic })}\n\n`);
     }
+
+    // Adicionar um log de sistema para confirmar a ligação no frontend
+    const connectedLog = {
+      level: 30,
+      time: new Date().toISOString(),
+      service: 'nexora-api',
+      msg: 'Consola de Sistema conectada via SSE. A aguardar novos logs...',
+    };
+    reply.raw.write(`data: ${JSON.stringify({ ...connectedLog, diagnostic: null })}\n\n`);
 
     // Ouvir novos logs
     const onLog = (log: any) => {
@@ -100,9 +112,25 @@ export async function logsRoutes(fastify: FastifyInstance): Promise<void> {
 
     logStreamer.on('log', onLog);
 
+    // Heartbeat a cada 15s para manter a ligação viva e evitar timeout
+    const heartbeatInterval = setInterval(() => {
+      if (!reply.raw.writableEnded) {
+        reply.raw.write(`event: heartbeat\ndata: {}\n\n`);
+      } else {
+        clearInterval(heartbeatInterval);
+      }
+    }, 15000);
+
     // Limpar ao fechar
     request.raw.on('close', () => {
+      clearInterval(heartbeatInterval);
       logStreamer.off('log', onLog);
+    });
+
+    // Não retornar — manter a conexão aberta
+    await new Promise<void>((resolve) => {
+      reply.raw.on('finish', resolve);
+      reply.raw.on('close', resolve);
     });
   });
 

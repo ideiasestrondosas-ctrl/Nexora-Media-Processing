@@ -222,15 +222,31 @@ if ($LASTEXITCODE -eq 0) {
                 prerelease = $false
             } | ConvertTo-Json
 
+            # 4. Enviar para a API do GitHub
             $headers = @{
                 "Authorization" = "token $script:GITHUB_TOKEN"
-                "Accept" = "application/vnd.github+json"
+                "Accept"        = "application/vnd.github+json"
             }
 
-            Invoke-RestMethod -Uri "https://api.github.com/repos/$username/Nexora-Media-Processing/releases" -Method Post -Headers $headers -Body $releaseBody -ContentType "application/json" > $null
-            Write-Success "GitHub Release v$newVersion publicada!"
+            # Converter para Bytes UTF-8 para evitar problemas de encoding/BOM (comum em PowerShell 5.1)
+            $releaseBodyBytes = [System.Text.Encoding]::UTF8.GetBytes($releaseBody)
+
+            try {
+                Invoke-RestMethod -Uri "https://api.github.com/repos/$username/Nexora-Media-Processing/releases" `
+                                 -Method Post -Headers $headers -Body $releaseBodyBytes -ContentType "application/json; charset=utf-8" > $null
+                Write-Success "GitHub Release v$newVersion publicada!"
+            } catch {
+                $errJson = $_.Exception.Response.GetResponseStream()
+                if ($errJson) {
+                    $reader = New-Object System.IO.StreamReader($errJson)
+                    $resp = $reader.ReadToEnd()
+                    Write-Warning "Erro da API GitHub: $resp"
+                } else {
+                    Write-Warning "Nao foi possivel publicar a Release no GitHub: $_"
+                }
+            }
         } catch {
-            Write-Warning "Nao foi possivel publicar a Release no GitHub: $_"
+            Write-Warning "Falha ao preparar JSON da Release: $_"
         }
     }
 } else {

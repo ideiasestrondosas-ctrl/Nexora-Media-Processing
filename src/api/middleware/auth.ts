@@ -117,12 +117,21 @@ export async function registerAuthHook(fastify: FastifyInstance): Promise<void> 
     const url = request.url.split('?')[0]!;
     if (PUBLIC_ROUTES.has(url)) return;
 
+    let token = '';
     const authHeader = request.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      throw new UnauthorizedError('Header Authorization em falta ou formato inválido');
+    
+    if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.slice(7);
+    } else {
+      const match = request.url.match(/[?&]token=([^&]+)/);
+      if (match) {
+        token = match[1];
+      }
     }
 
-    const token = authHeader.slice(7);
+    if (!token) {
+      throw new UnauthorizedError('Header Authorization em falta ou formato inválido (ou token query parameter)');
+    }
 
     try {
       const publicKey = await getPublicKey();

@@ -12,6 +12,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import { useAuthStore } from "@/store/auth";
+import { API_BASE_URL } from "@/lib/api";
+
 interface LogEntry {
   time: string;
   level: number;
@@ -43,10 +46,14 @@ export default function LogsPage() {
   const [minLevel, setMinLevel] = useState<number>(30);
   const [autoScroll, setAutoScroll] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  const token = useAuthStore(state => state.token);
 
   // SSE connection
   useEffect(() => {
-    const eventSource = new EventSource('/api/v1/logs/stream');
+    if (!token) return;
+
+    const eventSource = new EventSource(`${API_BASE_URL}/logs/stream?token=${token}`);
 
     eventSource.onmessage = (event) => {
       try {
@@ -63,7 +70,7 @@ export default function LogsPage() {
     };
 
     return () => eventSource.close();
-  }, []);
+  }, [token]);
 
   // Auto-scroll
   useEffect(() => {
