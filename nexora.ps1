@@ -246,10 +246,48 @@ function Reset-Nexora {
     Write-Nexora "Reset concluido!" "Green"
 }
 
+function Show-Help {
+    Clear-Host
+    Write-Host ""
+    Write-Host "  ==========================================================================" -ForegroundColor Cyan
+    Write-Host "    NEXORA MANAGER v2.0 - Guia de Ajuda                                     " -ForegroundColor White -BackgroundColor DarkCyan
+    Write-Host "  ==========================================================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  UTILIZACAO:" -ForegroundColor Yellow
+    Write-Host "    .\nexora.ps1 [comando] [alvo]" -ForegroundColor White
+    Write-Host ""
+    Write-Host "  COMANDOS DISPONIVEIS:" -ForegroundColor Yellow
+    Write-Host "    start [alvo]    Inicia servicos. Se alvo for omitido, inicia todos."
+    Write-Host "    stop [alvo]     Para servicos activos."
+    Write-Host "    restart [alvo]  Reinicia servicos."
+    Write-Host "    status          Mostra o estado actual dos servicos e containers."
+    Write-Host "    logs [alvo]     Mostra logs em tempo real. Sem alvo mostra todos."
+    Write-Host "    reset           Executa reset total do sistema (CUIDADO!)."
+    Write-Host "    details         Mostra detalhes tecnicos de consumo de RAM."
+    Write-Host "    -Help, -h       Mostra esta guia de ajuda."
+    Write-Host ""
+    Write-Host "  ALVOS (Servicos):" -ForegroundColor Yellow
+    Write-Host "    backend         API Node.js (Porta 3005)"
+    Write-Host "    frontend        App Next.js (Porta 3002)"
+    Write-Host "    worker          Processamento BullMQ"
+    Write-Host ""
+    Write-Host "  EXEMPLOS:" -ForegroundColor Yellow
+    Write-Host "    .\nexora.ps1 start backend"
+    Write-Host "    .\nexora.ps1 logs worker"
+    Write-Host "    .\nexora.ps1 status"
+    Write-Host ""
+    Write-Host "  ==========================================================================" -ForegroundColor Cyan
+}
+
 # ── Entrada Principal ─────────────────────────────────────────────
 
 $action = $args[0]
 $target = $args[1]
+
+if ($action -eq "-Help" -or $action -eq "-h" -or $action -eq "--help" -or $action -eq "help") {
+    Show-Help
+    exit
+}
 
 switch ($action) {
     "start" {

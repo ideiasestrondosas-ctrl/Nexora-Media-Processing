@@ -134,10 +134,23 @@ export class TranscodeWorker {
     );
     gpuAvailable.set({ gpu_type: gpuCapability.type }, gpuCapability.available ? 1 : 0);
 
-    // 2. Criar directoria temporária
+    // 2. Criar directoria temporária e determinar formato de saída
+    const asset = await prisma.asset.findUnique({ where: { id: assetId } });
+    const metadata = (asset?.metadata as any) || {};
+    const targetFormat = (metadata.targetFormat || 'SAME').toUpperCase();
+    
+    let extension = 'mp4';
+    if (targetFormat === 'MOV') extension = 'mov';
+    if (targetFormat === 'MKV') extension = 'mkv';
+    if (targetFormat === 'SAME') {
+      // Tentar manter a extensão original se possível, senão mp4 padrão
+      const originalExt = asset?.filename.split('.').pop()?.toLowerCase();
+      extension = originalExt === 'mxf' ? 'mxf' : (originalExt || 'mp4');
+    }
+
     const tmpDir = await mkdtemp(join(tmpdir(), 'nexora-transcode-'));
     const inputPath = join(tmpDir, 'input');
-    const outputPath = join(tmpDir, 'output.mp4');
+    const outputPath = join(tmpDir, `output.${extension}`);
 
     // 3. Resolver encoder e tipo de slot
     const profileData = await this.getProfileData(profile);
@@ -205,11 +218,18 @@ export class TranscodeWorker {
       }
 
       // 8. Upload do output para MinIO
-      const outputKey = `output/${assetId}/${profile}/output.mp4`;
+      const outputKey = `output/${assetId}/${profile}/output.${extension}`;
       log.info({ outputKey }, 'A fazer upload do output...');
 
+      const mimeMap: Record<string, string> = {
+        mp4: 'video/mp4',
+        mov: 'video/quicktime',
+        mkv: 'video/x-matroska',
+        mxf: 'application/mxf'
+      };
+
       await uploadFile(BUCKETS.OUTPUT, outputKey, outputPath, {
-        contentType: 'video/mp4',
+        contentType: mimeMap[extension] || 'video/mp4',
         metadata: {
           'x-nexora-asset-id': assetId,
           'x-nexora-profile': profile,

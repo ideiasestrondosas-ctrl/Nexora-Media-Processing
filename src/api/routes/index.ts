@@ -45,7 +45,6 @@ export async function registerRoutes(fastify: FastifyInstance): Promise<void> {
   await fastify.register(usersRoutes,         { prefix });
   await fastify.register(metricsDashboardRoutes, { prefix });
   await fastify.register(settingsRoutes,          { prefix });
-  await fastify.register(resetRoutes,            { prefix });
   await fastify.register(systemRoutes,           { prefix });
   await fastify.register(logsRoutes,             { prefix });
 }

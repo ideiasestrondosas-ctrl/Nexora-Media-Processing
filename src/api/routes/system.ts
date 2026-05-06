@@ -349,4 +349,119 @@ export async function systemRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.status(500).send({ error: 'FALHA_RESTORE', message: err.message });
     }
   });
+
+  // ── GET /system/reset/status — Estatísticas para o painel de reset ────────
+  fastify.get('/system/reset/status', async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!request.user?.roles?.includes('ADMIN')) {
+      return reply.status(403).send({ error: 'Acesso negado.' });
+    }
+
+    const [assets, jobs, users, profiles] = await Promise.all([
+      prisma.asset.count(),
+      prisma.assetJob.count(),
+      prisma.user.count(),
+      prisma.encodingProfile.count(),
+    ]);
+
+    return {
+      assets,
+      jobs,
+      users,
+      profiles,
+      isEmpty: (assets + jobs) === 0,
+    };
+  });
+
+  // ── POST /system/reset — Reset granular do sistema ────────────────────────
+  fastify.post('/system/reset', {
+    schema: {
+      description: 'Executa reset granular de componentes do sistema (Admin only)',
+      tags: ['System'],
+      body: {
+        type: 'object',
+        properties: {
+          redis:     { type: 'boolean', description: 'Limpar chaves do Redis' },
+          database:  { type: 'boolean', description: 'Limpar tabelas de Assets e Jobs' },
+          tempFiles: { type: 'boolean', description: 'Limpar diretório temporário' },
+          logs:      { type: 'boolean', description: 'Limpar ficheiros de log e backups' },
+        },
+      },
+    },
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!request.user?.roles?.includes('ADMIN')) {
+      return reply.status(403).send({ error: 'Acesso negado.' });
+    }
+
+    const { redis, database, tempFiles, logs } = request.body as {
+      redis?: boolean;
+      database?: boolean;
+      tempFiles?: boolean;
+      logs?: boolean;
+    };
+
+    const results: Record<string, any> = {};
+
+    try {
+      // 1. Limpar Redis
+      if (redis) {
+        const { getRedisClient } = await import('../../common/redis');
+        const client = getRedisClient();
+        const keys = await client.keys('nexora:*');
+        if (keys.length > 0) await client.del(...keys);
+        results['redis'] = { status: 'ok', keysCleared: keys.length };
+      }
+
+      // 2. Limpar Database (Truncate assets/jobs mas manter config/utilizadores)
+      if (database) {
+        await prisma.$transaction([
+          prisma.assetJob.deleteMany({}),
+          prisma.asset.deleteMany({}),
+        ]);
+        results['database'] = { status: 'ok' };
+      }
+
+      // 3. Limpar Ficheiros Temporários
+      if (tempFiles) {
+        const config = readConfig();
+        const tempDir = config.tempDirectory;
+        if (fs.existsSync(tempDir)) {
+          const files = fs.readdirSync(tempDir);
+          for (const f of files) {
+            try {
+              const p = path.join(tempDir, f);
+              if (fs.lstatSync(p).isDirectory()) {
+                fs.rmSync(p, { recursive: true, force: true });
+              } else {
+                fs.unlinkSync(p);
+              }
+            } catch {}
+          }
+          results['tempFiles'] = { status: 'ok', dir: tempDir };
+        }
+      }
+
+      // 4. Limpar Logs e Backups
+      if (logs) {
+        const logDir = path.join(process.cwd(), 'logs');
+        if (fs.existsSync(logDir)) {
+          fs.readdirSync(logDir).forEach(f => {
+            try { fs.unlinkSync(path.join(logDir, f)); } catch {}
+          });
+        }
+        if (fs.existsSync(BACKUP_DIR)) {
+          fs.readdirSync(BACKUP_DIR).forEach(f => {
+            try { fs.unlinkSync(path.join(BACKUP_DIR, f)); } catch {}
+          });
+        }
+        results['logs'] = { status: 'ok' };
+      }
+
+      logger.info({ results }, 'Reset de sistema executado pelo administrador');
+      return reply.send({ message: 'Reset executado com sucesso.', results });
+
+    } catch (err: any) {
+      logger.error({ err }, 'Erro ao executar reset do sistema');
+      return reply.status(500).send({ error: 'RESET_FAILED', message: err.message });
+    }
+  });
 }

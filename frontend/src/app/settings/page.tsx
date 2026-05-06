@@ -1,27 +1,46 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  Database, 
+  Activity,
+  History,
+  Loader2,
+  Wrench,
+  Zap,
+  HardDrive,
+  Shield,
+  RefreshCw,
+  ChevronRight,
+  Cloud,
+  Cpu,
+  CheckCircle2,
+  FileX,
+  Download,
+  AlertTriangle
+} from "lucide-react";
+import { api } from "@/lib/api";
+import { useAuthStore } from "@/store/auth";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Wrench, HardDrive, Cloud, RefreshCw, AlertTriangle, Loader2,
-  CheckCircle2, XCircle, Shield, Database, FileX, Download,
-  History, Cpu, Zap, ChevronRight
-} from "lucide-react";
-
-
-import { api } from "@/lib/api";
-import { useAuthStore } from "@/store/auth";
 import { cn } from "@/lib/utils";
+
 
 interface SystemSettings {
   localStoragePath: string;
   defaultStorageStrategy: "MINIO" | "LOCAL";
   webPriorityPercentage: number;
-  version?: string;
+}
+
+interface SystemStatus {
+  redis: boolean;
+  database: boolean;
+  minio: boolean;
+  worker: boolean;
 }
 
 interface ChangelogEntry {
@@ -30,50 +49,67 @@ interface ChangelogEntry {
   changes: string[];
 }
 
-interface SystemStatus {
-  assets: number;
-  users: number;
-  profiles: number;
-  jobs: number;
-  isEmpty: boolean;
-}
+type ResetStep = "idle" | "confirm" | "processing" | "done";
 
-type ResetStep = "idle" | "confirm1" | "confirm2" | "resetting" | "done" | "error";
 
 export default function SettingsPage() {
   const authUser = useAuthStore(s => s.user);
   const isAdmin = authUser?.roles?.includes("ADMIN") || authUser?.sub === "user-123";
 
-  const [settings, setSettings] = useState<SystemSettings>({
+  const [settings, setSettings] = useState<SystemSettings & { logRotationSizeMB?: number; logRotationCount?: number; tempDirectory?: string }>({
     localStoragePath: "",
     defaultStorageStrategy: "MINIO",
     webPriorityPercentage: 20,
+    logRotationSizeMB: 50,
+    logRotationCount: 5,
+    tempDirectory: "",
   });
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [changelog, setChangelog] = useState<ChangelogEntry[]>([]);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
 
   // Reset state machine
   const [resetStep, setResetStep] = useState<ResetStep>("idle");
   const [resetConfirmText, setResetConfirmText] = useState("");
-  const [includeFiles, setIncludeFiles] = useState(false);
-  const [resetResult, setResetResult] = useState<{ details: string[]; message: string } | null>(null);
+  const [resetOptions, setResetOptions] = useState({
+    redis: false,
+    database: false,
+    tempFiles: false,
+    logs: false,
+  });
+  const [resetResult, setResetResult] = useState<{ results: any; message: string } | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsub = (useAuthStore as any).persist?.onFinishHydration(() => setHydrated(true));
+    setHydrated((useAuthStore as any).persist?.hasHydrated());
+    return unsub;
+  }, []);
 
   // Fetch settings + status
   useEffect(() => {
+    if (!hydrated) return;
+
     const load = async () => {
       try {
-        const [cfg, st, cl] = await Promise.all([
-          api.get<SystemSettings>("/settings"),
-          api.get<SystemStatus>("/system/reset/status"),
-          api.get<{ entries: ChangelogEntry[] }>("/system/changelog"),
+        const results = await Promise.allSettled([
+          api.get<any>("/settings"),
+          api.get<any>("/system/reset/status"),
+          api.get<any>("/system/changelog"),
         ]);
-        setSettings(cfg);
-        setStatus(st);
-        setChangelog(cl.entries);
+
+        const cfg = results[0].status === 'fulfilled' ? results[0].value : null;
+        const st = results[1].status === 'fulfilled' ? results[1].value : null;
+        const cl = results[2].status === 'fulfilled' ? results[2].value : { entries: [] };
+
+        if (cfg) setSettings((prev: any) => ({ ...prev, ...cfg }));
+        if (st) setStatus(st);
+        if (cl?.entries) setChangelog(cl.entries);
+
       } catch (err) {
         console.error("Erro ao carregar configurações:", err);
       } finally {
@@ -81,7 +117,7 @@ export default function SettingsPage() {
       }
     };
     void load();
-  }, []);
+  }, [hydrated, authUser]);
 
   const handleSaveSettings = async () => {
     setSavingSettings(true);
@@ -102,10 +138,7 @@ export default function SettingsPage() {
     setResetStep("resetting");
     setResetError(null);
     try {
-      const result = await api.post<{ message: string; details: string[] }>("/system/reset", {
-        confirmation: "RESET",
-        includeFiles,
-      });
+      const result = await api.post<{ message: string; results: any }>("/system/reset", resetOptions);
       setResetResult(result);
       setResetStep("done");
       try {
@@ -121,7 +154,12 @@ export default function SettingsPage() {
   const cancelReset = () => {
     setResetStep("idle");
     setResetConfirmText("");
-    setIncludeFiles(false);
+    setResetOptions({
+      redis: false,
+      database: false,
+      tempFiles: false,
+      logs: false,
+    });
     setResetError(null);
     setResetResult(null);
   };
@@ -136,7 +174,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-10">
+    <div className="max-w-4xl mx-auto space-y-6 pb-10">
       {/* Header */}
       <div className="flex items-center gap-3 border-b pb-4">
         <div className="p-3 bg-primary/10 rounded-lg">
@@ -148,453 +186,366 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Estado actual */}
-      {status && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: "Assets", value: status.assets, icon: Database },
-            { label: "Jobs", value: status.jobs, icon: RefreshCw },
-            { label: "Utilizadores", value: status.users, icon: Shield },
-            { label: "Perfis", value: status.profiles, icon: Wrench },
-          ].map(({ label, value, icon: Icon }) => (
-            <div key={label} className="bg-card border rounded-lg p-3">
-              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </div>
-              <p className="text-xl font-bold">{value}</p>
-            </div>
-          ))}
-        </div>
-      )}
+      <Tabs defaultValue="geral" className="w-full">
+        <TabsList className="grid w-full grid-cols-4 h-auto p-1 bg-muted/50 border mb-6">
+          <TabsTrigger value="geral" className="gap-2 py-2.5">
+            <Zap className="h-4 w-4" /> Geral
+          </TabsTrigger>
+          <TabsTrigger value="recursos" className="gap-2 py-2.5">
+            <HardDrive className="h-4 w-4" /> Recursos
+          </TabsTrigger>
+          <TabsTrigger value="manutencao" className="gap-2 py-2.5">
+            <Activity className="h-4 w-4" /> Manutenção
+          </TabsTrigger>
+          <TabsTrigger value="sistema" className="gap-2 py-2.5">
+            <Shield className="h-4 w-4" /> Sistema
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Armazenamento e Recursos */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <HardDrive className="h-4 w-4 text-muted-foreground" />
-            Armazenamento e Recursos
-          </CardTitle>
-          <CardDescription>Configuração do destino de ficheiros e prioridade de CPU.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-1.5">
-            <Label>Estratégia por Defeito</Label>
-            <Select
-              value={settings.defaultStorageStrategy}
-              onValueChange={(v) => setSettings(s => ({ ...s, defaultStorageStrategy: v as "MINIO" | "LOCAL" }))}
-              disabled={!isAdmin}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="MINIO">
-                  <div className="flex items-center gap-2">
-                    <Cloud className="h-4 w-4 text-blue-500" />
-                    Nexora Cloud (MinIO)
-                  </div>
-                </SelectItem>
-                <SelectItem value="LOCAL">
-                  <div className="flex items-center gap-2">
-                    <HardDrive className="h-4 w-4 text-green-500" />
-                    Disco Local
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Caminho de Armazenamento Local</Label>
-            <Input
-              value={settings.localStoragePath}
-              onChange={(e) => setSettings(s => ({ ...s, localStoragePath: e.target.value }))}
-              placeholder="C:\NexoraStorage\assets"
-              disabled={!isAdmin}
-              className="font-mono text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              Directório onde os assets são guardados quando a estratégia LOCAL está seleccionada.
-            </p>
-          </div>
-
-          <div className="pt-4 border-t space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="flex items-center gap-2">
-                  <Cpu className="h-4 w-4 text-primary" />
-                  Prioridade do Serviço Web
-                </Label>
-                <p className="text-xs text-muted-foreground max-w-[400px]">
-                  Reserva CPU para garantir que a interface responde durante hardware load.
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className={cn(
-                  "text-lg font-bold px-2 py-1 rounded bg-muted",
-                  settings.webPriorityPercentage > 70 ? "text-orange-500" : "text-primary"
-                )}>
-                  {settings.webPriorityPercentage}%
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <input
-                type="range"
-                min="10"
-                max="90"
-                step="5"
-                value={settings.webPriorityPercentage}
-                onChange={(e) => setSettings(s => ({ ...s, webPriorityPercentage: parseInt(e.target.value) }))}
-                disabled={!isAdmin}
-                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-              />
-              <div className="flex justify-between text-[10px] text-muted-foreground font-medium px-1">
-                <span>REATIVIDADE MÍNIMA (10%)</span>
-                <span>MÁXIMA (90%)</span>
-              </div>
-            </div>
-
-            {settings.webPriorityPercentage > 70 && (
-              <div className="bg-orange-500/10 border border-orange-500/20 p-3 rounded-lg flex gap-3 items-start animate-in fade-in slide-in-from-top-2">
-                <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="text-xs font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider">Atenção ao Desempenho</p>
-                  <p className="text-[11px] text-orange-600/80 dark:text-orange-400/80 leading-relaxed">
-                    Prioridade acima de 70% deixará poucos recursos para o processamento de vídeo. 
-                    <strong> Os trabalhos em fila (transcode) serão executados muito mais lentamente.</strong>
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {isAdmin && (
-            <div className="flex justify-end pt-2">
-              <Button
-                onClick={handleSaveSettings}
-                disabled={savingSettings}
-                className={cn(
-                  "gap-2 min-w-[140px]",
-                  savedOk && "bg-green-600 hover:bg-green-700 text-white"
-                )}
-              >
-                {savingSettings ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" /> A guardar...</>
-                ) : savedOk ? (
-                  <><CheckCircle2 className="h-4 w-4" /> Guardado!</>
-                ) : (
-                  "Guardar Configurações"
-                )}
-              </Button>
-            </div>
-          )}
-          {!isAdmin && (
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Shield className="h-3 w-3" /> Apenas administradores podem alterar as configurações.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Versão e Histórico */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <History className="h-4 w-4 text-muted-foreground" />
-            Versão e Histórico do Sistema
-          </CardTitle>
-          <CardDescription>Informação sobre a release actual e log de alterações.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between p-4 bg-primary/5 border border-primary/10 rounded-xl">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center border-2 border-primary/20">
-                <Zap className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-primary/70">Nexora Engine</p>
-                <p className="text-2xl font-black tracking-tighter">V{settings.version || "1.1.0"}</p>
-              </div>
-            </div>
-            <div className="text-right hidden sm:block">
-              <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Build Status</p>
-              <div className="flex items-center gap-1.5 justify-end text-green-500 font-bold text-xs uppercase">
-                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                Stable Production
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground border-b pb-2">Log de Alterações</h4>
-            
-            <div className="space-y-6 relative before:absolute before:left-2 before:top-2 before:bottom-2 before:w-px before:bg-muted">
-              {changelog.map((entry, idx) => (
-                <div key={entry.version} className={cn(
-                  "relative pl-8 group transition-opacity",
-                  idx > 0 && "opacity-70 hover:opacity-100"
-                )}>
-                  <div className={cn(
-                    "absolute left-0 top-1 h-4 w-4 rounded-full border-2 bg-background z-10 transition-transform",
-                    idx === 0 ? "border-primary group-hover:scale-110" : "border-muted-foreground"
-                  )} />
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold">V{entry.version} — {entry.date}</span>
-                      {idx === 0 && (
-                        <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold uppercase tracking-tight">Current</span>
-                      )}
+        <TabsContent value="geral" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="space-y-6">
+            {/* Estado actual */}
+            {status && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: "Assets", value: status.assets, icon: Database },
+                  { label: "Jobs", value: status.jobs, icon: RefreshCw },
+                  { label: "Utilizadores", value: status.users, icon: Shield },
+                  { label: "Perfis", value: status.profiles, icon: Wrench },
+                ].map(({ label, value, icon: Icon }) => (
+                  <div key={label} className="bg-card border rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                      <Icon className="h-3.5 w-3.5" />
+                      {label}
                     </div>
-                    <ul className="space-y-1.5 text-xs text-muted-foreground">
-                      {entry.changes.map((change, i) => (
-                        <li key={i} className="flex gap-2">
-                          <ChevronRight className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
-                          <span>{change}</span>
-                        </li>
-                      ))}
-                    </ul>
+                    <p className="text-xl font-bold">{value}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Versão e Histórico */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <History className="h-4 w-4 text-muted-foreground" />
+                  Versão e Histórico do Sistema
+                </CardTitle>
+                <CardDescription>Informação sobre a release actual e log de alterações.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between p-4 bg-primary/5 border border-primary/10 rounded-xl">
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center border-2 border-primary/20">
+                      <Zap className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest text-primary/70">Nexora Engine</p>
+                      <p className="text-2xl font-black tracking-tighter">V{settings.version || "1.1.6"}</p>
+                    </div>
+                  </div>
+                  <div className="text-right hidden sm:block">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Build Status</p>
+                    <div className="flex items-center gap-1.5 justify-end text-green-500 font-bold text-xs uppercase">
+                      <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                      Stable Production
+                    </div>
                   </div>
                 </div>
-              ))}
-              {changelog.length === 0 && (
-                <p className="text-xs text-muted-foreground pl-8 italic">Nenhuma informação de histórico disponível.</p>
-              )}
-            </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground border-b pb-2 flex justify-between items-center">
+                    Log de Alterações
+                    <span className="text-[10px] lowercase font-normal">Ultimos 10 registos</span>
+                  </h4>
+
+                  
+                  <div className="space-y-6 relative before:absolute before:left-2 before:top-2 before:bottom-2 before:w-px before:bg-muted">
+                    {changelog.map((entry, idx) => (
+                      <div key={entry.version} className={cn(
+                        "relative pl-8 group transition-opacity",
+                        idx > 0 && "opacity-70 hover:opacity-100"
+                      )}>
+                        <div className={cn(
+                          "absolute left-0 top-1 h-4 w-4 rounded-full border-2 bg-background z-10 transition-transform",
+                          idx === 0 ? "border-primary group-hover:scale-110" : "border-muted-foreground"
+                        )} />
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold">V{entry.version} — {entry.date}</span>
+                            {idx === 0 && (
+                              <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold uppercase tracking-tight">Current</span>
+                            )}
+                          </div>
+                          <ul className="space-y-1.5 text-xs text-muted-foreground">
+                            {entry.changes.map((change, i) => (
+                              <li key={i} className="flex gap-2">
+                                <ChevronRight className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                                <span>{change}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+        </TabsContent>
 
-      {/* Backup e Restore — apenas admins */}
-      {isAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Database className="h-4 w-4 text-muted-foreground" />
-              Backup e Recuperação
-            </CardTitle>
-            <CardDescription>Cópia de segurança das configurações, perfis e utilizadores.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1 space-y-2">
-                <p className="text-sm font-medium">Exportar Configurações</p>
-                <p className="text-xs text-muted-foreground">
-                  Gera um ficheiro JSON com todos os perfis, destinos de entrega, utilizadores e definições globais.
-                </p>
-                <Button 
-                  variant="outline" 
-                  className="w-full sm:w-auto gap-2"
-                  onClick={async () => {
-                    try {
-                      const data = await api.get("/system/backup");
-                      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = `nexora-backup-${new Date().toISOString().split('T')[0]}.json`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    } catch (err: any) {
-                      alert("Erro ao gerar backup: " + err.message);
-                    }
-                  }}
-                >
-                  <Download className="h-4 w-4" />
+        <TabsContent value="recursos" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <HardDrive className="h-4 w-4 text-muted-foreground" />
+                  Armazenamento e Recursos
+                </CardTitle>
+                <CardDescription>Configuração do destino de ficheiros e prioridade de CPU.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-1.5">
+                  <Label>Estratégia por Defeito</Label>
+                  <Select
+                    value={settings.defaultStorageStrategy}
+                    onValueChange={(v) => setSettings(s => ({ ...s, defaultStorageStrategy: v as "MINIO" | "LOCAL" }))}
+                    disabled={!isAdmin}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MINIO">
+                        <div className="flex items-center gap-2">
+                          <Cloud className="h-4 w-4 text-blue-500" />
+                          Nexora Cloud (MinIO)
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="LOCAL">
+                        <div className="flex items-center gap-2">
+                          <HardDrive className="h-4 w-4 text-green-500" />
+                          Disco Local
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                  Descarregar Backup
-                </Button>
-              </div>
-
-              <div className="flex-1 space-y-2">
-                <p className="text-sm font-medium">Importar Backup</p>
-                <p className="text-xs text-muted-foreground">
-                  Restaura o sistema a partir de um ficheiro previamente exportado. <span className="text-destructive font-semibold">Substitui dados existentes.</span>
-                </p>
-                <div className="flex gap-2">
-                  <Input 
-                    type="file" 
-                    accept=".json"
-                    className="text-xs h-9 cursor-pointer"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      if (!confirm("Tem a certeza que deseja restaurar este backup? As configurações actuais serão sobrescritas.")) return;
-                      
-                      try {
-                        const text = await file.text();
-                        const backup = JSON.parse(text);
-                        await api.post("/system/restore", backup);
-                        alert("Sistema restaurado com sucesso! A recarregar...");
-                        window.location.reload();
-                      } catch (err: any) {
-                        alert("Erro ao restaurar backup: " + err.message);
-                      }
-                    }}
+                <div className="space-y-1.5">
+                  <Label>Caminho de Armazenamento Local</Label>
+                  <Input
+                    value={settings.localStoragePath}
+                    onChange={(e) => setSettings(s => ({ ...s, localStoragePath: e.target.value }))}
+                    placeholder="C:\NexoraStorage\assets"
+                    disabled={!isAdmin}
+                    className="font-mono text-sm"
                   />
                 </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* Reset do Sistema — apenas admins */}
-      {isAdmin && (
-        <Card className="border-destructive/30">
-          <CardHeader>
-            <CardTitle className="text-base text-destructive flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Zona de Perigo — Reset Completo
-            </CardTitle>
-            <CardDescription>
-              Apaga <strong>todos</strong> os dados do sistema e repõe ao estado inicial.
-              Esta acção é <strong className="text-destructive font-bold">irreversível</strong>.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {resetStep === "idle" && (
-              <div className="flex flex-col sm:flex-row items-center justify-between p-4 bg-destructive/5 border border-destructive/10 rounded-lg gap-4">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Reset Completo da Base de Dados</p>
-                  <p className="text-xs text-muted-foreground">
-                    Remove assets, jobs, utilizadores, perfis, webhooks, tokens e logs.
-                  </p>
+                <div className="space-y-1.5">
+                  <Label>Directório Temporário de Processamento</Label>
+                  <Input
+                    value={settings.tempDirectory}
+                    onChange={(e) => setSettings(s => ({ ...s, tempDirectory: e.target.value }))}
+                    placeholder="C:\NexoraStorage\temp"
+                    disabled={!isAdmin}
+                    className="font-mono text-sm"
+                  />
                 </div>
-                <Button
-                  variant="destructive"
-                  className="shrink-0 gap-2 w-full sm:w-auto"
-                  onClick={() => setResetStep("confirm1")}
-                >
-                  <Database className="h-4 w-4" />
-                  Iniciar Reset
-                </Button>
-              </div>
-            )}
 
-            {resetStep === "confirm1" && (
-              <div className="space-y-4 p-4 bg-destructive/5 border border-destructive/20 rounded-lg">
-                <div className="flex items-start gap-3 text-destructive">
-                  <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-semibold">Tem a certeza absoluta?</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Serão apagados: <strong>{status?.assets ?? "?"} assets</strong>,{" "}
-                      <strong>{status?.jobs ?? "?"} jobs</strong>,{" "}
-                      <strong>{status?.users ?? "?"} utilizadores</strong> e{" "}
-                      <strong>{status?.profiles ?? "?"} perfis</strong>.
-                    </p>
+                <div className="pt-4 border-t space-y-4">
+                  <Label className="flex items-center gap-2">
+                    <Cpu className="h-4 w-4 text-primary" />
+                    Prioridade do Serviço Web ({settings.webPriorityPercentage}%)
+                  </Label>
+                  <input
+                    type="range"
+                    min="10"
+                    max="90"
+                    step="5"
+                    value={settings.webPriorityPercentage}
+                    onChange={(e) => setSettings(s => ({ ...s, webPriorityPercentage: parseInt(e.target.value) }))}
+                    disabled={!isAdmin}
+                    className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+                  />
+                </div>
+
+                {isAdmin && (
+                  <div className="flex justify-end">
+                    <Button onClick={handleSaveSettings} disabled={savingSettings} className="gap-2">
+                      {savingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : savedOk ? <CheckCircle2 className="h-4 w-4" /> : null}
+                      {savedOk ? "Guardado!" : "Guardar Recursos"}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="manutencao" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileX className="h-4 w-4 text-muted-foreground" />
+                  Gestão de Logs e Diagnósticos
+                </CardTitle>
+                <CardDescription>Configuração de retenção e rotação de ficheiros de log.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label>Limite de Tamanho por Ficheiro (MB)</Label>
+                    <Input
+                      type="number"
+                      value={settings.logRotationSizeMB}
+                      onChange={(e) => setSettings(s => ({ ...s, logRotationSizeMB: parseInt(e.target.value) }))}
+                      disabled={!isAdmin}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Número Máximo de Ficheiros (Rotação)</Label>
+                    <Input
+                      type="number"
+                      value={settings.logRotationCount}
+                      onChange={(e) => setSettings(s => ({ ...s, logRotationCount: parseInt(e.target.value) }))}
+                      disabled={!isAdmin}
+                    />
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                  <input
-                    id="includeFiles"
-                    type="checkbox"
-                    checked={includeFiles}
-                    onChange={e => setIncludeFiles(e.target.checked)}
-                    className="h-4 w-4 accent-destructive"
-                  />
-                  <label htmlFor="includeFiles" className="text-sm cursor-pointer flex items-center gap-2">
-                    <FileX className="h-4 w-4 text-destructive" />
-                    Incluir limpeza de ficheiros locais
-                  </label>
-                </div>
+                {isAdmin && (
+                  <div className="flex justify-end pt-2">
+                    <Button onClick={handleSaveSettings} disabled={savingSettings}>
+                      {savedOk ? "Guardado!" : "Guardar Manutenção"}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-                <div className="flex justify-end gap-3">
-                  <Button variant="outline" onClick={cancelReset}>
-                    Cancelar
-                  </Button>
-                  <Button variant="destructive" onClick={() => setResetStep("confirm2")}>
-                    Continuar →
-                  </Button>
-                </div>
-              </div>
-            )}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Database className="h-4 w-4 text-muted-foreground" />
+                  Backup e Recuperação
+                </CardTitle>
+                <CardDescription>Exportar ou importar todo o estado do sistema.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-end -mt-4">
+                <Button variant="outline" className="w-full gap-2 h-10" onClick={async () => {
+                  const data = await api.get("/system/backup");
+                  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `nexora-backup-${new Date().toISOString().split('T')[0]}.json`;
+                  a.click();
+                }}>
+                  <Download className="h-4 w-4" /> Descarregar Backup
+                </Button>
 
-            {resetStep === "confirm2" && (
-              <div className="space-y-4 p-4 bg-destructive/10 border-2 border-destructive rounded-lg">
-                <div className="flex items-center gap-2 text-destructive">
-                  <AlertTriangle className="h-5 w-5" />
-                  <p className="text-sm font-bold">Confirmação final — sem retorno.</p>
-                </div>
                 <div className="space-y-1.5">
-                  <Label className="text-sm">
-                    Escreva <code className="bg-muted px-1.5 py-0.5 rounded font-mono">RESET</code> para confirmar:
-                  </Label>
-                  <Input
-                    value={resetConfirmText}
-                    onChange={e => setResetConfirmText(e.target.value)}
-                    placeholder="RESET"
-                    className="font-mono text-lg tracking-widest text-center"
-                    autoFocus
-                  />
+                  <Label htmlFor="restore-file" className="text-xs">Importar Backup (.json)</Label>
+                  <Input id="restore-file" type="file" className="h-10 cursor-pointer" onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      const backup = JSON.parse(await file.text());
+                      await api.post("/system/restore", backup);
+                      alert("Restaurado com sucesso!");
+                      window.location.reload();
+                    } catch (err) {
+                      alert("Erro ao importar: " + err);
+                    }
+                  }} />
                 </div>
-                <div className="flex justify-end gap-3">
-                  <Button variant="outline" onClick={cancelReset}>
-                    Cancelar
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    disabled={resetConfirmText !== "RESET"}
-                    onClick={handleReset}
-                    className="gap-2"
-                  >
-                    <AlertTriangle className="h-4 w-4" />
-                    Executar Reset
-                  </Button>
-                </div>
-              </div>
-            )}
+              </CardContent>
 
-            {resetStep === "resetting" && (
-              <div className="flex flex-col items-center justify-center py-8 gap-3 text-muted-foreground">
-                <Loader2 className="h-8 w-8 animate-spin text-destructive" />
-                <p className="text-sm">A apagar dados e a repor o sistema...</p>
-              </div>
-            )}
+            </Card>
+          </div>
+        </TabsContent>
 
-            {resetStep === "done" && resetResult && (
-              <div className="space-y-4 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
-                <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                  <CheckCircle2 className="h-5 w-5" />
-                  <p className="text-sm font-semibold">{resetResult.message}</p>
-                </div>
-                <div className="space-y-1 bg-muted rounded p-3 max-h-48 overflow-y-auto">
-                  {resetResult.details.map((line, i) => (
-                    <p key={i} className="text-xs font-mono text-muted-foreground">✓ {line}</p>
-                  ))}
-                </div>
-                <Button variant="outline" onClick={cancelReset}>
-                  Fechar
-                </Button>
-              </div>
-            )}
+        <TabsContent value="sistema" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="space-y-6">
+            <Card className="border-destructive/30">
+              <CardHeader>
+                <CardTitle className="text-base text-destructive flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Zona de Perigo — Reset do Sistema
+                </CardTitle>
+                <CardDescription>Escolha os componentes que deseja repor ao estado inicial.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {resetStep === "idle" && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {[
+                        { id: "redis", label: "Redis", desc: "Limpar chaves e cache de jobs." },
+                        { id: "database", label: "Database", desc: "Remover assets e histórico." },
+                        { id: "tempFiles", label: "Temp Files", desc: "Apagar ficheiros temporários." },
+                        { id: "logs", label: "Logs & Backups", desc: "Limpar auditoria e backups." },
+                      ].map(opt => (
+                        <div 
+                          key={opt.id} 
+                          onClick={() => setResetOptions(prev => ({ ...prev, [opt.id]: !prev[opt.id as keyof typeof prev] }))}
+                          className={cn(
+                            "p-3 border rounded-lg cursor-pointer transition-colors text-left",
+                            resetOptions[opt.id as keyof typeof resetOptions] ? "bg-destructive/10 border-destructive/50" : "hover:bg-muted"
+                          )}
+                        >
+                          <p className="text-sm font-bold">{opt.label}</p>
+                          <p className="text-[10px] text-muted-foreground">{opt.desc}</p>
+                        </div>
+                      ))}
+                    </div>
 
-            {resetStep === "error" && (
-              <div className="space-y-3 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-                <div className="flex items-center gap-2 text-destructive">
-                  <XCircle className="h-5 w-5" />
-                  <p className="text-sm font-semibold">Erro durante o reset</p>
-                </div>
-                <p className="text-xs font-mono">{resetError}</p>
-                <Button variant="outline" onClick={cancelReset}>
-                  Tentar Novamente
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                    <Button variant="destructive" className="w-full gap-2" onClick={() => setResetStep("confirm1")} disabled={!Object.values(resetOptions).some(Boolean)}>
+                      <AlertTriangle className="h-4 w-4" /> Iniciar Reset Seleccionado
+                    </Button>
+                  </div>
+                )}
 
-      {!isAdmin && (
-        <div className="flex items-center gap-3 p-4 bg-muted border rounded-lg text-muted-foreground text-sm">
-          <Shield className="h-5 w-5 shrink-0" />
-          <span>Acesso restrito a administradores.</span>
-        </div>
-      )}
+                {resetStep === "confirm1" && (
+                  <div className="space-y-4 p-4 bg-destructive/5 border border-destructive/20 rounded-lg">
+                    <p className="text-sm font-semibold text-destructive">Confirmação final necessária</p>
+                    <p className="text-xs text-muted-foreground">
+                      Esta acção é irreversível. Todos os dados nos componentes seleccionados serão perdidos.
+                    </p>
+                    <Input
+                      value={resetConfirmText}
+                      onChange={e => setResetConfirmText(e.target.value)}
+                      placeholder="Escreva RESET para confirmar"
+                      className="text-center font-mono"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={cancelReset}>Cancelar</Button>
+                      <Button variant="destructive" disabled={resetConfirmText !== "RESET"} onClick={handleReset}>
+                        Executar Agora
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {resetStep === "resetting" && <div className="py-10 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-destructive" /><p className="text-sm mt-4">A processar reset...</p></div>}
+                
+                {resetStep === "done" && (
+                  <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg space-y-3">
+                    <p className="text-sm font-bold text-green-600">Reset concluído com sucesso!</p>
+                    <div className="text-[10px] font-mono text-muted-foreground max-h-32 overflow-y-auto">
+                      {JSON.stringify(resetResult?.results, null, 2)}
+                    </div>
+                    <Button variant="outline" onClick={cancelReset}>Concluído</Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

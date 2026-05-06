@@ -305,25 +305,33 @@ export class NexoraDiagnosticEngine {
     severity: PatternSeverity | null
   ): string {
     if (patterns.length === 0) {
-      return 'Diagnóstico: nenhum padrão conhecido reconhecido — falha não classificada';
+      return 'Nexora Diagnostic: No known error patterns identified. Manual root cause analysis required.';
     }
 
     const topPattern = patterns[0]!;
     const sevLabel = severity?.toUpperCase() ?? 'UNKNOWN';
-    const retryLabel = retryConfig.shouldRetry
-      ? `retry aconselhado em ${retryConfig.backoffMs}ms`
-      : 'sem retry — job terminado';
+    const retryStatus = retryConfig.shouldRetry
+      ? `RETRY RECOMMENDED (Backoff: ${retryConfig.backoffMs}ms)`
+      : 'TERMINAL FAILURE (No retry suggested)';
 
-    const fixTitles = fixes
+    const patternList = patterns
+      .slice(0, 3)
+      .map(p => `[${p.pattern.id}] ${p.pattern.description}`)
+      .join('\n- ');
+
+    const fixList = fixes
       .slice(0, 2)
-      .map(f => f.title)
-      .join('; ');
+      .map(f => `${f.title}: ${f.explanation.slice(0, 100)}...`)
+      .join('\n- ');
 
     return (
-      `[${sevLabel}] ${topPattern.pattern.description}` +
-      (patterns.length > 1 ? ` (+${patterns.length - 1} padrões adicionais)` : '') +
-      `. ${retryLabel}` +
-      (fixTitles ? `. Correcções: ${fixTitles}` : '')
+      `*** NEXORA PROFESSIONAL DIAGNOSTIC REPORT ***\n` +
+      `Severity: ${sevLabel}\n` +
+      `Primary Issue: ${topPattern.pattern.description}\n` +
+      `Status: ${retryStatus}\n\n` +
+      `Detected Patterns:\n- ${patternList}\n\n` +
+      `Recommended Resolutions:\n- ${fixList}\n` +
+      `--------------------------------------------`
     );
   }
 }

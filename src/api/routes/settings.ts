@@ -17,12 +17,18 @@ const DEFAULT_CONFIG: NexoraConfig = {
   localStoragePath: 'C:\\NexoraStorage\\assets',
   defaultStorageStrategy: 'MINIO',
   webPriorityPercentage: 20,
+  logRotationSizeMB: 50,
+  logRotationCount: 5,
+  tempDirectory: 'C:\\NexoraStorage\\temp',
 };
 
 interface NexoraConfig {
   localStoragePath: string;
   defaultStorageStrategy: 'MINIO' | 'LOCAL';
   webPriorityPercentage: number;
+  logRotationSizeMB: number;
+  logRotationCount: number;
+  tempDirectory: string;
 }
 
 export function readConfig(): NexoraConfig {
@@ -60,6 +66,9 @@ export async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
             localStoragePath:        { type: 'string' },
             defaultStorageStrategy:  { type: 'string' },
             webPriorityPercentage:   { type: 'integer' },
+            logRotationSizeMB:       { type: 'integer' },
+            logRotationCount:        { type: 'integer' },
+            tempDirectory:           { type: 'string' },
             version:                 { type: 'string' },
           },
         },
@@ -84,6 +93,9 @@ export async function settingsRoutes(fastify: FastifyInstance): Promise<void> {
           localStoragePath:        { type: 'string' },
           defaultStorageStrategy:  { type: 'string', enum: ['MINIO', 'LOCAL'] },
           webPriorityPercentage:   { type: 'integer', minimum: 10, maximum: 90 },
+          logRotationSizeMB:       { type: 'integer', minimum: 1 },
+          logRotationCount:        { type: 'integer', minimum: 1 },
+          tempDirectory:           { type: 'string' },
         },
       },
     },

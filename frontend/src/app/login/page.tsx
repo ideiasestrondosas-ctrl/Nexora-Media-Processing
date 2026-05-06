@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Film } from 'lucide-react';
+import { NEXORA_VERSION, NEXORA_COPYRIGHT } from '@/lib/version';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('user-123');
@@ -94,7 +95,7 @@ export default function LoginPage() {
           </form>
         </CardContent>
         <CardFooter className="justify-center">
-          <p className="text-xs text-zinc-500">Nexora Media Processing © 2026</p>
+          <p className="text-xs text-zinc-500">Nexora Media Processing © {NEXORA_COPYRIGHT} | v{NEXORA_VERSION}</p>
         </CardFooter>
       </Card>
     </div>

@@ -212,6 +212,8 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
     }
     // NOTA: Não limpamos o ficheiro no finally aqui porque o Worker precisa dele em /media/temp
 
+    const targetFormat = query['targetFormat'] || 'SAME';
+
     // 7. Registar o asset na base de dados
     await prisma.asset.create({
       data: {
@@ -225,6 +227,7 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
         metadata: {
           storageStrategy: strategy,
           keepOriginal,
+          targetFormat,
         },
       },
     });

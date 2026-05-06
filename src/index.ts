@@ -32,6 +32,9 @@ async function start(): Promise<void> {
     // 1. Validar variáveis de ambiente obrigatórias (falha rápida)
     validateEnvironment();
 
+    // Activar rotação de logs no processo principal
+    process.env.ENABLE_LOG_ROTATION = 'true';
+
     // Iniciar recepção de logs via Redis Pub/Sub
     logStreamer.initRedisSubscription();
 

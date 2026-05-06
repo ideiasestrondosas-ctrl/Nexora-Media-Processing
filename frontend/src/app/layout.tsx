@@ -13,6 +13,7 @@ export const metadata: Metadata = {
 };
 
 import { ThemeProvider } from "@/components/theme-provider";
+import { ConnectionStatusMonitor } from "@/components/system/ConnectionStatusMonitor";
 
 export default function RootLayout({
   children,
@@ -29,6 +30,7 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
+            <ConnectionStatusMonitor />
             <LayoutWrapper>
               {children}
             </LayoutWrapper>

@@ -38,9 +38,9 @@ function clearDirectory(dirPath: string): void {
 
 export async function resetRoutes(fastify: FastifyInstance): Promise<void> {
 
-  // POST /system/reset — Reset completo do sistema
+  // POST /system/reset — Reset do sistema (completo ou seletivo)
   fastify.post<{
-    Body: { confirmation: string; includeFiles?: boolean };
+    Body: { confirmation: string; includeFiles?: boolean; options?: string[] };
     Querystring: { includeFiles?: string };
   }>(
     '/system/reset',
@@ -55,7 +55,7 @@ export async function resetRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       // ── 2. Verificar confirmação ────────────────────────────────
-      const body = request.body as { confirmation?: string; includeFiles?: boolean };
+      const body = request.body as { confirmation?: string; includeFiles?: boolean; options?: string[] };
       if (body?.confirmation !== 'RESET') {
         return reply.status(400).send({
           error: 'CONFIRMATION_REQUIRED',
@@ -64,97 +64,117 @@ export async function resetRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       const includeFiles = body.includeFiles === true;
+      const options = body.options || ['ALL']; // Se não for especificado, faz reset a tudo
+      const resetAll = options.includes('ALL');
       const results: string[] = [];
 
       try {
         // ── 3. Apagar dados (ordem respeita FKs) ─────────────────
-        const adt = await prisma.assetDeliveryTarget.deleteMany();
-        results.push(`AssetDeliveryTarget: ${adt.count} registos apagados`);
+        
+        // Reset de Assets e Processamento
+        if (resetAll || options.includes('ASSETS') || options.includes('JOBS')) {
+          const adt = await prisma.assetDeliveryTarget.deleteMany();
+          results.push(`AssetDeliveryTarget: ${adt.count} registos apagados`);
 
-        const al = await prisma.auditLog.deleteMany();
-        results.push(`AuditLog: ${al.count} registos apagados`);
+          const qc = await prisma.qCReport.deleteMany();
+          results.push(`QCReport: ${qc.count} registos apagados`);
 
-        const qc = await prisma.qCReport.deleteMany();
-        results.push(`QCReport: ${qc.count} registos apagados`);
+          const j = await prisma.job.deleteMany();
+          results.push(`Job: ${j.count} registos apagados`);
 
-        const j = await prisma.job.deleteMany();
-        results.push(`Job: ${j.count} registos apagados`);
+          const wr = await prisma.workflowRun.deleteMany();
+          results.push(`WorkflowRun: ${wr.count} registos apagados`);
 
-        const wr = await prisma.workflowRun.deleteMany();
-        results.push(`WorkflowRun: ${wr.count} registos apagados`);
-
-        const a = await prisma.asset.deleteMany();
-        results.push(`Asset: ${a.count} registos apagados`);
-
-        const dt = await prisma.deliveryTarget.deleteMany();
-        results.push(`DeliveryTarget: ${dt.count} registos apagados`);
-
-        const wh = await prisma.webhookRegistration.deleteMany();
-        results.push(`WebhookRegistration: ${wh.count} registos apagados`);
-
-        const rt = await prisma.refreshToken.deleteMany();
-        results.push(`RefreshToken: ${rt.count} registos apagados`);
-
-        const u = await prisma.user.deleteMany();
-        results.push(`User: ${u.count} registos apagados`);
-
-        const ep = await prisma.encodingProfile.deleteMany();
-        results.push(`EncodingProfile: ${ep.count} registos apagados`);
-
-        // ── 4. Seed — restaurar estado inicial ───────────────────
-        // Utilizador admin
-        await prisma.user.create({
-          data: {
-            username: 'user-123',
-            password: 'changeme',
-            role: 'ADMIN',
-          },
-        });
-        results.push('Utilizador admin restaurado');
-
-        // Perfis de encoding por defeito
-        const defaultProfiles = [
-          {
-            id: '00000000-0000-0000-0000-000000000010',
-            name: 'nexora_broadcast_hd',
-            description: 'Broadcast television — conformidade máxima EBU/SMPTE',
-            container: 'mp4',
-            videoCodec: 'h264',
-            audioCodec: 'pcm_s24le',
-            isDefault: true,
-            settings: { preset: 'slow', profile: 'high', level: '4.1', bitrateKbps: 8000 },
-          },
-          {
-            id: '00000000-0000-0000-0000-000000000011',
-            name: 'nexora_web_sd',
-            description: 'Streaming web — compatibilidade máxima browsers',
-            container: 'mp4',
-            videoCodec: 'h264',
-            audioCodec: 'aac',
-            isDefault: false,
-            settings: { preset: 'fast', profile: 'main', level: '3.1', bitrateKbps: 2000 },
-          },
-        ];
-
-        for (const p of defaultProfiles) {
-          await prisma.encodingProfile.create({ data: p });
+          const a = await prisma.asset.deleteMany();
+          results.push(`Asset: ${a.count} registos apagados`);
         }
-        results.push('Perfis de encoding por defeito restaurados');
+
+        // Reset de Logs de Auditoria
+        if (resetAll || options.includes('LOGS')) {
+          const al = await prisma.auditLog.deleteMany();
+          results.push(`AuditLog: ${al.count} registos apagados`);
+        }
+
+        // Reset de Configurações e Webhooks
+        if (resetAll || options.includes('SYSTEM')) {
+          const dt = await prisma.deliveryTarget.deleteMany();
+          results.push(`DeliveryTarget: ${dt.count} registos apagados`);
+
+          const wh = await prisma.webhookRegistration.deleteMany();
+          results.push(`WebhookRegistration: ${wh.count} registos apagados`);
+        }
+
+        // Reset de Utilizadores
+        if (resetAll || options.includes('USERS')) {
+          const rt = await prisma.refreshToken.deleteMany();
+          results.push(`RefreshToken: ${rt.count} registos apagados`);
+
+          const u = await prisma.user.deleteMany();
+          results.push(`User: ${u.count} registos apagados`);
+
+          // ── 4. Seed — restaurar estado inicial ───────────────────
+          // Utilizador admin
+          await prisma.user.create({
+            data: {
+              username: 'user-123',
+              password: 'changeme',
+              role: 'ADMIN',
+            },
+          });
+          results.push('Utilizador admin restaurado');
+        }
+
+        // Reset de Perfis de Encoding
+        if (resetAll || options.includes('PROFILES')) {
+          const ep = await prisma.encodingProfile.deleteMany();
+          results.push(`EncodingProfile: ${ep.count} registos apagados`);
+
+          // Perfis de encoding por defeito
+          const defaultProfiles = [
+            {
+              id: '00000000-0000-0000-0000-000000000010',
+              name: 'nexora_broadcast_hd',
+              description: 'Broadcast television — conformidade máxima EBU/SMPTE',
+              container: 'mp4',
+              videoCodec: 'h264',
+              audioCodec: 'pcm_s24le',
+              isDefault: true,
+              settings: { preset: 'slow', profile: 'high', level: '4.1', bitrateKbps: 8000 },
+            },
+            {
+              id: '00000000-0000-0000-0000-000000000011',
+              name: 'nexora_web_sd',
+              description: 'Streaming web — compatibilidade máxima browsers',
+              container: 'mp4',
+              videoCodec: 'h264',
+              audioCodec: 'aac',
+              isDefault: false,
+              settings: { preset: 'fast', profile: 'main', level: '3.1', bitrateKbps: 2000 },
+            },
+          ];
+
+          for (const p of defaultProfiles) {
+            await prisma.encodingProfile.create({ data: p });
+          }
+          results.push('Perfis de encoding por defeito restaurados');
+        }
 
         // ── 4b. Limpar Filas BullMQ ──────────────────────────────
-        try {
-          await initQueues();
-          const queues = getNexoraQueues();
-          const queuePromises = Object.entries(queues).map(async ([name, queue]) => {
-            await queue.obliterate({ force: true });
-            return name;
-          });
-          const clearedNames = await Promise.all(queuePromises);
-          results.push(`Filas BullMQ limpas: ${clearedNames.join(', ')}`);
-        } catch (queueErr: any) {
-          results.push(`Aviso: erro ao limpar filas BullMQ: ${queueErr.message}`);
-        } finally {
-          await closeQueues();
+        if (resetAll || options.includes('JOBS')) {
+          try {
+            await initQueues();
+            const queues = getNexoraQueues();
+            const queuePromises = Object.entries(queues).map(async ([name, queue]) => {
+              await queue.obliterate({ force: true });
+              return name;
+            });
+            const clearedNames = await Promise.all(queuePromises);
+            results.push(`Filas BullMQ limpas: ${clearedNames.join(', ')}`);
+          } catch (queueErr: any) {
+            results.push(`Aviso: erro ao limpar filas BullMQ: ${queueErr.message}`);
+          } finally {
+            await closeQueues();
+          }
         }
 
         // ── 5. Limpar ficheiros (opcional) ───────────────────────
@@ -171,30 +191,32 @@ export async function resetRoutes(fastify: FastifyInstance): Promise<void> {
             }
           }
 
-          // Nota: limpeza MinIO requer cliente S3 — registar como pendente
           results.push('MinIO: limpeza requer acesso directo ao bucket (não executada nesta operação)');
         }
 
         // Registar no log de auditoria a acção de reset
-        await prisma.auditLog.create({
-          data: {
-            action: 'SYSTEM_RESET',
-            entityType: 'System',
-            entityId: 'system',
-            userId: request.user?.sub ?? 'admin',
-            ipAddress: request.ip,
-            severity: 'critical',
-            metadata: {
-              includeFiles,
-              performedAt: new Date().toISOString(),
-              results,
+        if (!options.includes('LOGS')) {
+          await prisma.auditLog.create({
+            data: {
+              action: 'SYSTEM_RESET',
+              entityType: 'System',
+              entityId: 'system',
+              userId: request.user?.sub ?? 'admin',
+              ipAddress: request.ip,
+              severity: 'critical',
+              metadata: {
+                includeFiles,
+                options,
+                performedAt: new Date().toISOString(),
+                results,
+              },
             },
-          },
-        });
+          });
+        }
 
         return reply.send({
           success: true,
-          message: 'Sistema reposto ao estado inicial com sucesso.',
+          message: 'Reset do sistema concluído com sucesso.',
           details: results,
           timestamp: new Date().toISOString(),
         });

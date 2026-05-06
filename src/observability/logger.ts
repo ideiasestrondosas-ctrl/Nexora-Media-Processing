@@ -5,8 +5,19 @@
 // ou pretty-print (desenvolvimento).
 // Inclui helpers para contexto de asset e job.
 
+import * as fs from 'fs';
+import * as path from 'path';
 import pino from 'pino';
 import { logStreamer } from './log-streamer';
+
+// Garantir diretório de logs
+const LOG_DIR = path.join(process.cwd(), 'logs');
+if (!fs.existsSync(LOG_DIR)) {
+  fs.mkdirSync(LOG_DIR, { recursive: true });
+}
+
+// Stream para ficheiro local (para persistência e rotação)
+const fileStream = fs.createWriteStream(path.join(LOG_DIR, 'nexora.log'), { flags: 'a' });
 
 // Stream customizado para capturar logs em memória para o dashboard
 const memoryStream = {
@@ -45,8 +56,15 @@ export const logger = pino({
 }, pino.multistream([
   { stream: process.stdout }, // Mantém output original
   { stream: memoryStream },    // Adiciona stream para o dashboard local
-  { stream: redisStream }      // Publica no Redis para stream global
+  { stream: redisStream },     // Publica no Redis para stream global
+  { stream: fileStream }       // Persistência em disco
 ]));
+
+// Iniciar rotação de logs (apenas se for o processo principal ou worker relevante)
+if (process.env.ENABLE_LOG_ROTATION === 'true') {
+  const { logRotationManager } = require('./log-rotation');
+  logRotationManager.start();
+}
 
 /** Helper para criar logger filho com contexto de asset */
 export function assetLogger(assetId: string): pino.Logger {

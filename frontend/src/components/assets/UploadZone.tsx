@@ -13,8 +13,9 @@ import {
   CheckCircle2,
   Loader2,
   Trash2,
-  Monitor, Clock, FileType
+  Monitor, Clock, FileType, Info
 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,6 +31,13 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface Profile {
   id: string;
@@ -57,6 +65,8 @@ interface UploadItem {
   resolution?: string;
   duration?: number;
   extension: string;
+  targetFormat: "SAME" | "MP4" | "MOV" | "MKV";
+  lastModified: number;
 }
 
 interface UploadZoneProps {
@@ -74,6 +84,8 @@ export function UploadZone({ onAllComplete, uploadUrl }: UploadZoneProps) {
   const [globalStorage, setGlobalStorage] = useState<"MINIO" | "LOCAL">("MINIO");
   const [globalKeep, setGlobalKeep] = useState(false);
   const [showGlobalSettings, setShowGlobalSettings] = useState(true);
+
+
 
   const { toast } = useToast();
   const token = useAuthStore((state) => state.token);
@@ -96,7 +108,8 @@ export function UploadZone({ onAllComplete, uploadUrl }: UploadZoneProps) {
       try {
         const data = await api.get<SystemSettings>("/settings");
         if (data) {
-          setSettings(data);
+          // setSettings(data);
+
           setGlobalStorage(data.defaultStorageStrategy ?? "MINIO");
         }
       } catch (err) {
@@ -165,6 +178,8 @@ export function UploadZone({ onAllComplete, uploadUrl }: UploadZoneProps) {
           resolution: metadata.resolution,
           duration: metadata.duration,
           extension: ext,
+          targetFormat: "SAME",
+          lastModified: f.lastModified,
         });
       }
     }
@@ -207,6 +222,7 @@ export function UploadZone({ onAllComplete, uploadUrl }: UploadZoneProps) {
     url.searchParams.set("profile", item.profileId);
     url.searchParams.set("storageStrategy", item.storageStrategy);
     url.searchParams.set("keepOriginal", String(item.keepOriginal));
+    url.searchParams.set("targetFormat", item.targetFormat);
 
     return new Promise<void>((resolve) => {
       const xhr = new XMLHttpRequest();
@@ -279,6 +295,7 @@ export function UploadZone({ onAllComplete, uploadUrl }: UploadZoneProps) {
     }));
     toast({ title: "Configurações aplicadas à fila" });
   };
+
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-20">
@@ -450,6 +467,51 @@ export function UploadZone({ onAllComplete, uploadUrl }: UploadZoneProps) {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <span className="font-bold truncate text-sm" title={item.file.name}>{item.file.name}</span>
+                            
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-primary">
+                                  <Info className="h-3 w-3" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="sm:max-w-md bg-zinc-900 border-zinc-800 text-zinc-100">
+                                <DialogHeader>
+                                  <DialogTitle className="flex items-center gap-2">
+                                    <FileType className="h-5 w-5 text-primary" />
+                                    Detalhes do Ficheiro
+                                  </DialogTitle>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                  <div className="grid grid-cols-3 gap-4 text-sm">
+                                    <div className="text-muted-foreground">Nome:</div>
+                                    <div className="col-span-2 font-medium break-all">{item.file.name}</div>
+                                    
+                                    <div className="text-muted-foreground">Tamanho:</div>
+                                    <div className="col-span-2 font-medium">{(item.file.size / (1024 * 1024)).toFixed(2)} MB ({item.file.size.toLocaleString()} bytes)</div>
+                                    
+                                    <div className="text-muted-foreground">Tipo MIME:</div>
+                                    <div className="col-span-2 font-medium">{item.file.type || 'Desconhecido'}</div>
+                                    
+                                    <div className="text-muted-foreground">Última Modificação:</div>
+                                    <div className="col-span-2 font-medium">{new Date(item.lastModified).toLocaleString('pt-PT')}</div>
+
+                                    {item.resolution && (
+                                      <>
+                                        <div className="text-muted-foreground">Resolução:</div>
+                                        <div className="col-span-2 font-medium">{item.resolution}</div>
+                                      </>
+                                    )}
+
+                                    {item.duration && (
+                                      <>
+                                        <div className="text-muted-foreground">Duração:</div>
+                                        <div className="col-span-2 font-medium">{Math.floor(item.duration / 60)}:{(Math.floor(item.duration % 60)).toString().padStart(2, '0')}</div>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              </DialogContent>
+                            </Dialog>
                           </div>
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
                             <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">
@@ -494,19 +556,32 @@ export function UploadZone({ onAllComplete, uploadUrl }: UploadZoneProps) {
                           </SelectContent>
                         </Select>
 
-                        <div className="flex bg-muted rounded h-8 p-0.5">
-                          <button 
-                            onClick={() => updateFileConfig(item.id, { storageStrategy: "MINIO" })}
-                            className={cn("px-2 rounded text-[10px] font-bold", item.storageStrategy === "MINIO" ? "bg-background shadow-sm" : "text-muted-foreground")}
-                          >
-                            CLOUD
-                          </button>
                           <button 
                             onClick={() => updateFileConfig(item.id, { storageStrategy: "LOCAL" })}
                             className={cn("px-2 rounded text-[10px] font-bold", item.storageStrategy === "LOCAL" ? "bg-background shadow-sm text-green-600" : "text-muted-foreground")}
                           >
                             LOCAL
                           </button>
+
+
+                        {/* Formato de Destino */}
+                        <div className="flex flex-col gap-1">
+                          <Label className="text-[10px] uppercase text-muted-foreground font-bold">Converter para</Label>
+                          <Select 
+                            value={item.targetFormat} 
+                            onValueChange={(v: string) => updateFileConfig(item.id, { targetFormat: v as any })}
+
+                          >
+                            <SelectTrigger className="h-8 w-24 text-[10px] font-bold">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="SAME">Original</SelectItem>
+                              <SelectItem value="MP4">MP4</SelectItem>
+                              <SelectItem value="MOV">MOV</SelectItem>
+                              <SelectItem value="MKV">MKV</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
 
                         <Button 
