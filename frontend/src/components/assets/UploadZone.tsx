@@ -3,21 +3,17 @@
 import { useState, useCallback, useEffect } from "react";
 import {
   UploadCloud,
-  FileVideo,
-  X,
   HardDrive,
   Cloud,
-  FolderOpen,
   ToggleLeft,
   ToggleRight,
-  Info,
   ChevronDown,
   ChevronUp,
   Settings,
   CheckCircle2,
   Loader2,
   Trash2,
-  Monitor, Clock, Music, Layers, FileType, Play
+  Monitor, Clock, FileType
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -72,7 +68,6 @@ export function UploadZone({ onAllComplete, uploadUrl }: UploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState<UploadItem[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [settings, setSettings] = useState<SystemSettings | null>(null);
   
   // Global defaults
   const [globalProfile, setGlobalProfile] = useState<string>("");
@@ -82,8 +77,6 @@ export function UploadZone({ onAllComplete, uploadUrl }: UploadZoneProps) {
 
   const { toast } = useToast();
   const token = useAuthStore((state) => state.token);
-  const authUser = useAuthStore((state) => state.user);
-  const isAdmin = authUser?.roles?.includes("ADMIN") || authUser?.sub === "user-123";
 
   useEffect(() => {
     const fetchProfiles = async () => {
@@ -189,7 +182,7 @@ export function UploadZone({ onAllComplete, uploadUrl }: UploadZoneProps) {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    addFiles(e.dataTransfer.files);
+    void addFiles(e.dataTransfer.files);
   }, [globalProfile, globalStorage, globalKeep]);
 
   const removeFile = (id: string) => {

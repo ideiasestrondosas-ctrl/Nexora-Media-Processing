@@ -4,7 +4,7 @@ import { pt } from "date-fns/locale";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Film, Clock, HardDrive, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Film, Clock, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 
 interface AssetCardProps {
   asset: {

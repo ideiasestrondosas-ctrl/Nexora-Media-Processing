@@ -3,8 +3,8 @@
 import { usePathname } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { Button } from "@/components/ui/button";
-import { LogOut, User, BookOpen } from "lucide-react";
-import Link from "next/link";
+import { LogOut, User } from "lucide-react";
+import { api } from "@/lib/api";
 
 const ROUTE_LABELS: Record<string, string> = {
   "/": "Dashboard",
@@ -45,10 +45,9 @@ export function Header() {
   const [version, setVersion] = useState<string>("...");
 
   useEffect(() => {
-    fetch("/api/v1/system/version")
-      .then((res) => res.json())
+    api.get<{ version: string }>("/system/version")
       .then((data) => setVersion(data.version))
-      .catch(() => setVersion("v1.1.0"));
+      .catch(() => setVersion("v1.0.0 (Offline)"));
   }, []);
 
   return (

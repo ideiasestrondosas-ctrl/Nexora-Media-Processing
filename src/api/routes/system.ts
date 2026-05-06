@@ -154,6 +154,45 @@ export async function systemRoutes(fastify: FastifyInstance): Promise<void> {
     return { version: getSystemVersion() };
   });
 
+  // ── GET /system/changelog — Ler e devolver o histórico ─────────────────────
+  fastify.get('/system/changelog', async () => {
+    try {
+      const changelogPath = path.join(process.cwd(), 'CHANGELOG.md');
+      if (!fs.existsSync(changelogPath)) return { entries: [] };
+      
+      const content = fs.readFileSync(changelogPath, 'utf8');
+      const lines = content.split('\n');
+      
+      const entries: { version: string; date: string; changes: string[] }[] = [];
+      let currentEntry: { version: string; date: string; changes: string[] } | null = null;
+      
+      for (const line of lines) {
+        // Suporta "## [1.1.0] - 2026-05-05" ou "## [1.0.0] — 2026-05-05" (hífen ou travessão)
+        const versionMatch = line.match(/^##\s+\[([\w.-]+)\]\s*[-—]\s*([\d-]+)/);
+        if (versionMatch) {
+          if (currentEntry) entries.push(currentEntry);
+          currentEntry = {
+            version: versionMatch[1],
+            date: versionMatch[2],
+            changes: [],
+          };
+          continue;
+        }
+        
+        if (currentEntry && (line.trim().startsWith('- ') || line.trim().startsWith('* '))) {
+          // Remove prefixos markdown para obter o texto limpo
+          currentEntry.changes.push(line.trim().substring(2).trim());
+        }
+      }
+      
+      if (currentEntry) entries.push(currentEntry);
+      return { entries };
+    } catch (err) {
+      logger.error({ err }, 'Erro ao ler CHANGELOG.md');
+      return { entries: [] };
+    }
+  });
+
   // ── GET /system/backups — Listar backups disponíveis ──────────────────────
   fastify.get('/system/backups', async (request: FastifyRequest, reply: FastifyReply) => {
     if (!request.user?.roles?.includes('ADMIN')) {

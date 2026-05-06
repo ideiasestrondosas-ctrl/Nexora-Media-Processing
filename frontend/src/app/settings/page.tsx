@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Wrench, HardDrive, Cloud, RefreshCw, AlertTriangle, Loader2,
-  CheckCircle2, XCircle, Shield, Database, FileX, UploadCloud, Download,
-  History, Info, Cpu, Zap, ChevronRight
+  CheckCircle2, XCircle, Shield, Database, FileX, Download,
+  History, Cpu, Zap, ChevronRight
 } from "lucide-react";
 
 
@@ -22,6 +22,12 @@ interface SystemSettings {
   defaultStorageStrategy: "MINIO" | "LOCAL";
   webPriorityPercentage: number;
   version?: string;
+}
+
+interface ChangelogEntry {
+  version: string;
+  date: string;
+  changes: string[];
 }
 
 interface SystemStatus {
@@ -44,6 +50,7 @@ export default function SettingsPage() {
     webPriorityPercentage: 20,
   });
   const [status, setStatus] = useState<SystemStatus | null>(null);
+  const [changelog, setChangelog] = useState<ChangelogEntry[]>([]);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
@@ -59,12 +66,14 @@ export default function SettingsPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [cfg, st] = await Promise.all([
+        const [cfg, st, cl] = await Promise.all([
           api.get<SystemSettings>("/settings"),
           api.get<SystemStatus>("/system/reset/status"),
+          api.get<{ entries: ChangelogEntry[] }>("/system/changelog"),
         ]);
         setSettings(cfg);
         setStatus(st);
+        setChangelog(cl.entries);
       } catch (err) {
         console.error("Erro ao carregar configurações:", err);
       } finally {
@@ -323,63 +332,36 @@ export default function SettingsPage() {
             <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground border-b pb-2">Log de Alterações</h4>
             
             <div className="space-y-6 relative before:absolute before:left-2 before:top-2 before:bottom-2 before:w-px before:bg-muted">
-              {/* V1.1.0 */}
-              <div className="relative pl-8 group">
-                <div className="absolute left-0 top-1 h-4 w-4 rounded-full border-2 border-primary bg-background z-10 group-hover:scale-110 transition-transform" />
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold">V1.1.0 — Nexora Stabilization</span>
-                    <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold uppercase tracking-tight">Current</span>
+              {changelog.map((entry, idx) => (
+                <div key={entry.version} className={cn(
+                  "relative pl-8 group transition-opacity",
+                  idx > 0 && "opacity-70 hover:opacity-100"
+                )}>
+                  <div className={cn(
+                    "absolute left-0 top-1 h-4 w-4 rounded-full border-2 bg-background z-10 transition-transform",
+                    idx === 0 ? "border-primary group-hover:scale-110" : "border-muted-foreground"
+                  )} />
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold">V{entry.version} — {entry.date}</span>
+                      {idx === 0 && (
+                        <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded font-bold uppercase tracking-tight">Current</span>
+                      )}
+                    </div>
+                    <ul className="space-y-1.5 text-xs text-muted-foreground">
+                      {entry.changes.map((change, i) => (
+                        <li key={i} className="flex gap-2">
+                          <ChevronRight className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                          <span>{change}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <ul className="space-y-1.5 text-xs text-muted-foreground">
-                    <li className="flex gap-2">
-                      <ChevronRight className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
-                      <span><strong>Identificação Automática</strong> — Versão global lida dinamicamente do motor principal.</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <ChevronRight className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
-                      <span><strong>Prioridade Web</strong> — Novo mecanismo de reserva de hardware para garantir interface fluida.</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <ChevronRight className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
-                      <span><strong>Análise Rica de Upload</strong> — Detecção instantânea de resolução, duração e ícones de codec.</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <ChevronRight className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
-                      <span><strong>Preservação Original</strong> — Suporte para codec "Copy" em perfis para manter qualidade nativa.</span>
-                    </li>
-                  </ul>
                 </div>
-              </div>
-
-              {/* V1.0.0 */}
-              <div className="relative pl-8 group opacity-70 hover:opacity-100 transition-opacity">
-                <div className="absolute left-0 top-1 h-4 w-4 rounded-full border-2 border-muted-foreground bg-background z-10" />
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold">V1.0.0 — Nexora Foundation</span>
-                    <span className="text-[10px] text-muted-foreground uppercase font-medium">Maio 2026</span>
-                  </div>
-                  <ul className="space-y-1.5 text-xs text-muted-foreground">
-                    <li className="flex gap-2">
-                      <ChevronRight className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      <span><strong>Arquitetura Micro-Batch</strong> — Pipeline baseada em BullMQ e Redis para alta performance.</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <ChevronRight className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      <span><strong>Multi-Storage</strong> — Suporte nativo para MinIO (S3) e Armazenamento Local Directo.</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <ChevronRight className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      <span><strong>Quality Control</strong> — Motor de diagnóstico com MediaConch e Loudness EBU R128.</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <ChevronRight className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      <span><strong>Dashboard de Telemetria</strong> — Monitorização em tempo real de CPU, RAM, GPU e Disco.</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
+              ))}
+              {changelog.length === 0 && (
+                <p className="text-xs text-muted-foreground pl-8 italic">Nenhuma informação de histórico disponível.</p>
+              )}
             </div>
           </div>
         </CardContent>

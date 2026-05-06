@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { KeyRound, Loader2, X, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { KeyRound, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { api } from "@/lib/api";
 import {
   Dialog,
@@ -18,7 +18,7 @@ export function PasswordChangeModal({
   isOpen,
   onClose,
   username,
-  userId,
+  userId: _,
 }: {
   isOpen: boolean;
   onClose: () => void;
