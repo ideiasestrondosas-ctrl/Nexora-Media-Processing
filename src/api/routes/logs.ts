@@ -79,14 +79,35 @@ function analyzeLog(log: any): DiagnosticResult | null {
 export async function logsRoutes(fastify: FastifyInstance): Promise<void> {
 
   // SSE: Stream de Logs em tempo real
-  fastify.get('/logs/stream', async (request: FastifyRequest, reply: FastifyReply) => {
+  // IMPORTANTE: usamos reply.hijack() para assumir controlo total sobre o stream raw
+  // e setHeader() (em vez de writeHead()) para que o @fastify/cors possa ainda injectar
+  // os seus cabeçalhos Access-Control-* antes da resposta ser enviada ao browser.
+  fastify.get('/logs/stream', (request: FastifyRequest, reply: FastifyReply) => {
+    // Hijack: informa o Fastify que a resposta será gerida manualmente
+    reply.hijack();
+
+    // CORS manual — reply.hijack() bypassa o plugin @fastify/cors, por isso
+    // temos de injectar os cabeçalhos Access-Control-* manualmente.
+    const allowedOrigins = (process.env.CORS_ORIGINS ?? '')
+      .split(',')
+      .map(o => o.trim())
+      .filter(Boolean);
+    const requestOrigin = request.headers.origin ?? '';
+    const corsOrigin =
+      allowedOrigins.length === 0 || allowedOrigins.includes(requestOrigin)
+        ? requestOrigin || '*'
+        : allowedOrigins[0]!;
+
+    reply.raw.setHeader('Access-Control-Allow-Origin', corsOrigin);
+    reply.raw.setHeader('Access-Control-Allow-Credentials', 'true');
+    reply.raw.setHeader('Vary', 'Origin');
+
     // Configurar headers para SSE
-    void reply.raw.writeHead(200, {
-      'Content-Type':  'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection':    'keep-alive',
-      'X-Accel-Buffering': 'no', // Desactivar buffering no Nginx
-    });
+    reply.raw.setHeader('Content-Type', 'text/event-stream');
+    reply.raw.setHeader('Cache-Control', 'no-cache');
+    reply.raw.setHeader('Connection', 'keep-alive');
+    reply.raw.setHeader('X-Accel-Buffering', 'no'); // Desactivar buffering no Nginx
+    reply.raw.writeHead(200);
 
     // Enviar histórico inicial
     const history = logStreamer.getHistory();
@@ -106,8 +127,10 @@ export async function logsRoutes(fastify: FastifyInstance): Promise<void> {
 
     // Ouvir novos logs
     const onLog = (log: any) => {
-      const diagnostic = analyzeLog(log);
-      reply.raw.write(`data: ${JSON.stringify({ ...log, diagnostic })}\n\n`);
+      if (!reply.raw.writableEnded) {
+        const diagnostic = analyzeLog(log);
+        reply.raw.write(`data: ${JSON.stringify({ ...log, diagnostic })}\n\n`);
+      }
     };
 
     logStreamer.on('log', onLog);
@@ -121,16 +144,10 @@ export async function logsRoutes(fastify: FastifyInstance): Promise<void> {
       }
     }, 15000);
 
-    // Limpar ao fechar
+    // Limpar recursos ao fechar a ligação
     request.raw.on('close', () => {
       clearInterval(heartbeatInterval);
       logStreamer.off('log', onLog);
-    });
-
-    // Não retornar — manter a conexão aberta
-    await new Promise<void>((resolve) => {
-      reply.raw.on('finish', resolve);
-      reply.raw.on('close', resolve);
     });
   });
 
