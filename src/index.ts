@@ -38,17 +38,17 @@ async function start(): Promise<void> {
     // Iniciar recepção de logs via Redis Pub/Sub
     logStreamer.initRedisSubscription();
 
-    // 2. Inicializar base de dados (verificar conectividade)
-    await initDatabase();
+    // 2. Inicializar base de dados e buckets em paralelo
+    logger.info('A iniciar componentes core...');
+    const coreStart = Date.now();
+    await Promise.all([
+      initDatabase(),
+      ensureBuckets()
+    ]);
+    logger.info({ duration: `${Date.now() - coreStart}ms` }, 'Componentes core inicializados');
 
-    // 3. Garantir que os buckets MinIO existem
-    await ensureBuckets();
-    logger.info('Buckets MinIO verificados');
-
-    // 4. Registar plugins Fastify (auth, CORS, multipart, rate limit, swagger)
+    // 4. Registar plugins e rotas (Fastify)
     await registerPlugins(app);
-
-    // 5. Registar rotas da API
     await registerRoutes(app);
 
     // 6. Rotas de sistema (health checks — sem prefixo /api/v1)
@@ -110,18 +110,25 @@ async function start(): Promise<void> {
         .send({ status: allOk ? 'ok' : 'degraded', timestamp: new Date().toISOString(), checks });
     });
 
-    // 7. Inicializar filas BullMQ
-    await initQueues();
-
-    // 8. Iniciar servidor de métricas Prometheus numa porta separada
-    const prometheusPort = Number(process.env.PROMETHEUS_API_PORT ?? 9100);
-    await metricsServer.start(prometheusPort);
-    logger.info({ port: prometheusPort }, 'Servidor de métricas Prometheus iniciado');
-
     // 9. Iniciar servidor API principal
     const port = Number(process.env.PORT ?? 3000);
     await app.listen({ port, host: '0.0.0.0' });
-    logger.info({ port }, 'Nexora Media Processing API iniciada');
+    logger.info({ port }, 'Nexora Media Processing API iniciada e disponível');
+
+    // 10. Inicializar filas BullMQ e métricas em background (não bloqueia login)
+    setImmediate(async () => {
+      try {
+        const bgStart = Date.now();
+        const prometheusPort = Number(process.env.PROMETHEUS_API_PORT ?? 9100);
+        await Promise.all([
+          initQueues(),
+          metricsServer.start(prometheusPort)
+        ]);
+        logger.info({ duration: `${Date.now() - bgStart}ms` }, 'Serviços de background (Queues/Metrics) prontos');
+      } catch (err) {
+        logger.error(err, 'Erro ao iniciar serviços de background');
+      }
+    });
 
   } catch (error) {
     logger.error(error, 'Erro fatal ao iniciar o servidor');

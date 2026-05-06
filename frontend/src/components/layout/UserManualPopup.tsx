@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
+import { api } from "@/lib/api";
+
 type Section = {
   id: string;
   icon: React.ElementType;
@@ -300,6 +302,39 @@ const sections: Section[] = [
     ),
   },
   {
+    id: "audio-subtitles",
+    icon: Zap,
+    title: "Áudio & Legendas",
+    content: (
+      <div className="space-y-5">
+        <p className="text-muted-foreground leading-relaxed">
+          Funcionalidades avançadas para conformidade de áudio e acessibilidade.
+        </p>
+        <div className="space-y-3">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-primary">Normalização EBU R128</h3>
+          <p className="text-sm text-muted-foreground">
+            O Nexora utiliza o <strong>bs1770gain</strong> para garantir que todos os assets cumprem a norma EBU R128 (-23 LUFS).
+          </p>
+          <ul className="space-y-1 text-xs text-muted-foreground">
+            <li className="flex gap-2"><ChevronRight className="h-3 w-3 text-primary shrink-0 mt-0.5" /><span><strong>Target:</strong> -23.0 LUFS</span></li>
+            <li className="flex gap-2"><ChevronRight className="h-3 w-3 text-primary shrink-0 mt-0.5" /><span><strong>True Peak:</strong> -1.0 dBTP</span></li>
+          </ul>
+        </div>
+        <div className="space-y-3">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-primary">Processamento de Legendas</h3>
+          <p className="text-sm text-muted-foreground">
+            Suporte para conversão e conformação de ficheiros de legenda nos formatos standard da indústria.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {["SRT", "WebVTT", "TTML (SMPTE-TT)"].map(fmt => (
+              <span key={fmt} className="bg-muted text-muted-foreground px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">{fmt}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+    ),
+  },
+  {
     id: "security",
     icon: Shield,
     title: "Segurança & Admin",
@@ -361,10 +396,16 @@ export function UserManualPopup() {
   const activeSection = sections.find((s) => s.id === activeId) ?? sections[0]!;
 
   useEffect(() => {
-    fetch("/api/v1/system/version")
-      .then((res) => res.json())
-      .then((data) => setVersion(data.version))
-      .catch(() => {});
+    // Usar o endpoint com o helper da API configurado (base URL correto)
+    const fetchVersion = async () => {
+      try {
+        const data = await api.get<{ version: string }>("/system/version");
+        if (data?.version) setVersion(data.version);
+      } catch (err) {
+        console.warn("Falha ao obter versão para o manual:", err);
+      }
+    };
+    fetchVersion();
   }, []);
 
   return (

@@ -41,6 +41,9 @@ export default function LoginPage() {
     setError(null);
 
     try {
+      // Delay artificial para garantir que o utilizador tem tempo de ver a indicação de estado
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
       const response = await api.post<{ accessToken: string }>('/auth/login', { userId: username, secret });
       if (response && response.accessToken) {
         setToken(response.accessToken);
@@ -79,6 +82,7 @@ export default function LoginPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 className="bg-zinc-950 border-zinc-800 text-zinc-100"
+                disabled={loading}
               />
             </div>
             <div className="space-y-2">
@@ -90,9 +94,16 @@ export default function LoginPage() {
                 onChange={(e) => setSecret(e.target.value)}
                 required
                 className="bg-zinc-950 border-zinc-800 text-zinc-100"
+                disabled={loading}
               />
             </div>
             
+            {loading && (
+              <div className="flex items-center justify-center gap-2 py-1 text-indigo-400 animate-pulse">
+                <span className="text-xs font-medium uppercase tracking-widest">A validar credenciais...</span>
+              </div>
+            )}
+
             {error && (
               <Alert variant="destructive" className="bg-red-950/50 border-red-900/50 text-red-400">
                 <AlertDescription>{error}</AlertDescription>
@@ -101,10 +112,10 @@ export default function LoginPage() {
 
             <Button 
               type="submit" 
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white" 
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-11" 
               disabled={loading}
             >
-              {loading ? 'A autenticar...' : 'Entrar'}
+              {loading ? 'A processar login...' : 'Entrar na Plataforma'}
             </Button>
           </form>
         </CardContent>

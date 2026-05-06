@@ -1,5 +1,8 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { api } from "@/lib/api";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   BookOpen, 
@@ -18,6 +21,16 @@ import {
 import { cn } from "@/lib/utils";
 
 export default function ManualPage() {
+  const [version, setVersion] = useState("1.1.0");
+
+  useEffect(() => {
+    api.get<{ version: string }>("/system/version")
+      .then((data) => {
+        if (data?.version) setVersion(data.version);
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="space-y-8 max-w-5xl mx-auto pb-10">
       {/* Cabeçalho Standard */}
@@ -28,7 +41,7 @@ export default function ManualPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Manual de Utilizador</h1>
-            <p className="text-muted-foreground text-sm">Guia técnico e pedagógico da plataforma Nexora.</p>
+            <p className="text-muted-foreground text-sm">Guia técnico e pedagógico da plataforma Nexora — v{version}</p>
           </div>
         </div>
       </div>
@@ -212,6 +225,22 @@ export default function ManualPage() {
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">
               O acesso é gerido via <strong>RBAC</strong>. Apenas Administradores podem aceder às definições do sistema e realizar operações destrutivas.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Áudio e Legendas */}
+        <Card>
+          <CardHeader className="bg-muted/20 border-b">
+            <CardTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-yellow-500" />
+              Áudio & Legendas
+            </CardTitle>
+            <CardDescription>Normalização e acessibilidade multimédia.</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              O Nexora automatiza a conformidade de áudio via <strong>bs1770gain</strong> e permite o processamento de legendas profissionais (SRT, VTT, TTML).
             </p>
           </CardContent>
         </Card>

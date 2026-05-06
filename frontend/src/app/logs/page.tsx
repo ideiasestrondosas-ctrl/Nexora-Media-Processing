@@ -139,6 +139,11 @@ export default function LogsPage() {
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
           <Button variant="outline" size="icon" onClick={() => {
+            fetch(`${API_BASE_URL}/logs/test-diagnostic`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(console.error);
+          }} title="Testar Diagnóstico Automático">
+            <ShieldAlert className="h-4 w-4 text-yellow-500" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={() => {
             const blob = new Blob([logs.map(l => JSON.stringify(l)).join('\n')], { type: 'text/plain' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');

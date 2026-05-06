@@ -73,6 +73,17 @@ function analyzeLog(log: any): DiagnosticResult | null {
     };
   }
 
+  // Regra 6: Teste Manual de Diagnóstico
+  if (msg.includes('teste_diagnostico')) {
+    return {
+      id: 'MANUAL_TEST',
+      severity: 'INFO',
+      title: 'Teste de Diagnóstico',
+      message: 'Esta é uma mensagem de teste para verificar o funcionamento do motor de diagnóstico.',
+      suggestion: 'O sistema de Diagnóstico Automático está a operar normalmente e reage aos eventos enviados pelo motor do Nexora.'
+    };
+  }
+
   return null;
 }
 
@@ -161,5 +172,12 @@ export async function logsRoutes(fastify: FastifyInstance): Promise<void> {
     // Remover duplicados (manter apenas o mais recente de cada tipo)
     const unique = Array.from(new Map(diagnostics.map(d => [d!.id, d])).values());
     return unique;
+  });
+
+  // POST /logs/test-diagnostic — Injetar um log de teste para o Diagnóstico Automático
+  fastify.post('/logs/test-diagnostic', async (request, reply) => {
+    const { logger } = await import('../../observability/logger');
+    logger.info('Simulação de falha: teste_diagnostico_acionado');
+    return reply.status(200).send({ status: 'ok', message: 'Log de teste injetado' });
   });
 }
