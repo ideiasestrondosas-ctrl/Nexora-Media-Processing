@@ -64,7 +64,13 @@ export async function registerRateLimit(fastify: FastifyInstance): Promise<void>
     },
 
     // Rotas excluídas do rate limiting
-    allowList: ['/health', '/health/live', '/health/ready'],
+    allowList: [
+      '/health', 
+      '/health/live', 
+      '/health/ready', 
+      '/api/v1/system/version',
+      '/system/version'
+    ],
 
     onExceeding: (request) => {
       logger.warn(

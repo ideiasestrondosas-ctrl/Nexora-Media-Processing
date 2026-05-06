@@ -36,12 +36,12 @@ export const ROUTE_RATE_LIMITS: Record<string, RouteRateLimit> = {
   'GET:/api/v1/metrics-summary':    { max: 60,  timeWindow: 60_000,  description: 'Metrics polling' },
 
   // SSE (Server-Sent Events) — conexão persistente
-  'GET:/api/v1/status-sse':         { max: 5,   timeWindow: 60_000,  description: 'SSE connection limit (persistent)' },
+  'GET:/api/v1/status-sse':         { max: 20,  timeWindow: 60_000,  description: 'SSE connection limit (persistent)' },
 };
 
 // Limite global por defeito (rotas não mapeadas)
 export const DEFAULT_RATE_LIMIT: RouteRateLimit = {
-  max: 100,
+  max: 500,
   timeWindow: 60_000,
   description: 'Default global limit',
 };

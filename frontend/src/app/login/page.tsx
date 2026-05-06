@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
@@ -20,6 +20,20 @@ export default function LoginPage() {
   
   const router = useRouter();
   const setToken = useAuthStore((state) => state.setToken);
+  const [dynamicVersion, setDynamicVersion] = useState(NEXORA_VERSION);
+
+  useEffect(() => {
+    const fetchVersion = async () => {
+      try {
+        const data = await api.get<{ version: string }>('/system/version');
+        if (data?.version) setDynamicVersion(data.version);
+      } catch {
+        // Silencioso, mantém fallback hardcoded
+      }
+    };
+    fetchVersion();
+  }, []);
+
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,7 +109,7 @@ export default function LoginPage() {
           </form>
         </CardContent>
         <CardFooter className="justify-center">
-          <p className="text-xs text-zinc-500">Nexora Media Processing © {NEXORA_COPYRIGHT} | v{NEXORA_VERSION}</p>
+          <p className="text-xs text-zinc-500">Nexora Media Processing © {NEXORA_COPYRIGHT} | v{dynamicVersion}</p>
         </CardFooter>
       </Card>
     </div>
