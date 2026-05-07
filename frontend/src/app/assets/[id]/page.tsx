@@ -246,6 +246,11 @@ export default function AssetDetailsPage() {
 
   const formattedSize = formatFileSize(asset.size);
 
+  // Análises técnicas detalhadas (MediaAnalysis)
+  const mediaAnalyses = (asset as any).mediaAnalyses || [];
+  const preEncode = mediaAnalyses.find((a: any) => a.phase === 'PRE_ENCODE');
+  const postEncode = mediaAnalyses.find((a: any) => a.phase === 'POST_ENCODE');
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-10">
       {/* Cabeçalho */}
@@ -306,6 +311,52 @@ export default function AssetDetailsPage() {
             )}
           </Card>
 
+          {/* Análise Técnica Avançada (MediaInfo Deep) */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 px-2">
+              <FileText className="h-5 w-5 text-primary" />
+              <h2 className="font-bold text-lg">Análise Técnica Avançada</h2>
+            </div>
+            
+            {preEncode ? (
+              <Card>
+                <CardHeader className="py-3 bg-muted/30">
+                  <CardTitle className="text-xs font-bold uppercase tracking-wider">Metadados Source (MediaInfo Deep)</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-4 py-4 text-xs">
+                  <div>
+                    <p className="text-muted-foreground mb-1">Codec/Profile</p>
+                    <p className="font-mono font-bold">{preEncode.videoCodec} ({preEncode.videoProfile})</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground mb-1">Scan Type</p>
+                    <p className="font-mono font-bold">{preEncode.scanType} {preEncode.scanOrder ? `(${preEncode.scanOrder})` : ''}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground mb-1">HDR Format</p>
+                    <p className="font-mono font-bold">{preEncode.hdrFormat || 'SDR'}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground mb-1">GOP</p>
+                    <p className="font-mono font-bold">{preEncode.gopType} (Size: {preEncode.gopSize})</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground mb-1">Color Space</p>
+                    <p className="font-mono font-bold">{preEncode.colorSpace} / {preEncode.colourRange}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground mb-1">Bit Depth</p>
+                    <p className="font-mono font-bold">{preEncode.bitDepth} bit</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="border-dashed py-4 text-center text-muted-foreground text-sm">
+                Aguardando análise técnica profunda...
+              </Card>
+            )}
+          </div>
+
           {/* QC Report Section */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 px-2">
@@ -326,6 +377,60 @@ export default function AssetDetailsPage() {
               </Card>
             )}
           </div>
+
+          {/* QC Pós-Encode (Diferencial) */}
+          {postEncode && postEncode.comparisonResult && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 px-2">
+                <RefreshCw className="h-5 w-5 text-primary" />
+                <h2 className="font-bold text-lg">QC Pós-Encode (Comparativo)</h2>
+              </div>
+              <Card className="border-primary/20 bg-primary/5">
+                <CardContent className="py-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                    <div className="p-3 bg-background rounded border">
+                      <p className="text-[10px] text-muted-foreground uppercase mb-1">Bitrate Ratio</p>
+                      <p className={cn("font-bold", (postEncode.comparisonResult as any).qualityIndicators.bitrateRatio < 0.3 ? "text-red-500" : "text-green-500")}>
+                        {((postEncode.comparisonResult as any).qualityIndicators.bitrateRatio * 100).toFixed(1)}%
+                      </p>
+                    </div>
+                    <div className="p-3 bg-background rounded border">
+                      <p className="text-[10px] text-muted-foreground uppercase mb-1">Duration Delta</p>
+                      <p className={cn("font-bold", Math.abs((postEncode.comparisonResult as any).qualityIndicators.durationDelta) > 0.5 ? "text-red-500" : "text-green-500")}>
+                        {(postEncode.comparisonResult as any).qualityIndicators.durationDelta.toFixed(3)}s
+                      </p>
+                    </div>
+                    <div className="p-3 bg-background rounded border">
+                      <p className="text-[10px] text-muted-foreground uppercase mb-1">File Size Ratio</p>
+                      <p className="font-bold">
+                        {((postEncode.comparisonResult as any).qualityIndicators.fileSizeRatio).toFixed(2)}x
+                      </p>
+                    </div>
+                    <div className="p-3 bg-background rounded border">
+                      <p className="text-[10px] text-muted-foreground uppercase mb-1">Fast Start</p>
+                      <p className={cn("font-bold", postEncode.isStreamable ? "text-green-500" : "text-orange-500")}>
+                        {postEncode.isStreamable ? "SIM" : "NÃO"}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {(postEncode.comparisonResult as any).videoChanged?.length > 0 && (
+                    <div className="mt-4 p-3 bg-background rounded border text-[11px]">
+                      <p className="font-bold mb-2 uppercase text-muted-foreground">Alterações de Vídeo:</p>
+                      <div className="space-y-1">
+                        {(postEncode.comparisonResult as any).videoChanged.map((diff: any) => (
+                          <div key={diff.field} className="flex justify-between border-b border-border/50 pb-1 last:border-0">
+                            <span className="font-medium">{diff.field}</span>
+                            <span>{diff.before} → <span className="font-bold">{diff.after}</span></span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
 
         {/* Coluna lateral */}

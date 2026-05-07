@@ -254,9 +254,22 @@ export class TranscodeWorker {
       // 10. Actualizar Asset e Job no PostgreSQL
       const durationMs = Date.now() - startTime;
 
+      // 10.1 Em vez de passar direto para AUDIO_PROCESSING, passamos para QC_POST (se preferir)
+      // Ou deixamos AUDIO_PROCESSING e o QC_POST corre em paralelo. 
+      // Vamos manter a pipeline linear para facilitar. 
+      // Não temos status AssetStatus.QC_POST_RUNNING, mas o transcode pode enfileirar o post-qc.
       await prisma.asset.update({
         where: { id: assetId },
-        data: { status: AssetStatus.AUDIO_PROCESSING },
+        data: { status: AssetStatus.AUDIO_PROCESSING }, // Pode ser otimizado no futuro
+      });
+
+      // 10.2 Emitir job para QC Post-Encode
+      const { enqueueQCPost } = await import('./queues');
+      await enqueueQCPost({
+        assetId,
+        profile,
+        inputMinioKey,
+        outputMinioKey: `${BUCKETS.OUTPUT}/${outputKey}`,
       });
 
       await prisma.job.updateMany({

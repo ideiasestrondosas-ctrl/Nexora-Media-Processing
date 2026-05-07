@@ -16,7 +16,7 @@ import { prisma } from '../db/prisma';
 import { logger, jobLogger } from '../observability/logger';
 import { assetsIngested } from '../observability/metrics';
 import { uploadFile, BUCKETS } from '../common/minio';
-import { enqueueQC, QUEUE_NAMES, addToDeadLetter } from './queues';
+import { enqueueQC, enqueueProxy, QUEUE_NAMES, addToDeadLetter } from './queues';
 import {
   IngestError,
   StorageError,
@@ -120,9 +120,9 @@ export class IngestWorker {
       // Não lançar erro — apenas logar e continuar (pode ser re-ingest intencional)
     }
 
-    // 4. Extrair metadata com MediaInfo (via adaptador type-safe — Prompt 9)
-    log.info('A extrair metadata com MediaInfo...');
-    const metadata = await mediainfoAdapter.analyzeSafe(filePath);
+    // 4. Extrair metadata completa com MediaInfo
+    log.info('A extrair metadata completa com MediaInfo...');
+    const fullMediaInfo = await mediainfoAdapter.analyzeFullMetadata(filePath);
 
     // 5. Upload para MinIO (usar stream, não carregar em memória)
     const minioKey = `raw/${assetId}/original/${filename}`;
@@ -164,7 +164,11 @@ export class IngestWorker {
 
     // 6. Criar ou Atualizar registo Asset no PostgreSQL
     log.info('A atualizar registo Asset no PostgreSQL...');
-    await prisma.asset.upsert({
+    const v = fullMediaInfo.video;
+    const a = fullMediaInfo.audio[0];
+    const g = fullMediaInfo.general;
+
+    const asset = await prisma.asset.upsert({
       where: { id: assetId },
       update: {
         originalPath: filePath,
@@ -172,7 +176,7 @@ export class IngestWorker {
         mimeType: mimeType ?? this.inferMimeType(filename),
         size: fileSizeBytes,
         sha256,
-        metadata: metadata as object,
+        metadata: fullMediaInfo.raw as object,
         profile: profile ?? 'broadcast-hd',
         status: AssetStatus.QC_RUNNING,
         thumbnailKey: thumbMinioKey
@@ -186,9 +190,61 @@ export class IngestWorker {
         mimeType: mimeType ?? this.inferMimeType(filename),
         size: fileSizeBytes,
         sha256,
-        metadata: metadata as object,
+        metadata: fullMediaInfo.raw as object,
         profile: profile ?? 'broadcast-hd',
         status: AssetStatus.QC_RUNNING,
+      },
+    });
+
+    // 6.1 Guardar MediaAnalysis PRE_ENCODE
+    log.info('A guardar análise MediaInfo PRE_ENCODE...');
+    await prisma.mediaAnalysis.create({
+      data: {
+        assetId: asset.id,
+        phase: 'PRE_ENCODE',
+        // Vídeo
+        videoCodec: v?.codec,
+        videoProfile: v?.profile,
+        videoLevel: v?.level,
+        width: v?.width,
+        height: v?.height,
+        frameRate: v?.frameRate,
+        frameRateMode: v?.frameRateMode,
+        scanType: v?.scanType,
+        scanOrder: v?.scanOrder,
+        pixelFormat: v?.pixelFormat,
+        bitDepth: v?.bitDepth,
+        videoBitrate: v?.bitrate,
+        gopSize: v?.gopSize ?? null,
+        gopType: v?.gopType,
+        bFrameCount: v?.bFrameCount,
+        colorSpace: v?.colorSpace,
+        colorPrimaries: v?.colorPrimaries,
+        transferCharacteristics: v?.transferCharacteristics,
+        matrixCoefficients: v?.matrixCoefficients,
+        colourRange: v?.colourRange,
+        hdrFormat: v?.hdrFormat,
+        maxCLL: v?.maxCLL,
+        maxFALL: v?.maxFALL,
+        encodingLibrary: v?.encodingLibrary,
+        encodingSettings: v?.encodingSettings,
+        // Áudio
+        audioCodec: a?.codec,
+        audioSampleRate: a?.sampleRate,
+        audioBitDepth: a?.bitDepth,
+        audioChannels: a?.channels,
+        audioChannelLayout: a?.channelLayout,
+        audioBitrate: a?.bitrate,
+        audioLanguage: a?.language,
+        // Container
+        containerFormat: g.format,
+        duration: g.duration,
+        fileSize: BigInt(Math.round(g.fileSize)),
+        overallBitrate: g.overallBitrate,
+        isStreamable: g.isStreamable,
+        hasTimecodeTrack: g.hasTimecodeTrack,
+        encodedDate: g.encodedDate,
+        rawMediaInfo: fullMediaInfo.raw as object,
       },
     });
 
@@ -215,7 +271,13 @@ export class IngestWorker {
       profile: profile ?? 'broadcast-hd',
     });
 
-    log.info({ assetId, minioKey }, 'Ingest concluído — job QC enfileirado');
+    // 8.1 Emitir job para Proxy
+    await enqueueProxy({
+      assetId,
+      inputMinioKey: `${BUCKETS.INPUT}/${minioKey}`
+    });
+
+    log.info({ assetId, minioKey }, 'Ingest concluído — jobs QC e Proxy enfileirados');
 
     // 9. Métricas Prometheus
     assetsIngested.inc();

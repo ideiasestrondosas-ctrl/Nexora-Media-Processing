@@ -11,6 +11,8 @@ import { QCWorker } from './workers/qc.worker';
 import { TranscodeWorker } from './workers/transcode.worker';
 import { AudioWorker } from './workers/audio.worker';
 import { SubtitleWorker } from './workers/subtitle.worker';
+import { ProxyWorker } from './workers/proxy.worker';
+import { QCPostWorker } from './workers/qc-post.worker';
 import { setupJobSync } from './workers/job-sync';
 import { initDatabase, closeDatabase } from './db/prisma';
 import { ensureBuckets } from './common/minio';
@@ -84,6 +86,8 @@ async function startWorkers(): Promise<void> {
       new TranscodeWorker(),
       new AudioWorker(),
       new SubtitleWorker(),
+      new ProxyWorker(),
+      new QCPostWorker(),
     ];
 
     for (const worker of workers) {

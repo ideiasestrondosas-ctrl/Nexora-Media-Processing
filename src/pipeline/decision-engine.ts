@@ -53,10 +53,18 @@ interface ProfileConfig {
 // ── Configuração de perfis ────────────────────────────────────────
 
 const PROFILE_CONFIGS: Record<string, ProfileConfig> = {
-  'broadcast-hd': { isBroadcast: true,  targetLufs: -23, maxrateKbps: 10000 },
-  'ott-hd':       { isBroadcast: false, targetLufs: -16, maxrateKbps:  7000 },
-  'web-sd':       { isBroadcast: false, targetLufs: -16, maxrateKbps:  3000 },
-  'proxy':        { isBroadcast: false, targetLufs: -23, maxrateKbps:  1000 },
+  'broadcast-hd':        { isBroadcast: true,  targetLufs: -23, maxrateKbps: 10000 },
+  'broadcast-4k':        { isBroadcast: true,  targetLufs: -23, maxrateKbps: 25000 },
+  'ott-hd':              { isBroadcast: false, targetLufs: -16, maxrateKbps:  7000 },
+  'web-sd':              { isBroadcast: false, targetLufs: -16, maxrateKbps:  3000 },
+  'proxy':               { isBroadcast: false, targetLufs: -23, maxrateKbps:  1000 },
+  'archive-master':      { isBroadcast: false, targetLufs: -23, maxrateKbps: 15000 },
+  'hls-1080p':           { isBroadcast: false, targetLufs: -16, maxrateKbps:  8000 },
+  'hls-720p':            { isBroadcast: false, targetLufs: -16, maxrateKbps:  4000 },
+  'hls-480p':            { isBroadcast: false, targetLufs: -16, maxrateKbps:  2000 },
+  'social-media':        { isBroadcast: false, targetLufs: -14, maxrateKbps:  6000 },
+  'production-standard': { isBroadcast: false, targetLufs: -23, maxrateKbps: 12000 },
+  'quick-preview':       { isBroadcast: false, targetLufs: -23, maxrateKbps:   700 },
 };
 
 /** Formatos HDR — excluídos da regra 4 (não forçar yuv420p em HDR) */
@@ -136,6 +144,13 @@ export class NexoraDecisionEngine {
           `Regra 6: LUFS=${audio.integratedLufs} difere do target ${config.targetLufs} em ${lufsDeviation.toFixed(2)} LU > 1 LU`
         );
       }
+    }
+
+    // ── Regra 10: ScanType Interlaced → TRANSCODE (deinterlace obrigatório)
+    const scanType = (input as { video: { scanType?: string } }).video?.scanType;
+    if (scanType === 'Interlaced' || scanType === 'MBAFF') {
+      requiresVideoTranscode = true;
+      reasons.push(`Regra 10: Conteúdo interlaced (${scanType}) — deinterlace obrigatório antes do encode (ADR-006)`);
     }
 
     // ── Regra 7: Codec OK + GOP compliant + CFR + sem issues → COPY/REMUX

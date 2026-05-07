@@ -39,6 +39,18 @@ export interface VideoMetadata {
   transferCharacteristics: string;
   duration: number; // segundos
   hasFastStart: boolean; // moov atom antes de mdat
+  // Campos expandidos via MediaInfo
+  scanType?: 'Progressive' | 'Interlaced' | 'MBAFF' | 'UNKNOWN';
+  scanOrder?: 'TFF' | 'BFF' | 'UNKNOWN';
+  encodingLibrary?: string;
+  encodingSettings?: string;
+  hdrFormat?: string | null;
+  maxCLL?: number | null;
+  maxFALL?: number | null;
+  matrixCoefficients?: string;
+  colourRange?: 'Full' | 'Limited' | 'UNKNOWN';
+  refFrameCount?: number;
+  cabacEnabled?: boolean;
 }
 
 export interface AudioMetadata {
@@ -287,6 +299,64 @@ export const durationRule: VideoRule = (meta) => {
   };
 };
 
+/** Scan type: interlaced content deve ser deinterlaced antes do encode */
+export const scanTypeRule: VideoRule = (meta) => {
+  if (!meta.scanType || meta.scanType === 'UNKNOWN' || meta.scanType === 'Progressive') {
+    return { pass: true, severity: 'info', code: 'SCAN_TYPE_OK', detail: `Scan type: ${meta.scanType ?? 'Progressive'}` };
+  }
+  return {
+    pass: false,
+    severity: 'warning',
+    code: 'WARN_INTERLACED',
+    detail: `Conteúdo interlaced detectado (${meta.scanType}${meta.scanOrder && meta.scanOrder !== 'UNKNOWN' ? ', ' + meta.scanOrder : ''}) — requer deinterlace antes do encode`,
+    measuredValue: meta.scanType,
+    expectedValue: 'Progressive'
+  };
+};
+
+/** HDR consistency: se HDR Format presente mas sem MaxCLL/MaxFALL → aviso */
+export const hdrConsistencyRule: VideoRule = (meta) => {
+  if (!meta.hdrFormat) {
+    return { pass: true, severity: 'info', code: 'HDR_NA', detail: 'Conteúdo SDR (sem HDR metadata)' };
+  }
+  const hasMaxCLL = meta.maxCLL !== null && meta.maxCLL !== undefined;
+  const hasMaxFALL = meta.maxFALL !== null && meta.maxFALL !== undefined;
+  if (hasMaxCLL && hasMaxFALL) {
+    return { pass: true, severity: 'info', code: 'HDR_OK', detail: `HDR: ${meta.hdrFormat}, MaxCLL=${meta.maxCLL}, MaxFALL=${meta.maxFALL}` };
+  }
+  return {
+    pass: false,
+    severity: 'warning',
+    code: 'WARN_HDR_INCOMPLETE',
+    detail: `HDR Format presente (${meta.hdrFormat}) mas MaxCLL/MaxFALL em falta — metadata HDR incompleta`,
+    measuredValue: meta.hdrFormat,
+    expectedValue: 'HDR completo com MaxCLL e MaxFALL'
+  };
+};
+
+/** Colour range: Full range em conteúdo broadcast → aviso */
+export const colourRangeRule: VideoRule = (meta) => {
+  if (!meta.colourRange || meta.colourRange === 'UNKNOWN' || meta.colourRange === 'Limited') {
+    return { pass: true, severity: 'info', code: 'COLOUR_RANGE_OK', detail: `Colour range: ${meta.colourRange ?? 'Limited (assumido)'}` };
+  }
+  return {
+    pass: false,
+    severity: 'warning',
+    code: 'WARN_FULL_RANGE',
+    detail: 'Full colour range detectado — broadcast usa Limited range (16-235). Pode causar clipping em alguns destinos.',
+    measuredValue: meta.colourRange,
+    expectedValue: 'Limited'
+  };
+};
+
+/** Encoding library: info sobre a biblioteca que codificou o vídeo */
+export const encodingLibraryRule: VideoRule = (meta) => {
+  if (!meta.encodingLibrary) {
+    return { pass: true, severity: 'info', code: 'ENC_LIB_UNKNOWN', detail: 'Biblioteca de encoding não identificada' };
+  }
+  return { pass: true, severity: 'info', code: 'ENC_LIB_OK', detail: `Encoding library: ${meta.encodingLibrary}` };
+};
+
 // Seleccionar regras conforme o perfil
 function getVideoRules(profile: string): VideoRule[] {
   const base: VideoRule[] = [
@@ -296,13 +366,17 @@ function getVideoRules(profile: string): VideoRule[] {
     colorSpaceRule,
     resolutionRule,
     durationRule,
+    scanTypeRule,
+    hdrConsistencyRule,
+    encodingLibraryRule,
   ];
 
   const broadcastRules: VideoRule[] = [
     gopTypeRule,
     idrFramesRule,
     bFramesRule,
-    gopSizeRule(50), // será sobrescrito com fps real na implementação completa
+    gopSizeRule(50),
+    colourRangeRule,
   ];
 
   if (profile.includes('broadcast') || profile.includes('ott')) {

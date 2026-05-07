@@ -102,11 +102,12 @@ model Asset {
   updatedAt    DateTime    @updatedAt
 
   // Relações
-  jobs          Job[]
-  qcReports     QCReport[]
-  auditLogs     AuditLog[]
-  workflowRuns  WorkflowRun[]
+  jobs            Job[]
+  qcReports       QCReport[]
+  auditLogs       AuditLog[]
+  workflowRuns    WorkflowRun[]
   deliveryTargets AssetDeliveryTarget[]
+  mediaAnalyses   MediaAnalysis[]
 
   @@map("assets")
   @@index([status])
@@ -298,4 +299,73 @@ model RefreshToken {
   @@index([userId])
   @@index([expiresAt])
   @@index([revokedAt])
+}
+
+/// Análise MediaInfo estruturada de um asset (pré e pós encode).
+/// Guarda metadados técnicos detalhados e resultado comparativo before/after.
+model MediaAnalysis {
+  id      String @id @default(uuid())
+  assetId String
+  /// "PRE_ENCODE" | "POST_ENCODE"
+  phase   String
+
+  // ── Vídeo ─────────────────────────────────────────────────────
+  videoCodec              String?
+  videoProfile            String?
+  videoLevel              String?
+  width                   Int?
+  height                  Int?
+  frameRate               Float?
+  frameRateMode           String?   // "CFR" | "VFR"
+  scanType                String?   // "Progressive" | "Interlaced" | "MBAFF"
+  scanOrder               String?   // "TFF" | "BFF"
+  pixelFormat             String?
+  bitDepth                Int?
+  videoBitrate            Int?      // kbps
+  gopSize                 Int?
+  gopType                 String?   // "CLOSED" | "OPEN"
+  bFrameCount             Int?
+  colorSpace              String?
+  colorPrimaries          String?
+  transferCharacteristics String?
+  matrixCoefficients      String?
+  colourRange             String?   // "Full" | "Limited"
+  hdrFormat               String?
+  maxCLL                  Int?
+  maxFALL                 Int?
+  encodingLibrary         String?
+  encodingSettings        String?
+
+  // ── Áudio ─────────────────────────────────────────────────────
+  audioCodec        String?
+  audioSampleRate   Int?
+  audioBitDepth     Int?
+  audioChannels     Int?
+  audioChannelLayout String?
+  audioBitrate      Int?
+  audioLanguage     String?
+
+  // ── Container ─────────────────────────────────────────────────
+  containerFormat  String?
+  duration         Float?    // segundos
+  fileSize         BigInt?   // bytes
+  overallBitrate   Int?      // kbps
+  isStreamable     Boolean?  // Fast Start (moov atom no início)
+  hasTimecodeTrack Boolean?
+  encodedDate      String?
+
+  // ── Comparação (só para POST_ENCODE) ──────────────────────────
+  comparisonResult Json?     // MediaComparisonResult serializado
+
+  // ── Raw ───────────────────────────────────────────────────────
+  rawMediaInfo Json?         // Output completo do MediaInfo
+
+  createdAt DateTime @default(now())
+
+  asset Asset @relation(fields: [assetId], references: [id])
+
+  @@map("media_analyses")
+  @@index([assetId])
+  @@index([phase])
+  @@index([createdAt])
 }

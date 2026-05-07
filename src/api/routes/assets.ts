@@ -359,6 +359,9 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
           orderBy: { createdAt: 'desc' },
           take: 1, // QC report mais recente
         },
+        mediaAnalyses: {
+          orderBy: { createdAt: 'desc' },
+        },
         jobs: {
           orderBy: { createdAt: 'desc' },
           take: 20,
@@ -460,5 +463,57 @@ export async function assetsRoutes(fastify: FastifyInstance): Promise<void> {
     logger.info({ assetId: id }, 'Asset marcado como eliminado');
 
     return reply.status(204).send();
+  });
+
+  // ── GET /assets/:id/media-info — Análise Técnica Detalhada ──────
+
+  fastify.get<{ Params: { id: string } }>('/assets/:id/media-info', async (request, reply) => {
+    const { id } = getAssetSchema.parse(request.params);
+
+    const analyses = await prisma.mediaAnalysis.findMany({
+      where: { assetId: id },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (analyses.length === 0) {
+      return reply.status(404).send({
+        error: 'NOT_FOUND',
+        message: 'Nenhuma análise técnica encontrada para este asset'
+      });
+    }
+
+    return {
+      assetId: id,
+      count: analyses.length,
+      analyses: analyses.map(a => ({
+        ...a,
+        fileSize: a.fileSize?.toString() // Serializar BigInt
+      }))
+    };
+  });
+
+  // ── GET /assets/:id/media-comparison — Relatório de Comparação ──
+
+  fastify.get<{ Params: { id: string } }>('/assets/:id/media-comparison', async (request, reply) => {
+    const { id } = getAssetSchema.parse(request.params);
+
+    const postEncode = await prisma.mediaAnalysis.findFirst({
+      where: { assetId: id, phase: 'POST_ENCODE' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!postEncode || !postEncode.comparisonResult) {
+      return reply.status(404).send({
+        error: 'NOT_FOUND',
+        message: 'Relatório de comparação pós-encode não disponível'
+      });
+    }
+
+    return {
+      assetId: id,
+      phase: postEncode.phase,
+      comparison: postEncode.comparisonResult,
+      timestamp: postEncode.createdAt
+    };
   });
 }

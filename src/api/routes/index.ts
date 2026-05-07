@@ -19,6 +19,7 @@ import { settingsRoutes } from './settings';
 import { resetRoutes } from './reset';
 import { systemRoutes } from './system';
 import { logsRoutes } from './logs';
+import { presetsRoutes } from './presets';
 
 /**
  * Regista todas as rotas da API no Fastify.
@@ -34,6 +35,7 @@ export async function registerRoutes(fastify: FastifyInstance): Promise<void> {
   // ── Prompt 1 — Rotas base ────────────────────────────────────────
   await fastify.register(assetsRoutes,  { prefix });
   await fastify.register(jobsRoutes,    { prefix });
+  await fastify.register(presetsRoutes, { prefix });
 
   // ── Prompt 2 — Rotas adicionais ──────────────────────────────────
   await fastify.register(profilesRoutes,      { prefix });

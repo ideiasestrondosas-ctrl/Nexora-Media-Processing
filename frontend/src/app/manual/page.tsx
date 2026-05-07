@@ -16,12 +16,15 @@ import {
   CheckCircle2, 
   PlayCircle, 
   AlertCircle,
-  Database
+  Database,
+  Zap,
+  Activity,
+  Search
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function ManualPage() {
-  const [version, setVersion] = useState("1.1.0");
+  const [version, setVersion] = useState("0.0.0");
 
   useEffect(() => {
     api.get<{ version: string }>("/system/version")
@@ -91,37 +94,74 @@ export default function ManualPage() {
           </CardContent>
         </Card>
 
-        {/* Assets */}
+        {/* Assets & MediaInfo */}
         <Card>
           <CardHeader className="bg-muted/20 border-b">
             <CardTitle className="flex items-center gap-2">
               <Film className="h-5 w-5 text-indigo-500" />
-              Biblioteca de Assets
+              Biblioteca de Assets & Análise Técnica
             </CardTitle>
-            <CardDescription>Ciclo de vida e workflow dos ficheiros multimédia.</CardDescription>
+            <CardDescription>Gestão e análise profunda de metadados com MediaInfo.</CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 bg-background border rounded-lg text-center">
-                <div className="bg-blue-500/10 h-8 w-8 rounded-full flex items-center justify-center mx-auto mb-2 text-blue-500 font-bold">1</div>
-                <h5 className="text-sm font-bold mb-1">Ingest</h5>
-                <p className="text-xs text-muted-foreground">Análise de metadados e Checksum SHA-256.</p>
+            <p className="text-sm text-muted-foreground">
+              Cada ficheiro carregado é submetido a uma **Análise Técnica Avançada**. O Nexora integra o motor **MediaInfo Deep**, permitindo extrair:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-3 border rounded-lg bg-muted/10">
+                <h5 className="text-xs font-bold uppercase mb-2 flex items-center gap-2">
+                  <Search className="h-3 w-3 text-indigo-500" /> Metadados de Imagem
+                </h5>
+                <ul className="text-xs space-y-1 text-muted-foreground">
+                  <li>• Tipo de Scan (Progressive / Interlaced)</li>
+                  <li>• Estrutura de GOP (Open/Closed) e GOP Size</li>
+                  <li>• Formato HDR (HDR10, HLG, Dolby Vision)</li>
+                  <li>• Color Space e Colour Primaries</li>
+                </ul>
               </div>
-              <div className="p-4 bg-background border rounded-lg text-center">
-                <div className="bg-yellow-500/10 h-8 w-8 rounded-full flex items-center justify-center mx-auto mb-2 text-yellow-500 font-bold">2</div>
-                <h5 className="text-sm font-bold mb-1">QC</h5>
-                <p className="text-xs text-muted-foreground">Verificação de áudio (R128) e normas de vídeo.</p>
-              </div>
-              <div className="p-4 bg-background border rounded-lg text-center">
-                <div className="bg-green-500/10 h-8 w-8 rounded-full flex items-center justify-center mx-auto mb-2 text-green-500 font-bold">3</div>
-                <h5 className="text-sm font-bold mb-1">Delivery</h5>
-                <p className="text-xs text-muted-foreground">Transcodificação e disponibilização final.</p>
+              <div className="p-3 border rounded-lg bg-muted/10">
+                <h5 className="text-xs font-bold uppercase mb-2 flex items-center gap-2">
+                  <Activity className="h-3 w-3 text-indigo-500" /> Integridade do Ficheiro
+                </h5>
+                <ul className="text-xs space-y-1 text-muted-foreground">
+                  <li>• Checksum SHA-256 automático no Ingest</li>
+                  <li>• Validação de conformidade de Container</li>
+                  <li>• Deteção de Bit Depth (8-bit, 10-bit)</li>
+                  <li>• Verificação de Streamability (Fast Start)</li>
+                </ul>
               </div>
             </div>
-            <div className="bg-orange-500/5 border border-orange-500/20 p-4 rounded-xl flex gap-3">
-              <AlertCircle className="h-5 w-5 text-orange-500 shrink-0" />
-              <div className="text-sm">
-                <strong className="text-orange-500">Atenção à Quarentena:</strong> Se um asset estiver em <code>QC_QUARANTINED</code>, significa que foram detetados problemas técnicos. Verifique o relatório no detalhe do asset.
+          </CardContent>
+        </Card>
+
+        {/* Quality Control (QC) */}
+        <Card>
+          <CardHeader className="bg-muted/20 border-b">
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-yellow-500" />
+              Controlo de Qualidade (QC) Comparativo
+            </CardTitle>
+            <CardDescription>Verificação rigorosa pré e pós-transcodificação.</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              O workflow de QC do Nexora agora inclui **QC Pós-Encode Comparativo**, garantindo que o ficheiro de saída mantém a fidelidade em relação ao original.
+            </p>
+            <div className="bg-yellow-500/5 border border-yellow-500/20 p-4 rounded-xl">
+              <h5 className="text-sm font-bold mb-2">Métricas de Comparação:</h5>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                <div className="p-2 bg-background border rounded">
+                  <span className="font-bold block">Bitrate Ratio:</span>
+                  Eficiência da compressão.
+                </div>
+                <div className="p-2 bg-background border rounded">
+                  <span className="font-bold block">Duration Delta:</span>
+                  Sincronismo de frames.
+                </div>
+                <div className="p-2 bg-background border rounded">
+                  <span className="font-bold block">Audio Normalization:</span>
+                  Conformidade EBU R128.
+                </div>
               </div>
             </div>
           </CardContent>
@@ -156,24 +196,24 @@ export default function ManualPage() {
           </CardContent>
         </Card>
 
-        {/* Encoding */}
+        {/* Encoding & HandBrake */}
         <Card>
           <CardHeader className="bg-muted/20 border-b">
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5 text-emerald-500" />
-              Perfis de Encoding
+              Perfis de Encoding & HandBrake Professional
             </CardTitle>
-            <CardDescription>Configurações técnicas para garantir consistência na saída.</CardDescription>
+            <CardDescription>Otimização profissional via HandBrake Presets.</CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-4">
             <div className="flex flex-wrap gap-2 mb-4">
-              <div className="bg-blue-500/10 text-blue-500 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">H.264</div>
-              <div className="bg-blue-500/10 text-blue-500 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">ProRes</div>
-              <div className="bg-blue-500/10 text-blue-500 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">MXF</div>
-              <div className="bg-blue-500/10 text-blue-500 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">MP4</div>
+              <div className="bg-blue-500/10 text-blue-500 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">H.265/HEVC</div>
+              <div className="bg-blue-500/10 text-blue-500 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">Broadcast 4K</div>
+              <div className="bg-blue-500/10 text-blue-500 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">HLS Multi-Bitrate</div>
+              <div className="bg-blue-500/10 text-blue-500 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider">Archive Master</div>
             </div>
             <p className="text-sm text-muted-foreground">
-              Os perfis bloqueiam automaticamente combinações incompatíveis para evitar erros fatais durante o transcode.
+              O Nexora integra nativamente os presets do **HandBrake**, permitindo transcodificações otimizadas para diferentes janelas de exibição (OTT, Social Media, Broadcast).
             </p>
           </CardContent>
         </Card>
@@ -197,18 +237,18 @@ export default function ManualPage() {
                 </div>
                 <div className="flex gap-3 items-center">
                   <span className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold shrink-0">2</span>
-                  <span className="text-sm text-muted-foreground">Arraste o vídeo e escolha um perfil (ex: "Web HD").</span>
+                  <span className="text-sm text-muted-foreground">O sistema realiza o Checksum e Análise Técnica Deep automaticamente.</span>
                 </div>
                 <div className="flex gap-3 items-center">
                   <span className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold shrink-0">3</span>
-                  <span className="text-sm text-muted-foreground">Acompanhe o progresso no menu "Filas".</span>
+                  <span className="text-sm text-muted-foreground">Escolha um Perfil de Encoding (ex: Broadcast 4K) e aguarde o transcode e o QC Comparativo.</span>
                 </div>
               </div>
             </div>
 
             <div className="bg-red-500/5 border border-red-500/20 p-4 rounded-xl space-y-2">
               <h4 className="text-sm font-bold text-red-500 flex items-center gap-2"><AlertCircle className="h-4 w-4" /> Resolução de Falhas</h4>
-              <p className="text-xs text-muted-foreground">Se um vídeo falhar, verifique primeiro o formato original e o espaço em disco no Dashboard. O Nexora requer pelo menos 5% de espaço livre para iniciar novos trabalhos.</p>
+              <p className="text-xs text-muted-foreground">Consulte o **Relatório de QC** no detalhe do asset para identificar regressões de qualidade ou erros de compressão detetados pelo motor do sistema.</p>
             </div>
           </CardContent>
         </Card>

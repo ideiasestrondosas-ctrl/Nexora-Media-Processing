@@ -229,6 +229,13 @@ export interface QCJobPayload {
   profile?: string;
 }
 
+export interface QCPostJobPayload {
+  assetId: string;
+  profile: string;
+  outputMinioKey: string;
+  inputMinioKey: string;
+}
+
 export interface TranscodeJobPayload {
   assetId: string;
   profile: string;
@@ -321,6 +328,35 @@ export async function enqueueQC(
 }
 
 /**
+ * Adiciona um job de QC pós-encode à fila.
+ * Usa a mesma fila QC, mas nós podemos diferenciá-lo pelo nome do job se necessário, ou usar a fila QC_POST se existisse.
+ * Por agora vamos adicionar na fila QC com o nome 'qc-post'.
+ */
+export async function enqueueQCPost(
+  payload: QCPostJobPayload,
+  jobId?: string
+): Promise<string> {
+  const queues = getNexoraQueues();
+
+  const job = await queues.QC.add('qc-post', payload, { jobId });
+
+  if (job.id) {
+    await prisma.job.create({
+      data: {
+        id: job.id,
+        assetId: payload.assetId,
+        type: 'QC',
+        status: 'PENDING',
+        payload: payload as any
+      }
+    });
+  }
+
+  logger.info({ jobId: job.id, assetId: payload.assetId }, 'Job QC Post enfileirado');
+  return job.id ?? '';
+}
+
+/**
  * Adiciona um job de transcode à fila.
  */
 export async function enqueueTranscode(
@@ -371,6 +407,38 @@ export async function enqueueAudio(
   }
 
   logger.info({ jobId: job.id, assetId: payload.assetId }, 'Job áudio enfileirado');
+  return job.id ?? '';
+}
+
+/**
+ * Adiciona um job de proxy à fila.
+ */
+export async function enqueueProxy(
+  payload: ProxyJobPayload,
+  jobId?: string
+): Promise<string> {
+  const queues = getNexoraQueues();
+  const bullPriority = apiPriorityToBullMQ(3); // PROXY = priority 3
+
+  const job = await queues.PROXY.add('proxy', payload, {
+    jobId,
+    priority: bullPriority
+  });
+
+  if (job.id) {
+    await prisma.job.create({
+      data: {
+        id: job.id,
+        assetId: payload.assetId,
+        type: 'PROXY',
+        status: 'PENDING',
+        payload: payload as any,
+        priority: 3
+      }
+    });
+  }
+
+  logger.info({ jobId: job.id, assetId: payload.assetId }, 'Job Proxy enfileirado');
   return job.id ?? '';
 }
 

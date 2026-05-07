@@ -78,7 +78,7 @@ interface NexoraProfile {
   /** Profile H.264 */
   h264Profile: 'high' | 'main' | 'baseline';
   /** Level H.264 */
-  h264Level: '4.1' | '4.0' | '3.1';
+  h264Level: '4.1' | '4.0' | '3.1' | '3.0';
   /** Resolução: 'Original' ou 'WxH' */
   resolution?: string;
 }
@@ -155,6 +155,156 @@ const NEXORA_PROFILES: Record<string, NexoraProfile> = {
     audioSampleRate: 48000,
     h264Profile: 'main',
     h264Level: '3.1',
+  },
+  'broadcast-4k': {
+    name: 'Nexora Broadcast 4K',
+    videoBitrateK: 20000,
+    maxrateK: 25000,
+    bufsizeK: 50000,
+    gopSize: 50,
+    pixFmt: 'yuv420p',
+    cpuPreset: 'slow',
+    nvencPreset: 'p4',
+    bFrames: 0,
+    rateControlCpu: 'cbr',
+    rateControlGpu: 'cbr',
+    audioCodec: 'pcm_s24le',
+    audioBitrateK: 0,
+    audioSampleRate: 48000,
+    h264Profile: 'high',
+    h264Level: '4.1',
+    resolution: '3840x2160',
+  },
+  'archive-master': {
+    name: 'Nexora Archive Master',
+    videoBitrateK: 12000,
+    maxrateK: 15000,
+    bufsizeK: 30000,
+    gopSize: 50,
+    pixFmt: 'yuv420p',
+    cpuPreset: 'slow',
+    nvencPreset: 'p5',
+    bFrames: 2,
+    rateControlCpu: 'vbr',
+    rateControlGpu: 'vbr',
+    audioCodec: 'aac',
+    audioBitrateK: 320,
+    audioSampleRate: 48000,
+    h264Profile: 'high',
+    h264Level: '4.1',
+  },
+  'hls-1080p': {
+    name: 'Nexora HLS Adaptive 1080p',
+    videoBitrateK: 6000,
+    maxrateK: 8000,
+    bufsizeK: 16000,
+    gopSize: 48,
+    pixFmt: 'yuv420p',
+    cpuPreset: 'medium',
+    nvencPreset: 'p5',
+    bFrames: 2,
+    rateControlCpu: 'vbr',
+    rateControlGpu: 'vbr',
+    audioCodec: 'aac',
+    audioBitrateK: 192,
+    audioSampleRate: 48000,
+    h264Profile: 'high',
+    h264Level: '4.0',
+    resolution: '1920x1080',
+  },
+  'hls-720p': {
+    name: 'Nexora HLS Adaptive 720p',
+    videoBitrateK: 3000,
+    maxrateK: 4000,
+    bufsizeK: 8000,
+    gopSize: 48,
+    pixFmt: 'yuv420p',
+    cpuPreset: 'medium',
+    nvencPreset: 'p6',
+    bFrames: 2,
+    rateControlCpu: 'vbr',
+    rateControlGpu: 'vbr',
+    audioCodec: 'aac',
+    audioBitrateK: 128,
+    audioSampleRate: 48000,
+    h264Profile: 'main',
+    h264Level: '3.1',
+    resolution: '1280x720',
+  },
+  'hls-480p': {
+    name: 'Nexora HLS Adaptive 480p',
+    videoBitrateK: 1500,
+    maxrateK: 2000,
+    bufsizeK: 4000,
+    gopSize: 48,
+    pixFmt: 'yuv420p',
+    cpuPreset: 'medium',
+    nvencPreset: 'p6',
+    bFrames: 2,
+    rateControlCpu: 'vbr',
+    rateControlGpu: 'vbr',
+    audioCodec: 'aac',
+    audioBitrateK: 96,
+    audioSampleRate: 48000,
+    h264Profile: 'main',
+    h264Level: '3.0',
+    resolution: '854x480',
+  },
+  'social-media': {
+    name: 'Nexora Social Media',
+    videoBitrateK: 4000,
+    maxrateK: 6000,
+    bufsizeK: 12000,
+    gopSize: 60,
+    pixFmt: 'yuv420p',
+    cpuPreset: 'fast',
+    nvencPreset: 'p6',
+    bFrames: 2,
+    rateControlCpu: 'vbr',
+    rateControlGpu: 'vbr',
+    audioCodec: 'aac',
+    audioBitrateK: 192,
+    audioSampleRate: 48000,
+    h264Profile: 'high',
+    h264Level: '4.0',
+    resolution: '1080x1920',
+  },
+  'production-standard': {
+    name: 'Nexora Production Standard',
+    videoBitrateK: 10000,
+    maxrateK: 12000,
+    bufsizeK: 24000,
+    gopSize: 50,
+    pixFmt: 'yuv420p',
+    cpuPreset: 'slow',
+    nvencPreset: 'p4',
+    bFrames: 3,
+    rateControlCpu: 'vbr',
+    rateControlGpu: 'vbr',
+    audioCodec: 'aac',
+    audioBitrateK: 320,
+    audioSampleRate: 48000,
+    h264Profile: 'high',
+    h264Level: '4.1',
+  },
+  'quick-preview': {
+    name: 'Nexora Quick Preview',
+    videoBitrateK: 500,
+    maxrateK: 700,
+    bufsizeK: 1400,
+    gopSize: 30,
+    pixFmt: 'yuv420p',
+    cpuPreset: 'veryfast',
+    nvencPreset: 'p7',
+    bFrames: 0,
+    rateControlCpu: 'vbr',
+    rateControlGpu: 'vbr',
+    audioCodec: 'aac',
+    audioBitrateK: 64,
+    audioSampleRate: 48000,
+    h264Profile: 'main',
+    h264Level: '3.0',
+    resolution: '640x360',
   },
 };
 
@@ -413,6 +563,35 @@ export class NexoraFFmpegCommandBuilder {
 
     // Pass 1: apenas análise
     return `${base}:print_format=json`;
+  }
+
+  /**
+   * Constrói argumentos de filtros de vídeo para FFmpeg.
+   * Combina deinterlace, denoise e sharpen num único filtro complexo.
+   */
+  buildVideoFilters(
+    deinterlace?: 'off' | 'yadif' | 'decomb',
+    denoise?: 'off' | 'nlmeans' | 'hqdn3d',
+    sharpen?: 'off' | 'unsharp'
+  ): string[] {
+    const filters: string[] = [];
+
+    if (deinterlace && deinterlace !== 'off') {
+      // yadif=mode=1 → deinterlace field-based (preserva frame rate)
+      filters.push(deinterlace === 'yadif' ? 'yadif=mode=1' : 'yadif=mode=1');
+    }
+
+    if (denoise && denoise !== 'off') {
+      filters.push(denoise === 'nlmeans' ? 'nlmeans=s=1.0:p=3:r=7' : 'hqdn3d=3:3:6:6');
+    }
+
+    if (sharpen && sharpen !== 'off') {
+      // unsharp: lx ly la cx cy ca — suave para não introduzir artefactos
+      filters.push('unsharp=5:5:0.8:5:5:0.0');
+    }
+
+    if (filters.length === 0) return [];
+    return ['-vf', filters.join(',')];
   }
 
   /**

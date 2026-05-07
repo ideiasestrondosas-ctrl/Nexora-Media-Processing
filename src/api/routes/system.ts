@@ -358,7 +358,7 @@ export async function systemRoutes(fastify: FastifyInstance): Promise<void> {
 
     const [assets, jobs, users, profiles] = await Promise.all([
       prisma.asset.count(),
-      prisma.assetJob.count(),
+      prisma.job.count(),
       prisma.user.count(),
       prisma.encodingProfile.count(),
     ]);
@@ -414,7 +414,7 @@ export async function systemRoutes(fastify: FastifyInstance): Promise<void> {
       // 2. Limpar Database (Truncate assets/jobs mas manter config/utilizadores)
       if (database) {
         await prisma.$transaction([
-          prisma.assetJob.deleteMany({}),
+          prisma.job.deleteMany({}),
           prisma.asset.deleteMany({}),
         ]);
         results['database'] = { status: 'ok' };

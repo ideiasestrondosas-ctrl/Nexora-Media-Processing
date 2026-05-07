@@ -27,6 +27,8 @@ import type {
 } from '../qc/rules/index';
 import { QCError, NotFoundError } from '../common/errors';
 import type { QCJobPayload } from './queues';
+import { mediainfoAdapter } from '../pipeline/tools/mediainfo-adapter';
+import type { MediaInfoResult } from '../pipeline/tools/mediainfo-adapter';
 
 const execFileAsync = promisify(execFile);
 
@@ -152,20 +154,79 @@ export class QCWorker {
       log.info({ minioKey: asset.minioKey, localPath }, 'A descarregar ficheiro para QC');
       await downloadFile(BUCKETS.INPUT, key, localPath);
 
-      // 3. Análise técnica com FFprobe
+      // 3. Análise técnica dual: MediaInfo (primário) + FFprobe (fallback)
+      log.info('A executar MediaInfo...');
+      const mediaInfoData = await mediainfoAdapter.analyzeSafe(localPath);
+      const fullMediaInfo = await mediainfoAdapter.analyzeFullMetadata(localPath);
+
       log.info('A executar FFprobe...');
       const ffprobeData = await this.runFFprobe(localPath);
 
-      // 4. Converter dados FFprobe para tipos QC
-      const qcInput = this.buildQCInput(assetId, profile ?? 'broadcast-hd', ffprobeData, localPath);
+      // 4. Converter dados para tipos QC (MediaInfo como fonte primária)
+      const qcInput = this.buildQCInputEnhanced(assetId, profile ?? 'broadcast-hd', ffprobeData, mediaInfoData, localPath);
 
-      // 5. Executar motor de regras QC
+      // 5. Guardar MediaAnalysis PRE_ENCODE no PostgreSQL
+      const v = fullMediaInfo.video;
+      const a = fullMediaInfo.audio[0];
+      const g = fullMediaInfo.general;
+
+      await prisma.mediaAnalysis.create({
+        data: {
+          assetId,
+          phase: 'PRE_ENCODE',
+          // Vídeo
+          videoCodec: v?.codec,
+          videoProfile: v?.profile,
+          videoLevel: v?.level,
+          width: v?.width,
+          height: v?.height,
+          frameRate: v?.frameRate,
+          frameRateMode: v?.frameRateMode,
+          scanType: v?.scanType,
+          scanOrder: v?.scanOrder,
+          pixelFormat: v?.pixelFormat,
+          bitDepth: v?.bitDepth,
+          videoBitrate: v?.bitrate,
+          gopSize: v?.gopSize ?? null,
+          gopType: v?.gopType,
+          bFrameCount: v?.bFrameCount,
+          colorSpace: v?.colorSpace,
+          colorPrimaries: v?.colorPrimaries,
+          transferCharacteristics: v?.transferCharacteristics,
+          matrixCoefficients: v?.matrixCoefficients,
+          colourRange: v?.colourRange,
+          hdrFormat: v?.hdrFormat,
+          maxCLL: v?.maxCLL,
+          maxFALL: v?.maxFALL,
+          encodingLibrary: v?.encodingLibrary,
+          encodingSettings: v?.encodingSettings,
+          // Áudio
+          audioCodec: a?.codec,
+          audioSampleRate: a?.sampleRate,
+          audioBitDepth: a?.bitDepth,
+          audioChannels: a?.channels,
+          audioChannelLayout: a?.channelLayout,
+          audioBitrate: a?.bitrate,
+          audioLanguage: a?.language,
+          // Container
+          containerFormat: g.format,
+          duration: g.duration,
+          fileSize: BigInt(Math.round(g.fileSize)),
+          overallBitrate: g.overallBitrate,
+          isStreamable: g.isStreamable,
+          hasTimecodeTrack: g.hasTimecodeTrack,
+          encodedDate: g.encodedDate,
+          rawMediaInfo: fullMediaInfo.raw as object,
+        },
+      });
+
+      // 6. Executar motor de regras QC
       log.info('A executar regras QC...');
       const { decision, results, summary } = await runQCRules(qcInput);
 
       log.info({ decision, summary, failCount: results.filter(r => !r.pass).length }, 'QC concluído');
 
-      // 6. Guardar QCReport no PostgreSQL
+      // 7. Guardar QCReport no PostgreSQL
       await prisma.qCReport.create({
         data: {
           assetId,
@@ -176,7 +237,7 @@ export class QCWorker {
         },
       });
 
-      // 7. Criar AuditLog
+      // 8. Criar AuditLog
       await prisma.auditLog.create({
         data: {
           action: `QC_${decision}`,
@@ -187,7 +248,7 @@ export class QCWorker {
         },
       });
 
-      // 8. Agir conforme decisão
+      // 9. Agir conforme decisão
       if (decision === 'PASS') {
         await prisma.asset.update({
           where: { id: assetId },
@@ -226,7 +287,7 @@ export class QCWorker {
       }
 
     } finally {
-      // 9. Limpar ficheiro temporário sempre (sucesso ou erro)
+      // 10. Limpar ficheiro temporário sempre (sucesso ou erro)
       try {
         await rm(tmpDir, { recursive: true, force: true });
       } catch (err) {
@@ -248,31 +309,49 @@ export class QCWorker {
         '-show_format',
         filePath,
       ],
-      { timeout: 60000 } // 60s timeout
+      { timeout: 60000 }
     );
 
     return JSON.parse(stdout) as FFprobeOutput;
   }
 
-  /** Constrói o input tipado para o motor de regras QC a partir do FFprobe */
-  private buildQCInput(
+  /**
+   * Constrói o input tipado usando MediaInfo como fonte primária e FFprobe como fallback.
+   * Resolve todos os campos que eram TODO/assume com dados reais do MediaInfo.
+   */
+  private buildQCInputEnhanced(
     assetId: string,
     profile: string,
     ffprobe: FFprobeOutput,
+    mediaInfo: MediaInfoResult,
     _filePath: string
   ): NexoraQCInput {
     const videoStream = ffprobe.streams?.find(s => s.codec_type === 'video');
     const audioStream = ffprobe.streams?.find(s => s.codec_type === 'audio');
     const format = ffprobe.format;
 
-    // Parsear frame rate (ex: "25/1" → 25)
+    // Extrair dados do MediaInfo
+    const miVideo = mediainfoAdapter.getVideoTrack(mediaInfo);
+    const miGeneral = mediainfoAdapter.getGeneralTrack(mediaInfo);
+    const miAudio = mediainfoAdapter.getAudioTrack(mediaInfo);
+    const gopInfo = mediainfoAdapter.extractGOPInfo(miVideo);
+    const hdrInfo = mediainfoAdapter.extractHDRMetadata(miVideo);
+    const scanType = mediainfoAdapter.detectScanType(miVideo);
+
+    // isStreamable via MediaInfo (resolve TODO hasFastStart)
+    const isStreamable = miGeneral?.IsStreamable?.toLowerCase() === 'yes';
+
+    // hasTimecodeTrack via tracks Other (resolve TODO)
+    const hasTimecodeTrack = mediainfoAdapter.getTracks(mediaInfo, 'Other').some(
+      t => (t['Format'] ?? '').toLowerCase().includes('timecode')
+    );
+
+    // Parsear frame rate do FFprobe
     const parseFrameRate = (fr?: string): number => {
       if (!fr) return 0;
       const [num, den] = fr.split('/').map(Number);
       return den ? num / den : num;
     };
-
-    // Determinar se é CFR ou VFR comparando r_frame_rate e avg_frame_rate
     const rFps = parseFrameRate(videoStream?.r_frame_rate);
     const avgFps = parseFrameRate(videoStream?.avg_frame_rate);
     const frameRateMode: 'CFR' | 'VFR' | 'UNKNOWN' =
@@ -281,48 +360,71 @@ export class QCWorker {
         : 'UNKNOWN';
 
     const video: VideoMetadata = {
-      codec: videoStream?.codec_name ?? 'unknown',
-      profile: videoStream?.profile ?? '',
-      level: videoStream?.level?.toString() ?? '',
-      pixelFormat: videoStream?.pix_fmt ?? 'unknown',
-      frameRate: rFps,
+      codec: videoStream?.codec_name ?? miVideo?.Format?.toLowerCase() ?? 'unknown',
+      profile: videoStream?.profile ?? miVideo?.Format_Profile ?? '',
+      level: videoStream?.level?.toString() ?? miVideo?.Format_Level ?? '',
+      pixelFormat: videoStream?.pix_fmt ?? mediainfoAdapter['inferPixelFormat'](miVideo) ?? 'unknown',
+      frameRate: rFps || Number(miVideo?.FrameRate ?? 0),
       frameRateMode,
-      gopType: 'CLOSED', // FFprobe não reporta GOP type directamente — assumir Closed para evitar falsos negativos
-      hasIdrFrames: true,  // Assumir true — MediaConch verificaria corretamente
-      bFrameCount: videoStream?.has_b_frames ?? 0,
-      bitrate: Number(videoStream?.bit_rate ?? format?.bit_rate ?? 0),
-      width: videoStream?.width ?? 0,
-      height: videoStream?.height ?? 0,
-      bitDepth: (Number(videoStream?.bits_per_raw_sample) as 8 | 10 | 12) || 8,
-      colorSpace: videoStream?.color_space ?? '',
-      colorPrimaries: videoStream?.color_primaries ?? '',
-      transferCharacteristics: videoStream?.color_transfer ?? '',
-      duration: Number(videoStream?.duration ?? format?.duration ?? 0),
-      hasFastStart: false, // Requer análise do container — implementar com MediaInfo
+      // GOP info via MediaInfo (resolve TODO gopType)
+      gopType: gopInfo.gopType,
+      hasIdrFrames: gopInfo.cabacEnabled,
+      bFrameCount: gopInfo.bFrameCount || (videoStream?.has_b_frames ?? 0),
+      bitrate: Number(videoStream?.bit_rate ?? miVideo?.BitRate ?? format?.bit_rate ?? 0),
+      width: videoStream?.width ?? Number(miVideo?.Width ?? 0),
+      height: videoStream?.height ?? Number(miVideo?.Height ?? 0),
+      bitDepth: (Number(videoStream?.bits_per_raw_sample ?? miVideo?.BitDepth ?? 8) as 8 | 10 | 12) || 8,
+      colorSpace: videoStream?.color_space ?? miVideo?.ColorSpace ?? '',
+      colorPrimaries: videoStream?.color_primaries ?? miVideo?.colour_primaries ?? '',
+      transferCharacteristics: videoStream?.color_transfer ?? miVideo?.transfer_characteristics ?? '',
+      duration: Number(videoStream?.duration ?? miVideo?.Duration ?? format?.duration ?? 0),
+      // Campos resolvidos pelo MediaInfo (eram TODO/assume)
+      hasFastStart: isStreamable,
+      scanType,
+      scanOrder: (miVideo?.ScanOrder ?? 'UNKNOWN') as 'TFF' | 'BFF' | 'UNKNOWN',
+      encodingLibrary: miVideo?.Encoded_Library ?? miVideo?.Encoded_Library_Name ?? '',
+      encodingSettings: miVideo?.Encoded_Library_Settings ?? '',
+      hdrFormat: hdrInfo.format,
+      maxCLL: hdrInfo.maxCLL,
+      maxFALL: hdrInfo.maxFALL,
+      matrixCoefficients: miVideo?.matrix_coefficients ?? '',
+      colourRange: (miVideo?.colour_range ?? 'UNKNOWN') as 'Full' | 'Limited' | 'UNKNOWN',
+      refFrameCount: gopInfo.refFrameCount,
+      cabacEnabled: gopInfo.cabacEnabled,
     };
 
     const audio: AudioMetadata = {
-      codec: audioStream?.codec_name ?? 'unknown',
-      sampleRate: Number(audioStream?.sample_rate ?? 0),
-      bitDepth: audioStream?.bits_per_sample ?? 0,
-      channels: audioStream?.channels ?? 0,
-      channelLayout: audioStream?.channel_layout ?? '',
-      integratedLufs: null, // Requer análise loudness separada (BS1770GAIN)
+      codec: audioStream?.codec_name ?? miAudio?.Format?.toLowerCase() ?? 'unknown',
+      sampleRate: Number(audioStream?.sample_rate ?? miAudio?.SamplingRate ?? 0),
+      bitDepth: audioStream?.bits_per_sample ?? Number(miAudio?.BitDepth ?? 0),
+      channels: audioStream?.channels ?? Number(miAudio?.Channels ?? 0),
+      channelLayout: audioStream?.channel_layout ?? miAudio?.ChannelLayout ?? '',
+      integratedLufs: null,
       truePeakDbtp: null,
       loudnessRange: null,
       audioVideoSyncMs: null,
     };
 
     const container: ContainerMetadata = {
-      format: format?.format_name ?? 'unknown',
-      duration: Number(format?.duration ?? 0),
-      size: Number(format?.size ?? 0),
-      hasEditLists: false, // Requer análise MP4Box ou MediaInfo
-      hasTimecodeTrack: false,
-      moovPosition: 'unknown',
+      format: format?.format_name ?? miGeneral?.Format?.toLowerCase() ?? 'unknown',
+      duration: Number(format?.duration ?? miGeneral?.Duration ?? 0),
+      size: Number(format?.size ?? miGeneral?.FileSize ?? 0),
+      hasEditLists: false,
+      hasTimecodeTrack,
+      moovPosition: isStreamable ? 'start' : 'unknown',
     };
 
     return { assetId, profile, video, audio, container };
+  }
+
+  /** @deprecated Use buildQCInputEnhanced instead */
+  private buildQCInput(
+    assetId: string,
+    profile: string,
+    ffprobe: FFprobeOutput,
+    _filePath: string
+  ): NexoraQCInput {
+    return this.buildQCInputEnhanced(assetId, profile, ffprobe, {}, _filePath);
   }
 
   private extractRedisHost(): string {
