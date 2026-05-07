@@ -23,26 +23,43 @@ Este plano visa resolver os 5 pontos levantados no diagnóstico e pedido de melh
 
 ## Proposed Changes
 
-### Frontend - Interface e Experiência
+### Manual de Utilizador e Documentação (Página e Popup)
 
-#### [MODIFY] [login/page.tsx](file:///c:/Dev/Nexora%20Media%20Processing/frontend/src/app/login/page.tsx)
-- Modificar o botão de login para mostrar um spinner e o texto exato do estado. Garantir que fica completamente inativo (`disabled`) durante o request e que reverte para ativo se ocorrer erro, exibindo o respetivo feedback.
+#### [MODIFY] [ManualPage.tsx](file:///c:/Dev/Nexora%20Media%20Processing/frontend/src/app/manual/page.tsx)
+#### [MODIFY] [UserManualPopup.tsx](file:///c:/Dev/Nexora%20Media%20Processing/frontend/src/components/layout/UserManualPopup.tsx)
+#### [MODIFY] [manual_menus.md](file:///c:/Dev/Nexora%20Media%20Processing/docs/manual_menus.md)
+#### [MODIFY] [manual_utilizador.md](file:///c:/Dev/Nexora%20Media%20Processing/docs/manual_utilizador.md)
 
-#### [MODIFY] [manual/page.tsx](file:///c:/Dev/Nexora%20Media%20Processing/frontend/src/app/manual/page.tsx) e [UserManualPopup.tsx](file:///c:/Dev/Nexora%20Media%20Processing/frontend/src/components/layout/UserManualPopup.tsx)
-- Implementar a rotina de obter a versão atual do backend (idêntico ao que é feito no `settings/page.tsx`), utilizando um fallback para a versão estática em caso de erro.
-- Atualizar o conteúdo do manual para refletir novidades recentes do pipeline (ex: verificação de áudio, uso do bs1770gain, legendas).
+**Novas secções e detalhamento:**
 
-### Backend - Performance de Inicialização
+1.  **Perfis de Encoding (Detalhados)**:
+    - Listar todos os 11 perfis ativos (`NexoraProxyLowRes`, `NexoraWebOptimized1080p`, `NexoraBroadcast4K`, `NexoraArchiveMaster`, `NexoraHLS1080p`, `NexoraHLS720p`, `NexoraHLS480p`, `NexoraSocialMedia`, `Nexora4KHDR`, `NexoraHEVCEfficient1080p`, `NexoraQuickPreview`).
+    - Para cada perfil, incluir: **Codec**, **Resolução**, **Bitrate Médio**, **Uso Recomendado** e se suporta **Aceleração de Hardware**.
 
-#### [MODIFY] [index.ts](file:///c:/Dev/Nexora%20Media%20Processing/src/index.ts)
-- Otimizar a cadeia de inicialização (`start()`):
-  - Em vez de fazer `await initDatabase()`, `await ensureBuckets()`, `await initQueues()` sequencialmente se não forem interdependentes, ou pelo menos registar o tempo que cada etapa demora e introduzir `Promise.all` nas operações seguras de paralelizar.
-  - O `availability-checker` é executado na rota de health, mas verificar se existem inicializações pesadas e movê-las para *background* após o `app.listen()` para que a página de login responda de imediato (e o estado interno fique 'degraded' até as ferramentas estarem ativas).
+2.  **Expansão do HOW-TO**:
+    - **Cenário 1: Primeiro Upload**: Fluxo básico de ingestão.
+    - **Cenário 2: Diagnóstico de Erros**: Como ler os logs e aplicar correções automáticas do motor de diagnóstico.
+    - **Cenário 3: Aprovação de Quarentena**: Procedimento de QC manual para assets com VMAF abaixo do threshold.
+    - **Cenário 4: Configuração de Armazenamento**: Diferenças entre Disco Local e MinIO (Cloud).
+    - **Cenário 5: Gestão de RBAC**: Como atribuir roles (`VIEWER`, `OPERATOR`, `ADMIN`) a novos utilizadores.
+    - **Cenário 6: Aceleração GPU**: Como configurar os workers para usar NVENC/QuickSync.
+
+3.  **Guia de Scripts e Ferramentas CLI**:
+    - Criar uma nova secção dedicada a documentar todos os scripts do ecossistema:
+        - `nexora.ps1`: Gestor central de ambiente (comandos `start`, `stop`, `restart`, `status`, `logs`, `reset`).
+        - `executa_10_passos.ps1`: Script de instalação automatizada em 10 etapas.
+        - `nexora-mover-tudo.ps1`: Utilitário de organização de diretórios e migração de ficheiros.
+        - `scripts/sync-presets.ts`: Sincronização de presets HandBrake com a base de dados.
+        - `scripts/flush-queues.ts`: Comando de emergência para limpar filas BullMQ (Redis).
+        - `nexora_mover_node.js`: Lógica de movimentação inteligente de assets entre storage layers.
 
 ## Verification Plan
 
-### Testes Manuais
-1. Reiniciar o serviço e medir o tempo (utilizando logs) até a porta ficar em modo de escuta.
-2. Aceder ao ecrã de login e verificar a fluidez do bloqueio do botão durante o login.
-3. No ecrã Manual, verificar se a versão exibida reflete a versão real e as novas atualizações de conteúdo.
-4. No menu Logs, simular a injeção de um log com o objeto `diagnostic` e verificar se este renderiza no painel correspondente ("Diagnóstico Automático").
+### Automated Tests
+- Verificar via Playwright se as novas secções aparecem no DOM tanto na página como no popup.
+- Validar se todos os links internos da documentação estão funcionais.
+
+### Manual Verification
+- Confirmar visualmente se a tabela de perfis de encoding contém todos os 11 itens e se a formatação está legível.
+- Testar a navegação entre os novos cenários do HOW-TO no popup.
+- Validar se a explicação dos scripts é clara para um administrador de sistemas.

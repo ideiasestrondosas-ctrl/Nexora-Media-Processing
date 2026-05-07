@@ -16,6 +16,15 @@ import {
   PlayCircle,
   Terminal,
   Zap,
+  ListVideo,
+  Activity,
+  MousePointer2,
+  Code,
+  Cpu,
+  Layers,
+  HardDrive,
+  ShieldCheck,
+  RotateCcw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -197,106 +206,141 @@ const sections: Section[] = [
     ),
   },
   {
-    id: "encoding",
+    id: "profiles",
     icon: Settings,
-    title: "Perfis de Encoding",
+    title: "Perfis & HandBrake",
+    content: (
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          O Nexora utiliza o motor <strong>HandBrake</strong>. Abaixo estão os 11 perfis configurados.
+        </p>
+
+        <div className="grid gap-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+          {[
+            { name: "NexoraProxyLowRes", codec: "H.264", res: "720p", br: "800k", usage: "Preview" },
+            { name: "NexoraWebOptimized1080p", codec: "H.264", res: "1080p", br: "4M", usage: "Web" },
+            { name: "NexoraBroadcast4K", codec: "H.264", res: "4K", br: "25M", usage: "TV" },
+            { name: "NexoraArchiveMaster", codec: "H.264 10b", res: "Src", br: "50M", usage: "Arch" },
+            { name: "NexoraHLS1080p", codec: "H.264", res: "1080p", br: "6M", usage: "HLS" },
+            { name: "NexoraSocialMedia", codec: "H.264", res: "1:1", br: "2.5M", usage: "Social" },
+            { name: "Nexora4KHDR", codec: "H.265", res: "4K", br: "20M", usage: "HDR" },
+          ].map((p) => (
+            <div key={p.name} className="flex items-center gap-3 p-2 rounded border bg-muted/30 text-[11px]">
+              <div className="w-32 shrink-0 font-bold text-primary truncate">{p.name}</div>
+              <div className="flex-1 flex gap-2 text-muted-foreground">
+                <span>{p.codec}</span>
+                <span>{p.res}</span>
+              </div>
+              <div className="text-primary font-mono">{p.br}</div>
+            </div>
+          ))}
+          <p className="text-[10px] text-center text-muted-foreground italic">E mais 4 perfis especializados de HLS e HEVC...</p>
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "scripts",
+    icon: Code,
+    title: "Scripts & CLI",
+    content: (
+      <div className="space-y-4">
+        <div className="p-3 bg-slate-950 text-emerald-400 rounded-lg font-mono text-[10px] border border-white/10">
+          <p className="text-slate-500 mb-1"># Comandos Principais:</p>
+          <p><span className="text-white">.\nexora.ps1 start</span>   - Sobe sistema</p>
+          <p><span className="text-white">.\nexora.ps1 status</span>  - Dashboard CLI</p>
+          <p><span className="text-white">.\nexora.ps1 logs</span>    - Logs em real-time</p>
+          <p className="text-red-400 mt-2">.\nexora.ps1 reset   - Limpa TUDO</p>
+        </div>
+        <div className="grid gap-2">
+          <div className="p-2 border rounded bg-muted/20">
+            <span className="text-[11px] font-bold block">executa_10_passos.ps1</span>
+            <p className="text-[10px] text-muted-foreground">Script mestre de instalação e setup inicial.</p>
+          </div>
+          <div className="p-2 border rounded bg-muted/20">
+            <span className="text-[11px] font-bold block">scripts/sync-presets.ts</span>
+            <p className="text-[10px] text-muted-foreground">Sincroniza presets JSON com a base de dados.</p>
+          </div>
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: "queue",
+    icon: ListVideo,
+    title: "Filas (Queue)",
     content: (
       <div className="space-y-5">
         <p className="text-muted-foreground leading-relaxed">
-          Os perfis bloqueiam automaticamente combinações incompatíveis para evitar erros fatais durante o transcode.
+          Monitorização técnica do pipeline de processamento assíncrono (BullMQ).
         </p>
-
-        <div className="space-y-2">
-          {[
-            { name: "Broadcast HD", fmt: "MXF OP1a + H.264", bitrate: "8 Mbps", uso: "RTP, BBC, AS-11 UK DPP", color: "text-blue-500" },
-            { name: "OTT Premium", fmt: "CMAF + H.265", bitrate: "5 Mbps", uso: "Netflix, Amazon, Disney+", color: "text-indigo-500" },
-            { name: "Streaming Web", fmt: "MP4 + H.264", bitrate: "2 Mbps", uso: "YouTube, Web Players", color: "text-sky-500" },
-            { name: "Proxy", fmt: "MP4 480p", bitrate: "800 kbps", uso: "Revisão editorial rápida", color: "text-slate-400" },
-            { name: "Archive", fmt: "MXF + ProRes", bitrate: "Lossless", uso: "Arquivo profissional permanente", color: "text-emerald-500" },
-          ].map(p => (
-            <div key={p.name} className="flex items-center gap-3 p-2 rounded-lg border bg-muted/20">
-              <div className={cn("font-bold text-xs w-28 shrink-0", p.color)}>{p.name}</div>
-              <div className="text-xs text-muted-foreground flex-1">
-                <span className="font-mono">{p.fmt}</span> · {p.bitrate}
-              </div>
-              <div className="text-xs text-muted-foreground hidden sm:block">{p.uso}</div>
-            </div>
-          ))}
+        <div className="space-y-3">
+          <div className="p-3 border rounded-lg bg-muted/10">
+            <h4 className="text-xs font-bold uppercase mb-2">Progresso Real</h4>
+            <p className="text-xs text-muted-foreground">O sistema reporta a percentagem exata de transcode extraída dos metadados do FFmpeg em tempo real.</p>
+          </div>
+          <div className="p-3 border rounded-lg bg-muted/10">
+            <h4 className="text-xs font-bold uppercase mb-2">Gestão de Workers</h4>
+            <p className="text-xs text-muted-foreground">Visualize quais workers estão ocupados e a carga individual de cada processo.</p>
+          </div>
         </div>
-
-        <div className="space-y-2">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-primary">Standards de Qualidade</h3>
-          <ul className="space-y-1 text-xs text-muted-foreground">
-            <li className="flex gap-2"><ChevronRight className="h-3 w-3 text-primary shrink-0 mt-0.5" /><span><strong>ADR-004</strong> — yuv420p obrigatório em todos os outputs de distribuição</span></li>
-            <li className="flex gap-2"><ChevronRight className="h-3 w-3 text-primary shrink-0 mt-0.5" /><span><strong>ADR-005</strong> — Two-pass EBU R128 + BS1770GAIN verificação independente (precisão ±0.1 LU)</span></li>
-            <li className="flex gap-2"><ChevronRight className="h-3 w-3 text-primary shrink-0 mt-0.5" /><span><strong>ADR-006</strong> — Closed GOP + IDR frames em todos os outputs broadcast</span></li>
-            <li className="flex gap-2"><ChevronRight className="h-3 w-3 text-primary shrink-0 mt-0.5" /><span><strong>ADR-010</strong> — VMAF score calculado e guardado para todos os outputs</span></li>
+      </div>
+    ),
+  },
+  {
+    id: "diagnostics",
+    icon: Terminal,
+    title: "Logs & Diagnóstico",
+    content: (
+      <div className="space-y-5">
+        <p className="text-muted-foreground leading-relaxed">
+          O motor de diagnóstico analisa falhas de hardware e software automaticamente.
+        </p>
+        <div className="bg-purple-500/5 border border-purple-500/20 p-4 rounded-xl space-y-3">
+          <h4 className="text-sm font-bold text-purple-600 flex items-center gap-2">
+            <Activity className="h-4 w-4" /> Diagnóstico Inteligente
+          </h4>
+          <ul className="text-xs space-y-2 text-muted-foreground">
+            <li>• <strong>Detecção de NVENC:</strong> Verifica se a GPU está disponível antes de falhar o job.</li>
+            <li>• <strong>Proposta de Soluções:</strong> Botões de ação rápida nos logs para corrigir erros comuns.</li>
+            <li>• <strong>Monitorização de Temp:</strong> Alerta se a GPU exceder os 85ºC.</li>
           </ul>
         </div>
       </div>
     ),
   },
   {
-    id: "how-to",
+    id: "howto",
     icon: HelpCircle,
-    title: "Guias (HOW-TO)",
+    title: "Guias Práticos",
     content: (
-      <div className="space-y-5">
+      <div className="space-y-6 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
         <div className="space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-2">
-            <PlayCircle className="h-4 w-4" /> Processar o seu primeiro vídeo
-          </h3>
-          <div className="space-y-2 ml-2">
-            {[
-              "Vá a Assets e clique em \"Fazer Upload\".",
-              "Arraste o vídeo para a zona de drop (ou clique para seleccionar).",
-              "Escolha a estratégia de armazenamento (MinIO ou Disco Local).",
-              "Seleccione um perfil de encoding (ex: \"Streaming Web\").",
-              "Acompanhe o progresso no menu \"Filas\" em tempo real.",
-              "Quando concluir, o asset aparece em \"Assets\" com status COMPLETED.",
-            ].map((step, i) => (
-              <div key={i} className="flex gap-3 items-start">
-                <span className="h-5 w-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">{i + 1}</span>
-                <span className="text-sm text-muted-foreground">{step}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-2">
-            <Terminal className="h-4 w-4" /> Monitorizar Logs do Sistema
-          </h3>
-          <div className="space-y-2 ml-2 text-sm text-muted-foreground">
-            <p>1. Navegue para <strong>Logs do Sistema</strong> na sidebar.</p>
-            <p>2. Use os filtros de severidade: <code className="bg-muted px-1 rounded">ERROR</code>, <code className="bg-muted px-1 rounded">WARN</code>, <code className="bg-muted px-1 rounded">INFO</code>.</p>
-            <p>3. O motor de diagnóstico detecta padrões automaticamente e sugere correcções.</p>
-            <p>4. Clique em qualquer entrada de log para ver o contexto completo.</p>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-2">
-            <Zap className="h-4 w-4" /> Configurar Backup Automático
-          </h3>
-          <div className="space-y-2 ml-2 text-sm text-muted-foreground">
-            <p>1. Aceda a <strong>Definições</strong> → secção Sistema.</p>
-            <p>2. Clique em <strong>"Fazer Backup Agora"</strong> para criar um snapshot.</p>
-            <p>3. Os backups são rotacionados automaticamente (máx. 10 ficheiros / 30 dias).</p>
-            <p>4. Para restaurar, use <strong>"Restaurar Configurações"</strong> e seleccione um ficheiro JSON.</p>
-          </div>
-        </div>
-
-        <div className="bg-red-500/5 border border-red-500/20 p-3 rounded-lg space-y-1">
-          <h4 className="text-xs font-bold text-red-500 flex items-center gap-2">
-            <AlertCircle className="h-3 w-3" /> Resolução de Falhas
+          <h4 className="text-xs font-bold uppercase text-blue-500 flex items-center gap-2">
+            <UploadCloud className="h-3 w-3" /> Ingestão
           </h4>
-          <ul className="space-y-1 text-xs text-muted-foreground">
-            <li>• <strong>Jobs não iniciam</strong> → Verifique o espaço em disco no Dashboard (mínimo 5% livre).</li>
-            <li>• <strong>QC_QUARANTINED</strong> → Verifique o relatório MediaConch no detalhe do asset.</li>
-            <li>• <strong>GPU NVENC falha</strong> → O sistema faz fallback automático para CPU (libx264).</li>
-            <li>• <strong>Loudness desviado</strong> → O two-pass EBU R128 retenta automaticamente com offset ±0.5 LU.</li>
-          </ul>
+          <p className="text-[11px] text-muted-foreground">Upload em Assets → Escolher Perfil → Escolher Destino → Monitorizar em Filas.</p>
+        </div>
+
+        <div className="space-y-3 border-t pt-3">
+          <h4 className="text-xs font-bold uppercase text-purple-500 flex items-center gap-2">
+            <Activity className="h-3 w-3" /> Diagnóstico
+          </h4>
+          <p className="text-[11px] text-muted-foreground">Se falhar, ver Logs. Clique no ícone de diagnóstico para ver a sugestão de correção automática.</p>
+        </div>
+
+        <div className="space-y-3 border-t pt-3">
+          <h4 className="text-xs font-bold uppercase text-emerald-500 flex items-center gap-2">
+            <ShieldCheck className="h-3 w-3" /> Quarentena
+          </h4>
+          <p className="text-[11px] text-muted-foreground">Se o VMAF for baixo, o asset fica em Quarentena. Analise o relatório e use 'Aprovação Manual' se estiver satisfeito.</p>
+        </div>
+
+        <div className="space-y-3 border-t pt-3">
+          <h4 className="text-xs font-bold uppercase text-orange-500 flex items-center gap-2">
+            <RotateCcw className="h-3 w-3" /> Manutenção
+          </h4>
+          <p className="text-[11px] text-muted-foreground">Use <code className="bg-muted px-1">.\nexora.ps1 reset</code> para limpar o ambiente ou <code className="bg-muted px-1">npm run queue:flush</code> para limpar filas presas.</p>
         </div>
       </div>
     ),

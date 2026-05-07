@@ -47,23 +47,41 @@ A porta de entrada para novos conteúdos.
 Monitorização técnica da infraestrutura de processamento (BullMQ).
 
 - **Estado das Filas**: Monitorização das filas `INGEST`, `QC`, `TRANSCODE`, `AUDIO`, `PROXY`, `SUBTITLE` e `DELIVERY`.
-- **Barra de Progresso Real**: Mostra a percentagem exacta de cada trabalho em execução, extraída directamente dos workers em tempo real.
-- **Worker Status**: Lista de workers activos e a sua carga de trabalho actual.
+- **Barra de Progresso Real**: Mostra a percentagem exacta de cada trabalho em execução, extraída directamente dos workers em tempo real via metadados FFmpeg.
+- **Worker Status**: Lista de workers activos e a sua carga de trabalho actual, permitindo identificar gargalos de processamento.
+- **Retry & Recovery**: Opções para forçar o reinício de jobs pendentes ou bloqueados.
 
-## 5. Perfis de Encoding
-Gestão das definições técnicas de saída.
+## 5. Perfis de Encoding (HandBrake Professional)
+Gestão das definições técnicas de saída com motor HandBrake.
 
-- **Criação e Edição**: Definição de container (mp4, mxf), codecs de vídeo (h264, prores), codecs de áudio (aac, pcm) e bitrates.
-- **Perfis por Defeito**: Marcação de perfis prioritários que aparecem pré-selecionados no upload.
-- **Segurança**: Proteção contra a eliminação de perfis de sistema críticos.
+- **Interface Master-Detail**: Nova visualização que separa a lista de perfis do formulário de edição detalhado.
+- **Catálogo de 11 Perfis**: Presets optimizados para Web (H.264), Broadcast (4K), Arquivo (High10) e Social Media (1:1).
+- **HandBrake Presets Professional**: Integração nativa com presets JSON do HandBrake.
+- **Aceleração de Hardware**: Opções para ativar NVENC (NVIDIA) em todos os perfis compatíveis.
 
-## 6. Utilizadores
+## 6. Logs do Sistema e Diagnóstico
+Observabilidade profunda e inteligência operacional.
+
+- **Central de Logs**: Agregação de logs do Backend, Frontend e Workers.
+- **Motor de Diagnóstico Automático**: 
+    - Analisa falhas comuns (falta de espaço, erro de GPU, time-out de rede).
+    - Proporciona sugestões de correção diretamente na interface (botão "Ver Solução").
+    - Monitoriza a saúde térmica da GPU e utilização de recursos críticos.
+
+## 7. Scripts & CLI (Administração)
+Ferramentas de linha de comando para gestão de infraestrutura.
+
+- **Nexora CLI (`nexora.ps1`)**: O comando mestre para `start`, `stop`, `restart`, `status`, `logs` e `reset`.
+- **Instalação em 10 Passos**: Script automatizado para deploy rápido em novos servidores.
+- **Sincronização de Presets**: Script TS para injectar novos perfis JSON na base de dados de produção.
+- **Limpeza de Filas**: Utilitário para limpar o Redis (BullMQ) em situações de emergência.
+
+## 8. Utilizadores
 Controlo de acesso e segurança da plataforma.
 
 - **Gestão de Contas**: Listagem de todos os utilizadores com acesso ao sistema.
 - **Níveis de Acesso (Roles)**:
-    - `USER`: Acesso básico a assets e upload.
-    - `OPERATOR`: Acesso a monitorização de filas e perfis.
+    - `VIEWER`: Apenas leitura de assets e dashboards.
+    - `OPERATOR`: Permissão para upload e gestão de filas.
     - `ADMIN`: Controlo total, incluindo gestão de utilizadores e configurações globais.
-- **Alteração de Credenciais**: Interface dedicada para o utilizador actual alterar a sua própria password com validação de segurança.
-- **Configurações Globais (Apenas Admin)**: Secção para definir o caminho absoluto no servidor onde os assets de "Disco Local" serão armazenados (ex: `C:\NexoraStorage\assets`).
+- **Configurações Globais**: Definição de caminhos de armazenamento físico e políticas de retenção.

@@ -17,12 +17,11 @@ Este manual guia-o através da utilização diária da plataforma Nexora e forne
     - **Manter Original**: Ative se não quiser que o ficheiro de origem seja apagado após a conclusão.
     - Selecione o perfil de encoding.
     - Clique em **"Iniciar Upload"**.
-20. **Monitorização**: 
+21. **Monitorização**: 
     - No **Dashboard**, acompanhe a carga de CPU, Memória e utilização de GPU em tempo real.
     - No menu **Filas**, veja a barra de progresso real (percentagem) de cada trabalho activo.
-    - Quando terminar, o ficheiro aparecerá no menu **"Assets"** com uma **Thumbnail** (pré-visualização) gerada automaticamente.
-21. **Download/Verificação**: No detalhe do Asset, pode ver metadados técnicos formatados (Resolução, Framerate, Duração), reproduzir o vídeo com a Thumbnail como poster inicial, e descarregar o ficheiro original.
-22. **Áudio**: O sistema agora realiza normalização de áudio (EBU R128) automática se configurado no perfil.
+22. **Controlo de Qualidade (QC)**: Quando terminar, o ficheiro aparecerá em "Assets" com uma thumbnail. No detalhe, pode consultar o relatório comparativo VMAF/PSNR. Se o asset estiver em quarentena, deve aprová-lo manualmente.
+23. **Diagnóstico**: Se algo falhar, consulte o menu **Logs do Sistema** onde o motor de diagnóstico automático indicará o problema e a solução.
 
 ---
 
@@ -32,56 +31,79 @@ Este manual guia-o através da utilização diária da plataforma Nexora e forne
 A plataforma monitoriza continuamente os recursos do servidor:
 - **CPU e RAM**: Gráficos de histórico para detectar picos de carga.
 - **GPU (NVIDIA)**: Monitorização de temperatura, carga e memória de vídeo para processos de transcodificação acelerada.
-- **Armazenamento**: Estado de ocupação das pastas temporárias e de arquivo final.
+- **Armazenamento**: Estado de ocupação das pastas temporárias e de arquivo final. Bloqueio automático se o espaço for inferior a 5%.
 
-### Gestão de Filas
+### Gestão de Filas e Workers
 No menu "Filas", pode ver exactamente o que o sistema está a processar:
-- **Barra de Progresso**: Percentagem exacta baseada no tempo de transcodificação.
-- **Status Sincronizado**: Visibilidade imediata entre o que está no Redis (BullMQ) e na base de dados (PostgreSQL).
+- **Progresso Real**: Percentagem baseada no tempo total do vídeo fonte.
+- **Worker Status**: Lista de workers ativos e as tarefas específicas que cada um está a realizar.
+- **Retry Automático**: Jobs falhados por erros transitórios (ex: timeout de rede) são repetidos automaticamente 3 vezes.
+
+## 3. Perfis de Encoding (HandBrake)
+
+O sistema utiliza o motor HandBrake Professional. Abaixo estão os 11 perfis standard configurados:
+
+| Perfil | Codec | Resolução | Bitrate | Uso Recomendado |
+| :--- | :--- | :--- | :--- | :--- |
+| **NexoraProxyLowRes** | H.264 | 720p | 800 kbps | Revisão editorial rápida |
+| **NexoraWebOptimized1080p** | H.264 | 1080p | 4 Mbps | Distribuição Web Standard |
+| **NexoraBroadcast4K** | H.264 | 4K | 25 Mbps | Master para emissão TV |
+| **NexoraArchiveMaster** | H.264 High10 | Fonte | 50 Mbps | Arquivo de longo prazo |
+| **NexoraHLS1080p** | H.264 | 1080p | 6 Mbps | Streaming Adaptativo HD |
+| **NexoraHLS720p** | H.264 | 720p | 3 Mbps | Streaming Adaptativo SD |
+| **NexoraHLS480p** | H.264 | 480p | 1.5 Mbps | Streaming Mobile |
+| **NexoraSocialMedia** | H.264 | 1080x1080 | 2.5 Mbps | Social Media (1:1) |
+| **Nexora4KHDR** | H.265 10-bit | 4K | 20 Mbps | Premium HDR OTT |
+| **NexoraHEVCEfficient1080p** | H.265 | 1080p | 2.5 Mbps | Eficiência de Storage |
+| **NexoraQuickPreview** | H.264 Baseline | 360p | 500 kbps | Instant Preview |
 
 ---
 
-## 2. Resolução de Problemas (Troubleshooting)
+## 4. Resolução de Problemas (Troubleshooting)
 
-### Erro: "Falha no upload" ou "401 Unauthorized"
-- **Causa**: O token de autenticação expirou ou a sessão foi perdida.
-- **Solução**: Saia da aplicação (Logout) e volte a entrar. Certifique-se de que o backend está a correr.
+### Motor de Diagnóstico Automático
+O Nexora agora inclui um motor que analisa os logs e propõe soluções:
+- **Erro de GPU**: Se o encoder NVENC falhar por falta de recursos, o sistema sugere o fallback para CPU ou limpeza de processos fantasmas.
+- **Espaço em Disco**: Alerta proativo e sugestão de limpeza de logs/assets antigos.
+- **Conformidade QC**: Explica porque razão um ficheiro foi rejeitado (ex: "Bitrate abaixo do target").
 
-### Erro: "Caminho de armazenamento inválido" ou "Permissão Negada"
-- **Causa**: O caminho configurado pelo administrador não existe ou o processo do backend não tem permissões de escrita.
-- **Solução (Admin)**: Verifique se o caminho em "Utilizadores" é absoluto (ex: `C:\Nexora\Assets`) e se a pasta tem permissões totais para o utilizador que corre o Node.js.
-
-### Erro: "Ficheiro original desapareceu"
-- **Causa**: A opção "Manter Original" estava desligada durante o upload.
-- **Solução**: Ative sempre o toggle "Manter ficheiro original" se precisar de manter o Master no disco local ou MinIO.
-
-### O sistema parece bloqueado ou lento
-- **Causa**: Jobs pesados podem estar a saturar a fila.
-- **Solução**: Verifique o menu "Filas (Queue)". Se houver muitos jobs falhados, pode ser necessário limpar a fila usando a CLI.
+### Cenários Práticos (HOW-TO)
+1.  **Diagnóstico de Erros**: Se um job falhar, aceda a 'Logs'. Procure entradas a vermelho. O motor de diagnóstico injetará um botão de 'Ver Solução' se o erro for conhecido.
+2.  **Aprovação de Quarentena**: Se um asset ficar em 'QUARANTINED', clique no detalhe e analise o score VMAF. Se o vídeo parecer bom apesar do score baixo, use o botão 'Aprovação Manual'.
+3.  **Aceleração GPU**: Nos perfis, ative 'NVENC' para usar a GPU e reduzir o tempo de encode. Se a GPU falhar, o worker faz fallback automático para CPU.
+4.  **Gestão de RBAC**: Administradores podem atribuir roles 'VIEWER', 'OPERATOR' ou 'ADMIN' no menu de Utilizadores.
 
 ---
 
-## 3. Manutenção Via CLI (PowerShell)
+## 5. Manutenção Via CLI & Scripts
 
-Para administradores de sistema, a ferramenta `nexora.ps1` é essencial:
+Para administradores de sistema, as ferramentas CLI são essenciais para manter a estabilidade.
 
+### Nexora CLI (`nexora.ps1`)
 | Comando | Descrição |
 | :--- | :--- |
 | `.\nexora.ps1 status` | Verifica se o Backend, Frontend e Workers estão a correr. |
-| `.\nexora.ps1 stop` | Pára todos os processos de desenvolvimento. |
+| `.\nexora.ps1 stop` | Pára todos os processos e limpa PIDs. |
 | `.\nexora.ps1 start` | Inicia toda a infraestrutura e serviços. |
-| `.\nexora.ps1 logs backend` | Visualiza erros em tempo real do servidor API. |
-| `.\nexora.ps1 clean-db` | **Cuidado**: Limpa a base de dados (apaga todos os assets). |
+| `.\nexora.ps1 logs` | Stream centralizado de logs de todos os componentes. |
+| `.\nexora.ps1 restart` | Reinicia todos os serviços rapidamente. |
+| `.\nexora.ps1 reset` | **CUIDADO**: Limpa base de dados, volumes docker e ambiente. |
+
+### Outros Scripts Úteis
+- **executa_10_passos.ps1**: Workflow completo de instalação e setup automatizado.
+- **nexora-mover-tudo.ps1**: Utilitário de organização de diretórios e migração de ficheiros.
+- **scripts/sync-presets.ts**: Sincronização de presets HandBrake com a base de dados via `npm run presets:sync`.
+- **scripts/flush-queues.ts**: Comando de emergência para limpar filas BullMQ (Redis) via `npm run queue:flush`.
 
 ---
 
-## 4. FAQ (Perguntas Frequentes)
+## 6. FAQ (Perguntas Frequentes)
 
 **P: Qual o tamanho máximo de ficheiro suportado?**
 R: Por defeito, o sistema suporta até 50GB por ficheiro, dependendo do espaço livre no bucket MinIO.
 
 **P: Posso criar novos perfis de encoding?**
-R: Sim, no menu "Perfis de Encoding", clique em "Novo Perfil". Certifique-se de usar codecs compatíveis (h264, aac, etc.).
+R: Sim, no menu "Perfis de Encoding", clique em "Novo Perfil".
 
 **P: Onde ficam os ficheiros originais?**
-R: São guardados de forma segura no bucket `nexora-input` dentro do MinIO, organizados por ID de asset.
+R: São guardados de forma segura no bucket `nexora-input` dentro do MinIO.
