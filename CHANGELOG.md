@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## [1.1.12] - 2026-05-07
+
+### Added
+- feat: Plano de Sincronização e Melhoria do Manual Nexora
+
+
+
 ## [1.1.11] - 2026-05-07
 
 ### Added
@@ -93,6 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [1.1.6]: https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing/releases/tag/v1.1.6
 [1.0.0]: https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing/releases/tag/v1.0.0
 [0.1.0]: https://github.com/ideiasestrondosas-ctrl/Nexora-Media-Processing/compare/v0.1.0...v1.0.0
+
 
 
 
